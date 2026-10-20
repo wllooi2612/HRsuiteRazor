@@ -1,0 +1,338 @@
+@page "/leaves"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+
+<PageTitle>Leave Management - HRsuite</PageTitle>
+
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold mb-1">Leave Management</h2>
+            <p class="text-muted mb-0">Select, Apply (INSERT), and Approve (UPDATE) leaves via <code>/api/Leave</code> in Web API</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm" @onclick="LoadDataAsync">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+            <button class="btn btn-primary btn-sm" @onclick="() => showApplyModal = true">
+                <i class="bi bi-calendar-plus-fill me-1"></i> Apply for Leave
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle" : "bi-exclamation-triangle") me-2"></i>
+            @statusMessage
+            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Leave Balances -->
+    <div class="row g-3 mb-4">
+        @if (leaveTypes?.Count > 0)
+        {
+            @foreach (var lt in leaveTypes.Take(4))
+            {
+                <div class="col-sm-6 col-md-3">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <div class="text-muted small fw-semibold text-uppercase">@lt.Name</div>
+                            <div class="fs-4 fw-bold text-dark mt-1">@lt.Balance <span class="fs-6 fw-normal text-muted">days left</span></div>
+                            <div class="small text-muted mt-1">Entitled: @lt.Entitle | Taken: @lt.Taken</div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <!-- Leave Records Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-semibold">Leave Applications &amp; History</h5>
+            <span class="badge bg-primary rounded-pill">Total: @(leaves?.Count ?? 0)</span>
+        </div>
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2">Loading leaves from Web API...</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Leave No</th>
+                                <th>Employee</th>
+                                <th>Type</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Days</th>
+                                <th>Status</th>
+                                <th>Reason</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (leaves?.Count > 0)
+                            {
+                                @foreach (var l in leaves)
+                                {
+                                    <tr>
+                                        <td><code>@l.LeaveNo</code></td>
+                                        <td><span class="badge bg-light text-dark border">@l.Emp_ID</span> @l.EmpName</td>
+                                        <td><span class="badge bg-primary-subtle text-primary">@l.Leave_Type</span></td>
+                                        <td>@l.Leave_Date_From.ToString("yyyy-MM-dd")</td>
+                                        <td>@l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
+                                        <td><strong>@l.TotalDays</strong></td>
+                                        <td>
+                                            @if (l.Leave_Status == "APPROVE")
+                                            {
+                                                <span class="badge bg-success-subtle text-success">Approved</span>
+                                            }
+                                            else if (l.Leave_Status == "REJECT")
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger">Rejected</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning">Pending</span>
+                                            }
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)</td>
+                                        <td class="text-end">
+                                            @if (l.Leave_Status != "APPROVE" && l.Leave_Status != "REJECT")
+                                            {
+                                                <div class="btn-group btn-group-sm">
+                                                    <button class="btn btn-outline-success py-0 px-2" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "APPROVE")'>
+                                                        Approve
+                                                    </button>
+                                                    <button class="btn btn-outline-danger py-0 px-2" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "REJECT")'>
+                                                        Reject
+                                                    </button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted small">Processed</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="9" class="text-center py-4 text-muted">No leave records found.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Apply Leave Modal -->
+@if (showApplyModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Apply for Leave (INSERT via Web API)</h5>
+                    <button type="button" class="btn-close" @onclick="() => showApplyModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Employee ID</label>
+                            <input class="form-control form-control-sm" @bind="applyEmpId" placeholder="e.g. 00001" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Leave Type</label>
+                            <select class="form-select form-select-sm" @bind="applyLeaveCode">
+                                @if (leaveTypes?.Count > 0)
+                                {
+                                    @foreach (var lt in leaveTypes)
+                                    {
+                                        <option value="@lt.Code">@lt.Name (@lt.Code)</option>
+                                    }
+                                }
+                                else
+                                {
+                                    <option value="AL">Annual Leave (AL)</option>
+                                    <option value="MC">Medical Leave (MC)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Date From</label>
+                            <input type="date" class="form-control form-control-sm" @bind="applyDateFrom" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Date To</label>
+                            <input type="date" class="form-control form-control-sm" @bind="applyDateTo" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Total Days</label>
+                            <input type="number" step="0.5" class="form-control form-control-sm" @bind="applyDays" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Day Type</label>
+                            <select class="form-select form-select-sm" @bind="applyDayType">
+                                <option value="FULL">Full Day</option>
+                                <option value="FIRST_HALF">First Half</option>
+                                <option value="SECOND_HALF">Second Half</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label small text-muted">Reason</label>
+                            <textarea class="form-control form-control-sm" rows="3" @bind="applyReason" placeholder="Reason for leave..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => showApplyModal = false">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" @onclick="SubmitLeaveApplicationAsync" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Submitting via Web API...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-send-fill me-1"></i>
+                            <span>Submit Application (INSERT)</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<LeaveRequest>? leaves;
+    private List<LeaveType>? leaveTypes;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private bool showApplyModal = false;
+    private string? statusMessage;
+    private bool isSuccess;
+
+    // Apply leave form fields
+    private string applyEmpId = "00001";
+    private string applyLeaveCode = "AL";
+    private DateTime applyDateFrom = DateTime.Today.AddDays(1);
+    private DateTime applyDateTo = DateTime.Today.AddDays(1);
+    private decimal applyDays = 1.0m;
+    private string applyDayType = "FULL";
+    private string applyReason = "Personal matter";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            leaves = await ApiClient.GetLeavesAsync();
+            leaveTypes = await ApiClient.GetLeaveTypesAsync("00001");
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error loading leaves: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SubmitLeaveApplicationAsync()
+    {
+        isSubmitting = true;
+        try
+        {
+            var model = new LeaveApplyModel
+            {
+                EmpId = applyEmpId,
+                LeaveCode = applyLeaveCode,
+                DateFrom = applyDateFrom,
+                DateTo = applyDateTo,
+                Days = applyDays,
+                DayType = applyDayType,
+                Reason = applyReason
+            };
+
+            bool ok = await ApiClient.ApplyLeaveAsync(model);
+            if (ok)
+            {
+                statusMessage = $"Leave application successfully submitted and recorded in MySQL via Web API!";
+                isSuccess = true;
+                showApplyModal = false;
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = "Web API returned failure while applying leave.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error applying leave: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task ProcessApprovalAsync(string leaveNo, string empId, string action)
+    {
+        try
+        {
+            var model = new ApproveActionModel
+            {
+                LeaveNo = leaveNo,
+                EmpId = empId,
+                Action = action,
+                Remarks = $"Actioned via HRsuiteRazor Web API ({action})",
+                SupervisorId = "Admin"
+            };
+
+            bool ok = await ApiClient.ApproveLeaveAsync(model);
+            if (ok)
+            {
+                statusMessage = $"Leave #{leaveNo} has been {action}D successfully in MySQL via Web API!";
+                isSuccess = true;
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = $"Failed to {action} leave via Web API.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error processing approval: {ex.Message}";
+            isSuccess = false;
+        }
+    }
+}

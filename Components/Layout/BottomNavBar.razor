@@ -1,0 +1,88 @@
+@inject NavigationManager NavManager
+
+<div class="mobile-bottom-nav">
+    <NavLink class="bottom-nav-item" href="" Match="NavLinkMatch.All">
+        <i class="bi bi-house-door-fill nav-icon"></i>
+        <span class="nav-label">Main</span>
+    </NavLink>
+
+    <NavLink class="bottom-nav-item" href="leaves">
+        <i class="bi bi-calendar2-check-fill nav-icon"></i>
+        <span class="nav-label">Leave</span>
+    </NavLink>
+
+    <NavLink class="bottom-nav-item" href="staff">
+        <i class="bi bi-person-badge-fill nav-icon"></i>
+        <span class="nav-label">Staff</span>
+    </NavLink>
+
+    <NavLink class="bottom-nav-item" href="overtime">
+        <i class="bi bi-clock-history nav-icon"></i>
+        <span class="nav-label">OT</span>
+    </NavLink>
+
+    <NavLink class="bottom-nav-item" href="admin">
+        <i class="bi bi-person-fill-gear nav-icon"></i>
+        <span class="nav-label">Admin</span>
+    </NavLink>
+</div>
+
+<style>
+    .mobile-bottom-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 62px;
+        background: #ffffff;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        z-index: 1040;
+        box-shadow: 0 -3px 12px rgba(15, 23, 42, 0.05);
+        padding: 0 6px;
+    }
+
+    .bottom-nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        color: #64748b;
+        padding: 5px 12px;
+        border-radius: 12px;
+        transition: all 0.18s ease-in-out;
+        min-width: 56px;
+    }
+
+    .bottom-nav-item .nav-icon {
+        font-size: 20px;
+        line-height: 1;
+        margin-bottom: 3px;
+        transition: transform 0.15s ease, color 0.15s ease;
+    }
+
+    .bottom-nav-item .nav-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: -0.1px;
+    }
+
+    .bottom-nav-item:hover {
+        color: #334155;
+        background-color: #f8fafc;
+    }
+
+    .bottom-nav-item.active {
+        color: #1e3a8a; /* Professional Corporate Navy Blue */
+        background-color: #eff6ff;
+        font-weight: 700;
+    }
+
+    .bottom-nav-item.active .nav-icon {
+        color: #2563eb;
+        transform: translateY(-1px);
+    }
+</style>

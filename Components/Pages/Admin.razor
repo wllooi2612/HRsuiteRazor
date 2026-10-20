@@ -1,0 +1,737 @@
+@page "/admin"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+
+<PageTitle>Admin - HRsuite</PageTitle>
+
+<div class="admin-mobile-container">
+    <!-- Top Action Tile Grid (Transparent Border & Exact Match) -->
+    <div class="admin-grid-wrapper mb-3">
+        <div class="admin-grid">
+            <!-- Row 1: Green Tiles -->
+            <button class="admin-tile tile-green @(activeTab == "general" ? "active" : "")" @onclick='() => ToggleTab("general")' title="General Settings">
+                <div class="icon-circle">
+                    <img src="img/icon/General.png" alt="General" />
+                </div>
+                <span class="tile-label">General</span>
+            </button>
+
+            <button class="admin-tile tile-green" @onclick='() => NavManager.NavigateTo("admin/users?action=new")' title="Add New User QDE">
+                <div class="icon-circle">
+                    <img src="img/icon/AddNewUserQDE.png" alt="Add New User QDE" />
+                </div>
+                <span class="tile-label">Add<br />New User QDE</span>
+            </button>
+
+            <!-- Row 1: Red Tiles -->
+            <button class="admin-tile tile-red" @onclick='() => NavManager.NavigateTo("admin/users")' title="User Manage">
+                <div class="icon-circle">
+                    <img src="img/icon/UserManage.png" alt="User Manage" />
+                </div>
+                <span class="tile-label">User<br />Manage</span>
+            </button>
+
+            <button class="admin-tile tile-red @(activeTab == "group_setup" ? "active" : "")" @onclick='() => ToggleTab("group_setup")' title="Group Setup">
+                <div class="icon-circle">
+                    <img src="img/icon/GroupSetup.png" alt="Group Setup" />
+                </div>
+                <span class="tile-label">Group<br />Setup</span>
+            </button>
+
+            <!-- Row 2: Orange Tiles -->
+            <button class="admin-tile tile-orange @(activeTab == "group_page_setup" ? "active" : "")" @onclick='() => ToggleTab("group_page_setup")' title="Group Page Setup">
+                <div class="icon-circle">
+                    <img src="img/icon/GroupPageSetup.png" alt="Group Page Setup" />
+                </div>
+                <span class="tile-label">Group<br />Page Setup</span>
+            </button>
+
+            <button class="admin-tile tile-orange @(activeTab == "log_report" ? "active" : "")" @onclick='() => ToggleTab("log_report")' title="Log File Report">
+                <div class="icon-circle">
+                    <img src="img/icon/LogViewer.png" alt="Log File Report" />
+                </div>
+                <span class="tile-label">Log<br />File Report</span>
+            </button>
+
+            <!-- Empty slots with transparent background -->
+            <div class="tile-spacer"></div>
+            <div class="tile-spacer"></div>
+        </div>
+    </div>
+
+    <!-- Active Section Notification / Toast -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(statusSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm" role="alert">
+            <i class="bi @(statusSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") fs-5"></i>
+            <div>@statusMessage</div>
+            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- SECTION DETAIL PANELS (Displayed when a button is tapped) -->
+
+    <!-- 1. GENERAL PANEL -->
+    @if (activeTab == "general")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in">
+            <div class="card-header bg-success text-white py-2 px-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-gear-fill"></i>
+                    <h6 class="mb-0 fw-bold">General Administration</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2" @onclick='() => activeTab = null'>Close</button>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-database me-2 text-success"></i>MySQL Database</h6>
+                            <p class="small text-muted mb-2">Host: <code>localhost:3309</code> &bull; Schema: <code>myhrsuitelog</code></p>
+                            <span class="badge bg-success-subtle text-success border border-success px-2 py-1">
+                                <i class="bi bi-check-circle me-1"></i> 57 Tables Active (8,727 Rows)
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-hdd-network me-2 text-primary"></i>Web API Service</h6>
+                            <p class="small text-muted mb-2">Endpoint: <code>http://localhost:5145/api/Admin</code></p>
+                            <span class="badge bg-info-subtle text-info border border-info px-2 py-1">
+                                <i class="bi bi-broadcast me-1"></i> Fully Decoupled
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 2. ADD NEW USER QDE PANEL -->
+    @if (activeTab == "new_user")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in">
+            <div class="card-header bg-success text-white py-2 px-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-person-plus-fill"></i>
+                    <h6 class="mb-0 fw-bold">Add New User QDE (Quick Data Entry)</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2" @onclick='() => activeTab = null'>Close</button>
+            </div>
+            <div class="card-body p-3">
+                <p class="text-muted small mb-3">Create a new user directly in MySQL <code>aspnet_users</code> via Web API.</p>
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-bold">User ID (Login Name) <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" placeholder="e.g. USER001" @bind="newUser.ID" />
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-bold">Full Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" placeholder="e.g. John Doe" @bind="newUser.Name" />
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-bold">Email Address</label>
+                        <input type="email" class="form-control form-control-sm" placeholder="john@example.com" @bind="newUser.Email" />
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-bold">Employee ID</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="e.g. 00020" @bind="newUser.EmpId" />
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-bold">User Group</label>
+                        <select class="form-select form-select-sm" @bind="newUser.UserGroupID">
+                            <option value="STAFF">STAFF</option>
+                            <option value="SUPERVISOR">SUPERVISOR</option>
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="HR">HR</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-bold">Password</label>
+                        <input type="password" class="form-control form-control-sm" placeholder="Default: 123456" @bind="newUser.Password" />
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-4 pt-2 border-top">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ResetNewUserForm">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+                    </button>
+                    <button class="btn btn-sm btn-success px-4" @onclick="CreateUserAsync" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle-fill me-1"></i>
+                            <span>Save User QDE</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 3. USER MANAGE PANEL -->
+    @if (activeTab == "user_manage")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in">
+            <div class="card-header bg-danger text-white py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-people-fill"></i>
+                    <h6 class="mb-0 fw-bold">User Management (aspnet_users via Web API)</h6>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-light py-0 px-2 fw-semibold" @onclick="LoadUsersAsync">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                    </button>
+                    <button class="btn btn-sm btn-outline-light py-0 px-2" @onclick='() => activeTab = null'>Close</button>
+                </div>
+            </div>
+            <div class="card-body p-3">
+                <div class="mb-3">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" class="form-control" placeholder="Search user by ID, name, or email..." @bind="userSearchText" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                @if (isLoadingUsers)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-danger spinner-border-sm" role="status"></div>
+                        <span class="text-muted ms-2 small">Loading users from Web API...</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive" style="max-height: 480px;">
+                        <table class="table table-hover table-sm align-middle small mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>User ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Group</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var u in FilteredUsers)
+                                {
+                                    <tr>
+                                        <td><span class="badge bg-secondary font-monospace">@u.ID</span></td>
+                                        <td class="fw-semibold">@u.Name</td>
+                                        <td class="text-muted">@(string.IsNullOrEmpty(u.Email) ? "-" : u.Email)</td>
+                                        <td>
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                                @(string.IsNullOrEmpty(u.UserGroupID) ? "STAFF" : u.UserGroupID)
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if (u.IsActive == "Y")
+                                            {
+                                                <span class="badge bg-success">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger">Inactive</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted small mt-2 d-flex justify-content-between">
+                        <span>Showing @FilteredUsers.Count of @usersList.Count users</span>
+                        <span>Source: MySQL aspnet_users</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- 4. GROUP SETUP PANEL -->
+    @if (activeTab == "group_setup")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in">
+            <div class="card-header bg-danger text-white py-2 px-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-diagram-3-fill"></i>
+                    <h6 class="mb-0 fw-bold">User Groups Setup (aspnet_usergroup)</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2" @onclick='() => activeTab = null'>Close</button>
+            </div>
+            <div class="card-body p-3">
+                <p class="text-muted small mb-3">Roles and permission tiers defined in MySQL <code>aspnet_usergroup</code>.</p>
+
+                @if (isLoadingGroups)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-danger spinner-border-sm" role="status"></div>
+                        <span class="text-muted ms-2 small">Loading groups...</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle small mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>User Group ID</th>
+                                    <th>Group Code</th>
+                                    <th>Group Name</th>
+                                    <th>Approval Level</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var g in groupsList)
+                                {
+                                    <tr>
+                                        <td><span class="badge bg-dark font-monospace">@g.UserGroupID</span></td>
+                                        <td class="fw-semibold">@g.GroupID</td>
+                                        <td>@g.UserGroup</td>
+                                        <td>
+                                            <span class="badge bg-info-subtle text-info border">
+                                                Level @(string.IsNullOrEmpty(g.ApprovalLevel) ? "1" : g.ApprovalLevel)
+                                            </span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- 5. GROUP PAGE SETUP PANEL -->
+    @if (activeTab == "group_page_setup")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in">
+            <div class="card-header bg-warning text-dark py-2 px-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-lock2-fill"></i>
+                    <h6 class="mb-0 fw-bold">Group Page Setup (aspnet_masterfile)</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-dark py-0 px-2" @onclick='() => activeTab = null'>Close</button>
+            </div>
+            <div class="card-body p-3">
+                <p class="text-muted small mb-3">Masterfile forms and menu navigation items mapped per module group.</p>
+
+                @if (isLoadingMasterfiles)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-warning spinner-border-sm" role="status"></div>
+                        <span class="text-muted ms-2 small">Loading masterfiles from MySQL...</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive" style="max-height: 400px;">
+                        <table class="table table-hover table-sm align-middle small mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Form ID</th>
+                                    <th>Group ID</th>
+                                    <th>Page Name</th>
+                                    <th>Path</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var mf in masterfileList)
+                                {
+                                    <tr>
+                                        <td><span class="badge bg-secondary">@(mf.ContainsKey("FormID") ? mf["FormID"] : "")</span></td>
+                                        <td><span class="badge bg-primary">@(mf.ContainsKey("GroupID") ? mf["GroupID"] : "")</span></td>
+                                        <td class="fw-semibold">@(mf.ContainsKey("Name") ? mf["Name"] : "")</td>
+                                        <td class="text-muted font-monospace small">@(mf.ContainsKey("Link_Path") ? mf["Link_Path"] : "")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- 6. LOG FILE REPORT PANEL -->
+    @if (activeTab == "log_report")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in">
+            <div class="card-header bg-warning text-dark py-2 px-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-text-fill"></i>
+                    <h6 class="mb-0 fw-bold">Log File Report (MySQL log Table)</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-dark py-0 px-2" @onclick='() => activeTab = null'>Close</button>
+            </div>
+            <div class="card-body p-3">
+                <p class="text-muted small mb-3">Live system events, audits, and exceptions recorded in database table <code>log</code>.</p>
+
+                @if (isLoadingLogs)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-warning spinner-border-sm" role="status"></div>
+                        <span class="text-muted ms-2 small">Loading audit logs from Web API...</span>
+                    </div>
+                }
+                else if (logsList.Count == 0)
+                {
+                    <div class="alert alert-light border text-center py-4 text-muted small">
+                        <i class="bi bi-check-circle fs-3 text-success d-block mb-2"></i>
+                        No active error or warning logs recorded in <code>log</code> table.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive" style="max-height: 400px;">
+                        <table class="table table-hover table-sm align-middle small mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Timestamp</th>
+                                    <th>Level</th>
+                                    <th>User</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var l in logsList)
+                                {
+                                    <tr>
+                                        <td><span class="badge bg-secondary font-monospace">@(l.ContainsKey("Id") ? l["Id"] : "")</span></td>
+                                        <td class="text-muted">@(l.ContainsKey("Date") ? l["Date"] : "")</td>
+                                        <td>
+                                            @{
+                                                string level = l.ContainsKey("Level") ? l["Level"]?.ToString() ?? "INFO" : "INFO";
+                                            }
+                                            <span class="badge @(level == "ERROR" ? "bg-danger" : (level == "WARN" ? "bg-warning text-dark" : "bg-info"))">
+                                                @level
+                                            </span>
+                                        </td>
+                                        <td class="fw-semibold">@(l.ContainsKey("UserID") ? l["UserID"] : "")</td>
+                                        <td class="text-truncate" style="max-width: 240px;">@(l.ContainsKey("Message") ? l["Message"] : "")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string? activeTab = null;
+    private string? statusMessage;
+    private bool statusSuccess = true;
+    private bool isSubmitting = false;
+
+    // Users
+    private List<AdminUserModel> usersList = new();
+    private bool isLoadingUsers = false;
+    private string userSearchText = "";
+
+    // Groups
+    private List<UserGroupModel> groupsList = new();
+    private bool isLoadingGroups = false;
+
+    // Sitemaps / Masterfile
+    private List<Dictionary<string, object?>> masterfileList = new();
+    private bool isLoadingMasterfiles = false;
+
+    // Logs
+    private List<Dictionary<string, object?>> logsList = new();
+    private bool isLoadingLogs = false;
+
+    // New User Model
+    private AdminUserModel newUser = new()
+    {
+        IsActive = "Y",
+        UserGroupID = "STAFF",
+        Password = "123"
+    };
+
+    private List<AdminUserModel> FilteredUsers => string.IsNullOrWhiteSpace(userSearchText)
+        ? usersList
+        : usersList.Where(u =>
+            u.ID.Contains(userSearchText, StringComparison.OrdinalIgnoreCase) ||
+            u.Name.Contains(userSearchText, StringComparison.OrdinalIgnoreCase) ||
+            u.Email.Contains(userSearchText, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private async Task ToggleTab(string tab)
+    {
+        if (activeTab == tab)
+        {
+            activeTab = null;
+            return;
+        }
+
+        activeTab = tab;
+        statusMessage = null;
+
+        if (tab == "user_manage" && usersList.Count == 0)
+        {
+            await LoadUsersAsync();
+        }
+        else if (tab == "group_setup" && groupsList.Count == 0)
+        {
+            await LoadGroupsAsync();
+        }
+        else if (tab == "group_page_setup" && masterfileList.Count == 0)
+        {
+            await LoadMasterfilesAsync();
+        }
+        else if (tab == "log_report" && logsList.Count == 0)
+        {
+            await LoadLogsAsync();
+        }
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        isLoadingUsers = true;
+        try
+        {
+            usersList = await ApiClient.GetAdminUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error loading users: " + ex.Message;
+            statusSuccess = false;
+        }
+        finally
+        {
+            isLoadingUsers = false;
+        }
+    }
+
+    private async Task LoadGroupsAsync()
+    {
+        isLoadingGroups = true;
+        try
+        {
+            groupsList = await ApiClient.GetAdminGroupsAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error loading groups: " + ex.Message;
+            statusSuccess = false;
+        }
+        finally
+        {
+            isLoadingGroups = false;
+        }
+    }
+
+    private async Task LoadMasterfilesAsync()
+    {
+        isLoadingMasterfiles = true;
+        try
+        {
+            masterfileList = await ApiClient.SelectTableAsync("aspnet_masterfile", limit: 60);
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error loading sitemaps: " + ex.Message;
+            statusSuccess = false;
+        }
+        finally
+        {
+            isLoadingMasterfiles = false;
+        }
+    }
+
+    private async Task LoadLogsAsync()
+    {
+        isLoadingLogs = true;
+        try
+        {
+            logsList = await ApiClient.SelectTableAsync("log", limit: 30);
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error loading logs: " + ex.Message;
+            statusSuccess = false;
+        }
+        finally
+        {
+            isLoadingLogs = false;
+        }
+    }
+
+    private async Task CreateUserAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newUser.ID) || string.IsNullOrWhiteSpace(newUser.Name))
+        {
+            statusMessage = "User ID and Full Name are required.";
+            statusSuccess = false;
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = null;
+
+        try
+        {
+            bool ok = await ApiClient.CreateAdminUserAsync(newUser);
+            if (ok)
+            {
+                statusMessage = $"User '{newUser.ID}' created successfully in MySQL via Web API!";
+                statusSuccess = true;
+                ResetNewUserForm();
+                await LoadUsersAsync();
+                activeTab = "user_manage";
+            }
+            else
+            {
+                statusMessage = "Web API failed to create user. Please check if User ID already exists.";
+                statusSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error creating user: " + ex.Message;
+            statusSuccess = false;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void ResetNewUserForm()
+    {
+        newUser = new AdminUserModel
+        {
+            IsActive = "Y",
+            UserGroupID = "STAFF",
+            Password = "123"
+        };
+    }
+}
+
+<style>
+    .admin-mobile-container {
+        max-width: 540px;
+        margin: 0 auto;
+        padding-top: 0px;
+    }
+
+    /* Transparent Outer Container - zero black borders */
+    .admin-grid-wrapper {
+        border: none;
+        background: transparent;
+        padding: 0;
+        margin: 0;
+    }
+
+    /* 4-column grid with transparent container and seamless edges */
+    .admin-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0;
+        background: transparent;
+        border: none;
+    }
+
+    /* Admin Tile Base */
+    .admin-tile {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        aspect-ratio: 1 / 1.05;
+        border: 1px solid #ffffff;
+        outline: none;
+        padding: 8px 3px 6px 3px;
+        cursor: pointer;
+        transition: transform 0.1s ease, filter 0.15s ease;
+        text-align: center;
+    }
+
+    .admin-tile:hover {
+        filter: brightness(1.08);
+    }
+
+    .admin-tile:active {
+        transform: scale(0.97);
+    }
+
+    .admin-tile.active {
+        box-shadow: inset 0 0 0 3px #ffffff;
+    }
+
+    /* Exact Tile Colors matching user reference */
+    .tile-green {
+        background-color: #2e6430 !important;
+    }
+
+    .tile-red {
+        background-color: #941818 !important;
+    }
+
+    .tile-orange {
+        background-color: #df7b1f !important;
+    }
+
+    /* Empty spacer slots with transparent background and no borders */
+    .tile-spacer {
+        background: transparent;
+        border: none;
+        aspect-ratio: 1 / 1.05;
+    }
+
+    /* Circular icon wrapper matching user reference */
+    .icon-circle {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 4px;
+        background: rgba(0, 0, 0, 0.15);
+        border: 1.5px solid rgba(255, 255, 255, 0.4);
+        overflow: hidden;
+    }
+
+    .icon-circle img {
+        width: 42px;
+        height: 42px;
+        object-fit: contain;
+    }
+
+    /* Tile Text Label */
+    .tile-label {
+        color: #ffffff;
+        font-size: 11.5px;
+        font-weight: 600;
+        line-height: 1.15;
+        letter-spacing: -0.2px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.25s ease-in-out;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>

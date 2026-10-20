@@ -1,0 +1,302 @@
+@page "/overtime"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+
+<PageTitle>Overtime Management - HRsuite</PageTitle>
+
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold mb-1">Overtime Management</h2>
+            <p class="text-muted mb-0">Select, Apply (INSERT), and Approve (UPDATE) OT claims via <code>/api/OT</code> in Web API</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm" @onclick="LoadDataAsync">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+            <button class="btn btn-warning text-dark btn-sm fw-semibold" @onclick="() => showApplyModal = true">
+                <i class="bi bi-clock-fill me-1"></i> Apply Overtime
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle" : "bi-exclamation-triangle") me-2"></i>
+            @statusMessage
+            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- OT Records Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-semibold">Overtime Records</h5>
+            <span class="badge bg-warning text-dark rounded-pill">Total: @(otRecords?.Count ?? 0)</span>
+        </div>
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2">Loading OT records from Web API...</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>OT No</th>
+                                <th>Employee</th>
+                                <th>Date</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Hours</th>
+                                <th>Status</th>
+                                <th>Reason</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (otRecords?.Count > 0)
+                            {
+                                @foreach (var o in otRecords)
+                                {
+                                    <tr>
+                                        <td><code>@o.OTNo</code></td>
+                                        <td><span class="badge bg-light text-dark border">@o.Emp_ID</span> @o.EmpName</td>
+                                        <td>@o.OT_Date.ToString("yyyy-MM-dd")</td>
+                                        <td>@o.OT_Start</td>
+                                        <td>@o.OT_End</td>
+                                        <td><strong>@o.OT_Hour hrs</strong></td>
+                                        <td>
+                                            @if (o.OT_Status == "APPROVE")
+                                            {
+                                                <span class="badge bg-success-subtle text-success">Approved</span>
+                                            }
+                                            else if (o.OT_Status == "REJECT")
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger">Rejected</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning">Pending</span>
+                                            }
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(o.OT_Reason) ? "-" : o.OT_Reason)</td>
+                                        <td class="text-end">
+                                            @if (o.OT_Status != "APPROVE" && o.OT_Status != "REJECT")
+                                            {
+                                                <div class="btn-group btn-group-sm">
+                                                    <button class="btn btn-outline-success py-0 px-2" @onclick='() => ProcessApprovalAsync(o.OTNo, o.Emp_ID, o.OT_Date, "APPROVE")'>
+                                                        Approve
+                                                    </button>
+                                                    <button class="btn btn-outline-danger py-0 px-2" @onclick='() => ProcessApprovalAsync(o.OTNo, o.Emp_ID, o.OT_Date, "REJECT")'>
+                                                        Reject
+                                                    </button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted small">Processed</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="9" class="text-center py-4 text-muted">No overtime records found.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Apply OT Modal -->
+@if (showApplyModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Apply for Overtime (INSERT via Web API)</h5>
+                    <button type="button" class="btn-close" @onclick="() => showApplyModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Employee ID</label>
+                            <input class="form-control form-control-sm" @bind="applyEmpId" placeholder="e.g. 00001" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">OT Code</label>
+                            <input class="form-control form-control-sm" @bind="applyOtCode" placeholder="e.g. 1.5" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">OT Date</label>
+                            <input type="date" class="form-control form-control-sm" @bind="applyOtDate" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Total Hours</label>
+                            <input class="form-control form-control-sm" @bind="applyTotalHours" placeholder="2.5" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Start Time</label>
+                            <input class="form-control form-control-sm" @bind="applyStartTime" placeholder="18:00" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">End Time</label>
+                            <input class="form-control form-control-sm" @bind="applyEndTime" placeholder="20:30" />
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label small text-muted">Reason</label>
+                            <textarea class="form-control form-control-sm" rows="3" @bind="applyReason" placeholder="Reason for overtime..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => showApplyModal = false">Cancel</button>
+                    <button type="button" class="btn btn-warning text-dark btn-sm fw-semibold" @onclick="SubmitOtApplicationAsync" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Submitting via Web API...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-send-fill me-1"></i>
+                            <span>Submit Application (INSERT)</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<OTRecord>? otRecords;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private bool showApplyModal = false;
+    private string? statusMessage;
+    private bool isSuccess;
+
+    // Apply OT fields
+    private string applyEmpId = "00001";
+    private string applyOtCode = "1.5";
+    private DateTime applyOtDate = DateTime.Today;
+    private string applyStartTime = "18:00";
+    private string applyEndTime = "20:30";
+    private string applyTotalHours = "2.5";
+    private string applyReason = "Urgent client project delivery";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            otRecords = await ApiClient.GetOtHistoryAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error loading OT: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SubmitOtApplicationAsync()
+    {
+        isSubmitting = true;
+        try
+        {
+            var model = new OTApplyModel
+            {
+                EmpId = applyEmpId,
+                OTCode = applyOtCode,
+                DateFrom = applyOtDate,
+                DateTo = applyOtDate,
+                StartTime = applyStartTime,
+                EndTime = applyEndTime,
+                TotalHours = applyTotalHours,
+                Reason = applyReason
+            };
+
+            bool ok = await ApiClient.ApplyOtAsync(model);
+            if (ok)
+            {
+                statusMessage = $"Overtime application submitted and stored in MySQL via Web API!";
+                isSuccess = true;
+                showApplyModal = false;
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = "Web API returned failure while submitting OT.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error applying OT: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task ProcessApprovalAsync(string otNo, string empId, DateTime otDate, string action)
+    {
+        try
+        {
+            var model = new OTApproveModel
+            {
+                OTNo = otNo,
+                EmpId = empId,
+                OTDate = otDate,
+                Action = action,
+                Remarks = $"Processed via HRsuiteRazor ({action})",
+                SupervisorId = "Admin"
+            };
+
+            bool ok = await ApiClient.ApproveOtAsync(model);
+            if (ok)
+            {
+                statusMessage = $"OT #{otNo} has been {action}D in MySQL via Web API!";
+                isSuccess = true;
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = $"Failed to {action} OT via Web API.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error processing OT approval: {ex.Message}";
+            isSuccess = false;
+        }
+    }
+}

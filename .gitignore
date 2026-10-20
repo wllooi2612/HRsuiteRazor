@@ -1,0 +1,33 @@
+## Visual Studio / .NET ignores
+.vs/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.launchsettings.json
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+
+## Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+## OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+## Migration dumps (optional to keep or track, keeping dump script)
+# tools/*.sql

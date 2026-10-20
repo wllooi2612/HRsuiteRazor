@@ -1,0 +1,60 @@
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center gap-2 brand-offset" href="">
+            <i class="bi bi-building-fill-gear"></i>
+            <span>HRsuiteRazor</span>
+        </a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="staff">
+                <i class="bi bi-people-fill me-2"></i> Staff &amp; Users
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="leaves">
+                <i class="bi bi-calendar-check-fill me-2"></i> Leaves
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="overtime">
+                <i class="bi bi-clock-history me-2"></i> Overtime
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="database">
+                <i class="bi bi-database-fill-gear me-2"></i> Database Explorer
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="admin">
+                <i class="bi bi-shield-lock-fill me-2"></i> Admin &amp; Setup
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3 mt-3 border-top pt-2">
+            <small class="text-white-50 px-3 text-uppercase fw-semibold" style="font-size: 0.7rem;">Architecture</small>
+        </div>
+
+        <div class="nav-item px-3">
+            <a class="nav-link text-white-50" href="http://localhost:5145/openapi/v1.json" target="_blank">
+                <i class="bi bi-box-arrow-up-right me-2"></i> OpenAPI Spec (5145)
+            </a>
+        </div>
+    </nav>
+</div>

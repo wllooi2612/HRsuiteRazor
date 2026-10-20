@@ -1,0 +1,763 @@
+@page "/"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+
+<PageTitle>HRsuite Dashboard - Web API Connected</PageTitle>
+
+<div class="hr-dashboard">
+    <!-- Header Card -->
+    <div class="header-card mb-4 text-white">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-white text-primary fw-bold px-2 py-1">v2.0 Web API Powered</span>
+                    <span class="badge bg-light text-dark">Zero Direct DB Query</span>
+                </div>
+                <h1 class="h2 mb-1 fw-bold">HR Suite Portal &amp; Database Monitor</h1>
+                <p class="text-white-50 mb-0">
+                    All Database <strong>SELECT</strong>, <strong>INSERT</strong>, <strong>UPDATE</strong>, and <strong>DELETE</strong> operations are handled exclusively by <code>HRsuiteRazor.WebApi</code> on port 5145.
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                @if (dbStatus?.IsConnected == true)
+                {
+                    <span class="badge bg-success-subtle text-success border border-success px-3 py-2 fs-6 rounded-pill">
+                        <i class="bi bi-check-circle-fill me-1"></i> Web API &amp; MySQL Connected
+                    </span>
+                }
+                else if (isLoading)
+                {
+                    <span class="badge bg-warning-subtle text-warning border border-warning px-3 py-2 fs-6 rounded-pill">
+                        <i class="bi bi-arrow-repeat spin me-1"></i> Connecting to Web API...
+                    </span>
+                }
+                else
+                {
+                    <span class="badge bg-danger-subtle text-danger border border-danger px-3 py-2 fs-6 rounded-pill">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Web API Disconnected
+                    </span>
+                }
+                <button class="btn btn-outline-light btn-sm px-3 shadow-sm" @onclick="RefreshDataAsync" disabled="@isLoading">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccessMessage ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
+            <i class="bi @(isSuccessMessage ? "bi-check-circle" : "bi-exclamation-octagon") me-2"></i>
+            @statusMessage
+            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Metric Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3">
+            <div class="card metric-card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-muted fw-semibold small">ARCHITECTURAL FLOW</span>
+                        <div class="icon-bubble bg-primary-subtle text-primary">
+                            <i class="bi bi-diagram-3-fill"></i>
+                        </div>
+                    </div>
+                    <div class="fs-5 fw-bold text-dark">Blazor &rarr; WebAPI &rarr; MySQL</div>
+                    <div class="small text-muted mt-1">REST Endpoints &bull; Port 5145</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="card metric-card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-muted fw-semibold small">MYSQL TABLES</span>
+                        <div class="icon-bubble bg-info-subtle text-info">
+                            <i class="bi bi-database-fill"></i>
+                        </div>
+                    </div>
+                    <div class="fs-4 fw-bold text-dark">@(dbStatus?.TotalTables ?? tables?.Count ?? 57)</div>
+                    <div class="small text-muted mt-1">Migrated from SQL Server (0 loss)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="card metric-card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-muted fw-semibold small">TOTAL RECORDS</span>
+                        <div class="icon-bubble bg-success-subtle text-success">
+                            <i class="bi bi-layers-fill"></i>
+                        </div>
+                    </div>
+                    <div class="fs-4 fw-bold text-dark">@(dbStatus?.TotalRows.ToString("N0") ?? "7,000+")</div>
+                    <div class="small text-muted mt-1">Queried via <code>/api/Database/status</code></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="card metric-card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-muted fw-semibold small">ACTIVE STAFF</span>
+                        <div class="icon-bubble bg-warning-subtle text-warning">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                    </div>
+                    <div class="fs-4 fw-bold text-dark">@(users?.Count ?? 0)</div>
+                    <div class="small text-muted mt-1">From <code>/api/Staff/directory</code></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills custom-tabs mb-3 gap-2" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "users" ? "active" : "")" @onclick='() => activeTab = "users"'>
+                <i class="bi bi-people me-1"></i> Staff Users (@(users?.Count ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "tables" ? "active" : "")" @onclick='() => activeTab = "tables"'>
+                <i class="bi bi-database me-1"></i> MySQL Tables (@(tables?.Count ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "leaves" ? "active" : "")" @onclick='() => activeTab = "leaves"'>
+                <i class="bi bi-calendar-check me-1"></i> Leaves (@(leaves?.Count ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "ot" ? "active" : "")" @onclick='() => activeTab = "ot"'>
+                <i class="bi bi-clock-history me-1"></i> Overtime (@(otRecords?.Count ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "crud" ? "active" : "")" @onclick='() => activeTab = "crud"'>
+                <i class="bi bi-pencil-square me-1"></i> Web API CRUD Tester
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "api" ? "active" : "")" @onclick='() => activeTab = "api"'>
+                <i class="bi bi-hdd-network me-1"></i> API Endpoints Map
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="card content-card shadow-sm border-0">
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-muted mt-2 mb-0">Querying Web API (<code>http://localhost:5145</code>)...</p>
+                </div>
+            }
+            else if (activeTab == "users")
+            {
+                <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-0 fw-semibold text-dark">Staff Users (Fetched via <code>GET /api/Staff/directory</code>)</h5>
+                        <small class="text-muted">Retrieved via Web API communicating with MySQL <code>aspnet_users</code></small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <input type="text" class="form-control form-control-sm" placeholder="Search staff..." @bind="userSearch" @bind:event="oninput" style="width: 200px;" />
+                        <span class="badge bg-primary align-self-center px-3 py-2 rounded-pill">Total: @(FilteredUsers.Count)</span>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 120px;">Employee ID</th>
+                                <th>Name</th>
+                                <th>Position</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (FilteredUsers.Count > 0)
+                            {
+                                @foreach (var u in FilteredUsers)
+                                {
+                                    <tr>
+                                        <td><span class="badge bg-secondary-subtle text-secondary font-monospace">@u.EmpId</span></td>
+                                        <td class="fw-semibold text-dark">@u.Name</td>
+                                        <td><span class="badge bg-light text-dark border">@(string.IsNullOrWhiteSpace(u.Position) ? "Staff" : u.Position)</span></td>
+                                        <td><a href="mailto:@u.Email" class="text-decoration-none">@u.Email</a></td>
+                                        <td><span class="text-muted small">@(string.IsNullOrWhiteSpace(u.HpNo) ? "-" : u.HpNo)</span></td>
+                                        <td>
+                                            @if (u.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger"><i class="bi bi-x-circle me-1"></i>Inactive</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-muted">No staff members found matching search.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else if (activeTab == "tables")
+            {
+                <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0 fw-semibold text-dark">Database Tables (Fetched via <code>GET /api/Database/tables</code>)</h5>
+                        <small class="text-muted">All 57 tables in MySQL <code>myhrsuitelog</code></small>
+                    </div>
+                    <span class="badge bg-info text-dark rounded-pill">Count: @(tables?.Count ?? 0)</span>
+                </div>
+                <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>#</th>
+                                <th>Table Name</th>
+                                <th>Row Count</th>
+                                <th>Storage Engine</th>
+                                <th>API Access</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (tables?.Count > 0)
+                            {
+                                int idx = 1;
+                                @foreach (var t in tables)
+                                {
+                                    <tr>
+                                        <td class="text-muted">@(idx++)</td>
+                                        <td><code>@t.TableName</code></td>
+                                        <td>
+                                            <span class="badge bg-secondary-subtle text-dark">@t.RowCount.ToString("N0") rows</span>
+                                        </td>
+                                        <td>@t.Engine</td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm py-0 px-2" @onclick="() => InspectTableAsync(t.TableName)">
+                                                <i class="bi bi-search me-1"></i> Inspect
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (inspectedTable != null)
+                {
+                    <div class="border-top p-3 bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 fw-bold text-primary">
+                                Table Inspection: <code>@inspectedTable.TableName</code> (@inspectedTable.RowCount rows)
+                            </h6>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => inspectedTable = null">Close</button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        @foreach (var c in inspectedTable.Columns)
+                                        {
+                                            <th>@c.ColumnName <small class="text-white-50">(@c.DataType)</small></th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in inspectedTable.SampleRows.Take(5))
+                                    {
+                                        <tr>
+                                            @foreach (var c in inspectedTable.Columns)
+                                            {
+                                                <td>@(r.ContainsKey(c.ColumnName) ? r[c.ColumnName]?.ToString() ?? "NULL" : "NULL")</td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            }
+            else if (activeTab == "leaves")
+            {
+                <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0 fw-semibold text-dark">Leave Records (Fetched via <code>GET /api/Leave/history</code>)</h5>
+                        <small class="text-muted">Managed through <code>LeaveController</code> in Web API</small>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Leave No</th>
+                                <th>Employee</th>
+                                <th>Type</th>
+                                <th>Date Range</th>
+                                <th>Total Days</th>
+                                <th>Status</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (leaves?.Count > 0)
+                            {
+                                @foreach (var l in leaves)
+                                {
+                                    <tr>
+                                        <td><code>@l.LeaveNo</code></td>
+                                        <td><span class="badge bg-light text-dark border">@l.Emp_ID</span> @l.EmpName</td>
+                                        <td><span class="badge bg-primary-subtle text-primary">@l.Leave_Type</span></td>
+                                        <td>@l.Leave_Date_From.ToString("yyyy-MM-dd") ~ @l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
+                                        <td><strong>@l.TotalDays</strong></td>
+                                        <td><span class="badge bg-info-subtle text-info">@(string.IsNullOrWhiteSpace(l.Leave_Status) ? "SUBMITTED" : l.Leave_Status)</span></td>
+                                        <td>@(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-muted">No leave records returned from Web API.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else if (activeTab == "ot")
+            {
+                <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0 fw-semibold text-dark">Overtime Records (Fetched via <code>GET /api/OT/history</code>)</h5>
+                        <small class="text-muted">Managed through <code>OTController</code> in Web API</small>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>OT No</th>
+                                <th>Employee</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Hours</th>
+                                <th>Status</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (otRecords?.Count > 0)
+                            {
+                                @foreach (var o in otRecords)
+                                {
+                                    <tr>
+                                        <td><code>@o.OTNo</code></td>
+                                        <td><span class="badge bg-light text-dark border">@o.Emp_ID</span> @o.EmpName</td>
+                                        <td>@o.OT_Date.ToString("yyyy-MM-dd")</td>
+                                        <td>@o.OT_Start ~ @o.OT_End</td>
+                                        <td><strong>@o.OT_Hour hrs</strong></td>
+                                        <td><span class="badge bg-warning-subtle text-warning">@(string.IsNullOrWhiteSpace(o.OT_Status) ? "PENDING" : o.OT_Status)</span></td>
+                                        <td>@(string.IsNullOrWhiteSpace(o.OT_Reason) ? "-" : o.OT_Reason)</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-muted">No overtime records returned from Web API.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else if (activeTab == "crud")
+            {
+                <div class="p-4">
+                    <h5 class="fw-semibold text-dark mb-1">Web API Database Task Console (SELECT &bull; INSERT &bull; UPDATE &bull; DELETE)</h5>
+                    <p class="text-muted small mb-4">
+                        Perform real-time database tasks against MySQL through the Web API endpoint <code>/api/DbCrud/{tableName}</code>.
+                    </p>
+
+                    <div class="row g-4">
+                        <!-- Left: Perform Action -->
+                        <div class="col-lg-5">
+                            <div class="card border p-3">
+                                <h6 class="fw-bold mb-3"><i class="bi bi-play-circle-fill text-primary me-1"></i> Execute Database Task</h6>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Target Table</label>
+                                    <select class="form-select form-select-sm" @bind="crudTableName">
+                                        <option value="aspnet_users">aspnet_users</option>
+                                        <option value="aspnet_LeaveRecord">aspnet_LeaveRecord</option>
+                                        <option value="aspnet_OTRecord">aspnet_OTRecord</option>
+                                        <option value="aspnet_ClaimRecord">aspnet_ClaimRecord</option>
+                                        <option value="aspnet_usergroup">aspnet_usergroup</option>
+                                        <option value="aspnet_masterfile">aspnet_masterfile</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Operation</label>
+                                    <select class="form-select form-select-sm" @bind="crudOperation">
+                                        <option value="SELECT">SELECT (Query records)</option>
+                                        <option value="INSERT">INSERT (Create new record)</option>
+                                        <option value="UPDATE">UPDATE (Update existing record)</option>
+                                        <option value="DELETE">DELETE (Remove record)</option>
+                                    </select>
+                                </div>
+
+                                @if (crudOperation == "UPDATE" || crudOperation == "DELETE")
+                                {
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold">Primary Key Col</label>
+                                            <input type="text" class="form-control form-control-sm" @bind="crudKeyCol" placeholder="e.g. ID" />
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold">Primary Key Value</label>
+                                            <input type="text" class="form-control form-control-sm" @bind="crudKeyVal" placeholder="e.g. TEST01" />
+                                        </div>
+                                    </div>
+                                }
+
+                                @if (crudOperation == "INSERT" || crudOperation == "UPDATE")
+                                {
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">JSON Payload (Key-Value)</label>
+                                        <textarea class="form-control form-control-sm font-monospace" rows="4" @bind="crudJsonPayload" placeholder='{"ID": "USER99", "Name": "Test User", "Email": "test@demo.com"}'></textarea>
+                                    </div>
+                                }
+
+                                <button class="btn btn-primary btn-sm w-100" @onclick="ExecuteCrudTaskAsync" disabled="@isExecutingCrud">
+                                    @if (isExecutingCrud)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                        <span>Executing in Web API...</span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-lightning-charge-fill me-1"></i>
+                                        <span>Send to Web API</span>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right: Execution Result -->
+                        <div class="col-lg-7">
+                            <div class="card border p-3 h-100">
+                                <h6 class="fw-bold mb-3"><i class="bi bi-terminal-fill text-dark me-1"></i> Web API Response</h6>
+                                @if (crudResultRows?.Count > 0)
+                                {
+                                    <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                                        <table class="table table-sm table-bordered">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    @foreach (var key in crudResultRows[0].Keys)
+                                                    {
+                                                        <th>@key</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var row in crudResultRows)
+                                                {
+                                                    <tr>
+                                                        @foreach (var kvp in row)
+                                                        {
+                                                            <td>@(kvp.Value?.ToString() ?? "NULL")</td>
+                                                        }
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                                else if (!string.IsNullOrEmpty(crudStatusResponse))
+                                {
+                                    <pre class="bg-dark text-light p-3 rounded small mb-0 font-monospace">@crudStatusResponse</pre>
+                                }
+                                else
+                                {
+                                    <div class="text-center text-muted py-5">
+                                        <i class="bi bi-arrow-left-circle fs-3 d-block mb-2"></i>
+                                        Select an operation on the left to execute via the Web API.
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (activeTab == "api")
+            {
+                <div class="p-4">
+                    <h5 class="fw-semibold text-dark mb-1">Web API Architecture &amp; Database Endpoints</h5>
+                    <p class="text-muted small mb-4">
+                        HRsuiteRazor interacts exclusively through these REST endpoints:
+                    </p>
+
+                    <div class="row g-3">
+                        <div class="col-md-6 col-lg-4">
+                            <div class="border rounded p-3 bg-light h-100">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-database me-1"></i> Database API</h6>
+                                <p class="small text-muted mb-1"><code>GET /api/Database/status</code></p>
+                                <p class="small text-muted mb-1"><code>GET /api/Database/tables</code></p>
+                                <p class="small text-muted mb-1"><code>GET /api/Database/tables/{name}</code></p>
+                                <span class="badge bg-secondary-subtle text-secondary">System metadata &amp; stats</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="border rounded p-3 bg-light h-100">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-code-slash me-1"></i> Generic CRUD API</h6>
+                                <p class="small text-muted mb-1"><code>GET /api/DbCrud/{table}</code></p>
+                                <p class="small text-muted mb-1"><code>POST /api/DbCrud/{table}</code></p>
+                                <p class="small text-muted mb-1"><code>PUT /api/DbCrud/{table}/{k}/{v}</code></p>
+                                <p class="small text-muted mb-1"><code>DELETE /api/DbCrud/{table}/{k}/{v}</code></p>
+                                <span class="badge bg-primary-subtle text-primary">SELECT &bull; INSERT &bull; UPDATE &bull; DELETE</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="border rounded p-3 bg-light h-100">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-people me-1"></i> Staff &amp; User API</h6>
+                                <p class="small text-muted mb-1"><code>GET /api/Staff/directory</code></p>
+                                <p class="small text-muted mb-1"><code>GET /api/Staff/profile</code></p>
+                                <p class="small text-muted mb-1"><code>POST /api/Admin/users</code></p>
+                                <p class="small text-muted mb-1"><code>PUT /api/Admin/users/{id}</code></p>
+                                <span class="badge bg-success-subtle text-success">Employee CRUD</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="border rounded p-3 bg-light h-100">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-calendar2-range me-1"></i> Leave API</h6>
+                                <p class="small text-muted mb-1"><code>GET /api/Leave/types</code></p>
+                                <p class="small text-muted mb-1"><code>GET /api/Leave/history</code></p>
+                                <p class="small text-muted mb-1"><code>POST /api/Leave/apply</code></p>
+                                <p class="small text-muted mb-1"><code>POST /api/Leave/approve</code></p>
+                                <span class="badge bg-info-subtle text-info">Leave workflow</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="border rounded p-3 bg-light h-100">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-clock-history me-1"></i> Overtime API</h6>
+                                <p class="small text-muted mb-1"><code>GET /api/OT/history</code></p>
+                                <p class="small text-muted mb-1"><code>GET /api/OT/pending</code></p>
+                                <p class="small text-muted mb-1"><code>POST /api/OT/apply</code></p>
+                                <p class="small text-muted mb-1"><code>POST /api/OT/approve</code></p>
+                                <span class="badge bg-warning-subtle text-warning">OT calculation &amp; approval</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="border rounded p-3 bg-light h-100">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-receipt me-1"></i> Claim API</h6>
+                                <p class="small text-muted mb-1"><code>GET /api/Claim/types</code></p>
+                                <p class="small text-muted mb-1"><code>GET /api/Claim/history</code></p>
+                                <p class="small text-muted mb-1"><code>POST /api/Claim/apply</code></p>
+                                <p class="small text-muted mb-1"><code>POST /api/Claim/approve</code></p>
+                                <span class="badge bg-danger-subtle text-danger">Medical &amp; transport claims</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .hr-dashboard {
+        padding: 0.5rem 0;
+    }
+    .header-card {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #3b82f6 100%);
+        padding: 2rem;
+        border-radius: 1rem;
+        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);
+    }
+    .metric-card {
+        border-radius: 0.875rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08) !important;
+    }
+    .icon-bubble {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .custom-tabs .nav-link {
+        color: #4b5563;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    .custom-tabs .nav-link:hover {
+        background: #f3f4f6;
+        color: #111827;
+    }
+    .custom-tabs .nav-link.active {
+        background: #2563eb;
+        color: #ffffff;
+        border-color: #2563eb;
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+    }
+    .content-card {
+        border-radius: 0.875rem;
+        overflow: hidden;
+    }
+    .spin {
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+    @@keyframes spin {
+        100% { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    private DbStatusInfo? dbStatus;
+    private List<TableStat>? tables;
+    private List<StaffDirectoryItem>? users;
+    private List<LeaveRequest>? leaves;
+    private List<OTRecord>? otRecords;
+    private TableDetailDto? inspectedTable;
+
+    private bool isLoading = true;
+    private string activeTab = "users";
+    private string userSearch = "";
+    private string? statusMessage;
+    private bool isSuccessMessage;
+
+    // CRUD Tester fields
+    private string crudTableName = "aspnet_users";
+    private string crudOperation = "SELECT";
+    private string crudKeyCol = "ID";
+    private string crudKeyVal = "00001";
+    private string crudJsonPayload = "{\n  \"Name\": \"UPDATED NAME\"\n}";
+    private bool isExecutingCrud = false;
+    private List<Dictionary<string, object?>>? crudResultRows;
+    private string? crudStatusResponse;
+
+    private List<StaffDirectoryItem> FilteredUsers => 
+        string.IsNullOrWhiteSpace(userSearch)
+            ? (users ?? new List<StaffDirectoryItem>())
+            : (users?.Where(u => u.Name.Contains(userSearch, StringComparison.OrdinalIgnoreCase) ||
+                                 u.EmpId.Contains(userSearch, StringComparison.OrdinalIgnoreCase) ||
+                                 u.Email.Contains(userSearch, StringComparison.OrdinalIgnoreCase)).ToList() ?? new List<StaffDirectoryItem>());
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task RefreshDataAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            dbStatus = await ApiClient.GetDatabaseStatusAsync();
+            tables = await ApiClient.GetTableStatsAsync();
+            users = await ApiClient.GetUsersAsync();
+            leaves = await ApiClient.GetLeavesAsync();
+            otRecords = await ApiClient.GetOtHistoryAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Failed to load data from Web API: {ex.Message}";
+            isSuccessMessage = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task InspectTableAsync(string tableName)
+    {
+        inspectedTable = await ApiClient.GetTableDetailAsync(tableName, 5);
+    }
+
+    private async Task ExecuteCrudTaskAsync()
+    {
+        isExecutingCrud = true;
+        crudResultRows = null;
+        crudStatusResponse = null;
+
+        try
+        {
+            if (crudOperation == "SELECT")
+            {
+                crudResultRows = await ApiClient.SelectTableAsync(crudTableName, 20, 0);
+                crudStatusResponse = $"[SUCCESS] Fetched {crudResultRows.Count} rows from {crudTableName} via GET /api/DbCrud/{crudTableName}";
+            }
+            else if (crudOperation == "INSERT")
+            {
+                var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(crudJsonPayload);
+                if (dict == null) throw new Exception("Invalid JSON payload.");
+                var res = await ApiClient.InsertRecordAsync(crudTableName, dict);
+                crudStatusResponse = $"[RESULT] Success: {res.Success}, RowsAffected: {res.RowsAffected}, InsertedId: {res.InsertedId}, Message: {res.Message}";
+                if (res.Success) await RefreshDataAsync();
+            }
+            else if (crudOperation == "UPDATE")
+            {
+                var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(crudJsonPayload);
+                if (dict == null) throw new Exception("Invalid JSON payload.");
+                var res = await ApiClient.UpdateRecordAsync(crudTableName, crudKeyCol, crudKeyVal, dict);
+                crudStatusResponse = $"[RESULT] Success: {res.Success}, RowsAffected: {res.RowsAffected}, Message: {res.Message}";
+                if (res.Success) await RefreshDataAsync();
+            }
+            else if (crudOperation == "DELETE")
+            {
+                var res = await ApiClient.DeleteRecordAsync(crudTableName, crudKeyCol, crudKeyVal);
+                crudStatusResponse = $"[RESULT] Success: {res.Success}, RowsAffected: {res.RowsAffected}, Message: {res.Message}";
+                if (res.Success) await RefreshDataAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            crudStatusResponse = $"[ERROR] {ex.Message}";
+        }
+        finally
+        {
+            isExecutingCrud = false;
+        }
+    }
+}

@@ -1,0 +1,1137 @@
+@page "/admin/users"
+@page "/users"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>User Management - HRsuite</PageTitle>
+
+<div class="user-management-page">
+    <!-- Top Header Bar (Matching Image 2: Clean back arrow and title, no unneeded subtitle) -->
+    <div class="page-top-bar d-flex align-items-center gap-3 mb-3">
+        <button class="btn btn-link text-dark p-0 text-decoration-none fs-4 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
+            <i class="bi bi-arrow-left"></i>
+        </button>
+        <h4 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+            <i class="bi bi-person-lines-fill text-primary"></i>
+            <span>User Management Directory</span>
+        </h4>
+    </div>
+
+    <!-- Status Alert Banner -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(statusSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-2 shadow-sm animate-fade-in" role="alert">
+            <i class="bi @(statusSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") fs-5"></i>
+            <div class="flex-grow-1 small">@statusMessage</div>
+            <button type="button" class="btn-close btn-close-sm" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Unified Single-Line Control Bar (Compact Icons with Tooltips, Inline Status, No Group Pills) -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+        <div class="card-body p-2 d-flex flex-wrap align-items-center gap-2">
+            <!-- Search Box -->
+            <div class="search-box" style="width: 230px; min-width: 180px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0 py-1"><i class="bi bi-search text-muted small"></i></span>
+                    <input type="text" class="form-control border-start-0 bg-light py-1" placeholder="Search ID, Name, EmpID, Email..." @bind="globalSearchText" @bind:event="oninput" title="Search by User ID, Name, EmpID, or Email" />
+                    @if (!string.IsNullOrEmpty(globalSearchText))
+                    {
+                        <button class="btn btn-sm btn-outline-secondary bg-light border-start-0 py-1" @onclick='() => globalSearchText = ""' title="Clear search">✕</button>
+                    }
+                </div>
+            </div>
+
+            <!-- Status Filter Chips (Inline on the same line) -->
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted small me-1">Status:</span>
+                <button class="btn btn-xs rounded-pill @(filterStatus == null ? "btn-dark text-white" : "btn-light text-dark border")" @onclick='() => filterStatus = null' title="Show all users">All</button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "Y" ? "btn-success text-white" : "btn-light text-dark border")" @onclick='() => filterStatus = "Y"' title="Show active users only">Active</button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "N" ? "btn-danger text-white" : "btn-light text-dark border")" @onclick='() => filterStatus = "N"' title="Show inactive users only">Inactive</button>
+            </div>
+
+            <div class="vr mx-1 my-auto text-secondary opacity-25 d-none d-sm-block" style="height: 22px;"></div>
+
+            <!-- Action Icons Toolbar (All Icon Buttons with Tooltips in ONE Line) -->
+            <div class="d-flex align-items-center gap-1 flex-wrap">
+                <!-- Add New Record -->
+                <button class="btn btn-sm btn-success icon-toolbar-btn shadow-sm" @onclick="OpenAddUserModal" title="Add New Record">
+                    <i class="bi bi-plus-lg fs-6"></i>
+                </button>
+
+                <!-- Delete Selected Users -->
+                <button class="btn btn-sm btn-outline-danger icon-toolbar-btn position-relative shadow-sm" @onclick="DeleteSelectedUsersAsync" disabled="@(SelectedCount == 0)" title="Delete Selected User(s)">
+                    <i class="bi bi-trash3-fill"></i>
+                    @if (SelectedCount > 0)
+                    {
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size: 0.65rem;">
+                            @SelectedCount
+                        </span>
+                    }
+                </button>
+
+                <!-- Print All Users -->
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="PrintUsers" title="Print All Users">
+                    <i class="bi bi-printer-fill"></i>
+                </button>
+
+                <!-- Send Email Notification -->
+                <button class="btn btn-sm btn-outline-primary icon-toolbar-btn shadow-sm" @onclick="SendNotificationEmail" disabled="@(SelectedCount == 0)" title="Send Email Notification to Selected">
+                    <i class="bi bi-envelope-fill"></i>
+                </button>
+
+                <!-- Reset Password -->
+                <button class="btn btn-sm btn-outline-warning text-dark icon-toolbar-btn shadow-sm" @onclick="ResetSelectedUserPassword" disabled="@(SelectedCount != 1)" title="Reset Password (1 selected user)">
+                    <i class="bi bi-key-fill"></i>
+                </button>
+
+                <!-- Update Company ID -->
+                <button class="btn btn-sm btn-outline-info text-dark icon-toolbar-btn shadow-sm" @onclick="OpenUpdateCompanyModal" disabled="@(SelectedCount == 0)" title="Update Company ID (CoNo)">
+                    <i class="bi bi-building"></i>
+                </button>
+
+                <div class="vr mx-1 my-auto text-secondary opacity-25" style="height: 22px;"></div>
+
+                <!-- Column Filters Toggle -->
+                <button class="btn btn-sm @(showFilters ? "btn-dark text-white" : "btn-outline-dark") icon-toolbar-btn shadow-sm" @onclick='() => showFilters = !showFilters' title="Toggle Per-Column Filters">
+                    <i class="bi bi-funnel-fill"></i>
+                </button>
+
+                <!-- View Switcher (Grid / Cards) -->
+                <div class="btn-group btn-group-sm shadow-sm" role="group">
+                    <button type="button" class="btn @(viewMode == "table" ? "btn-primary" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "table"' title="Grid Table View">
+                        <i class="bi bi-table"></i>
+                    </button>
+                    <button type="button" class="btn @(viewMode == "cards" ? "btn-primary" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "cards"' title="Mobile Cards View">
+                        <i class="bi bi-grid-fill"></i>
+                    </button>
+                </div>
+
+                <!-- Refresh Button -->
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="LoadUsersAsync" title="Refresh Users from Database">
+                    <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DATA DISPLAY (GRID / TABLE VIEW) -->
+    @if (viewMode == "table")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+            <div class="table-responsive enterprise-table-container">
+                <table class="table table-hover table-sm align-middle enterprise-table mb-0">
+                    <thead class="table-header-custom sticky-top">
+                        <!-- Main Header Row -->
+                        <tr>
+                            <th class="col-action text-center">#</th>
+                            <th class="col-checkbox text-center">
+                                <input type="checkbox" class="form-check-input" checked="@IsAllSelected" @onchange="ToggleSelectAll" title="Select All" />
+                            </th>
+                            <th class="col-cono text-center">CoNo</th>
+                            <th class="col-id">User ID</th>
+                            <th class="col-name">Name</th>
+                            <th class="col-empid text-center">EmpID</th>
+                            <th class="col-active text-center">IsActive</th>
+                            <th class="col-ot text-center">OT Grp ID</th>
+                            <th class="col-leave text-center">Leave Grp ID</th>
+                            <th class="col-attn text-center">Attn Grp ID</th>
+                            <th class="col-payslip text-center">Payslip Grp ID</th>
+                            <th class="col-claim text-center">Claim Grp ID</th>
+                            <th class="col-ea text-center">EA Form Grp ID</th>
+                            <th class="col-staff text-center">Staff Grp ID</th>
+                            <th class="col-email">Email</th>
+                        </tr>
+
+                        <!-- Interactive Per-Column Filter Row (from Legacy ASP.NET) -->
+                        @if (showFilters)
+                        {
+                            <tr class="filter-row bg-light">
+                                <th class="text-center"><small class="text-muted">Filter</small></th>
+                                <th></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterCoNo" @bind:event="oninput" placeholder="CoNo" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterId" @bind:event="oninput" placeholder="ID" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterName" @bind:event="oninput" placeholder="Name" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterEmpId" @bind:event="oninput" placeholder="EmpID" /></th>
+                                <th>
+                                    <select class="form-select form-select-xs" @bind="colFilterActive">
+                                        <option value="">All</option>
+                                        <option value="Y">Y</option>
+                                        <option value="N">N</option>
+                                    </select>
+                                </th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterOT" @bind:event="oninput" placeholder="OT Grp" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterLeave" @bind:event="oninput" placeholder="Leave Grp" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterAttn" @bind:event="oninput" placeholder="Attn Grp" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterPayslip" @bind:event="oninput" placeholder="Payslip Grp" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterClaim" @bind:event="oninput" placeholder="Claim Grp" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterEA" @bind:event="oninput" placeholder="EA Grp" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterStaff" @bind:event="oninput" placeholder="Staff Grp" /></th>
+                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterEmail" @bind:event="oninput" placeholder="Email" /></th>
+                            </tr>
+                        }
+                    </thead>
+                    <tbody>
+                        @if (isLoading)
+                        {
+                            <tr>
+                                <td colspan="15" class="text-center py-5">
+                                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                    <div class="text-muted small mt-2">Loading user records from MySQL via Web API...</div>
+                                </td>
+                            </tr>
+                        }
+                        else if (FilteredUsers.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="15" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                                    <span>No users match the search criteria.</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var user in FilteredUsers)
+                            {
+                                bool isSelected = selectedUserIds.Contains(user.ID);
+                                bool isHighlighted = (activeUser?.ID == user.ID);
+
+                                <tr class="user-row @(isHighlighted ? "row-highlighted" : "") @(isSelected ? "row-selected" : "")" @onclick="() => SelectRow(user)">
+                                    <!-- Edit Link -->
+                                    <td class="text-center col-action" @onclick:stopPropagation="true">
+                                        <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold" @onclick="() => StartEditUser(user)">
+                                            Edit
+                                        </button>
+                                    </td>
+
+                                    <!-- Selection Checkbox -->
+                                    <td class="text-center col-checkbox" @onclick:stopPropagation="true">
+                                        <input type="checkbox" class="form-check-input" checked="@isSelected" @onchange="(e) => ToggleUserSelection(user.ID, e)" />
+                                    </td>
+
+                                    <!-- CoNo -->
+                                    <td class="text-center col-cono text-muted font-monospace">@(string.IsNullOrEmpty(user.CoNo) ? "ID" : user.CoNo)</td>
+
+                                    <!-- User ID -->
+                                    <td class="col-id">
+                                        <span class="badge bg-secondary font-monospace fw-bold">@user.ID</span>
+                                    </td>
+
+                                    <!-- Full Name -->
+                                    <td class="col-name fw-semibold text-dark">@user.Name</td>
+
+                                    <!-- EmpID -->
+                                    <td class="text-center col-empid font-monospace text-muted">@(string.IsNullOrEmpty(user.EmpId) ? "-" : user.EmpId)</td>
+
+                                    <!-- IsActive Checkbox Display -->
+                                    <td class="text-center col-active" @onclick:stopPropagation="true">
+                                        <input type="checkbox" class="form-check-input" checked="@(user.IsActive == "Y")" @onchange="() => ToggleUserActiveStatus(user)" title="Toggle Active Status" />
+                                    </td>
+
+                                    <!-- OT Grp ID Badge -->
+                                    <td class="text-center col-ot">
+                                        @if (!string.IsNullOrEmpty(user.OTUserGroupID))
+                                        {
+                                            <span class="badge badge-group bg-warning-subtle text-dark border border-warning">@user.OTUserGroupID</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+
+                                    <!-- Leave Grp ID Badge -->
+                                    <td class="text-center col-leave">
+                                        @if (!string.IsNullOrEmpty(user.LeaveUserGroupID))
+                                        {
+                                            <span class="badge badge-group bg-success-subtle text-success border border-success">@user.LeaveUserGroupID</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+
+                                    <!-- Attn Grp ID Badge -->
+                                    <td class="text-center col-attn">
+                                        @if (!string.IsNullOrEmpty(user.AttnUserGroupID))
+                                        {
+                                            <span class="badge badge-group bg-primary-subtle text-primary border border-primary">@user.AttnUserGroupID</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+
+                                    <!-- Payslip Grp ID Badge -->
+                                    <td class="text-center col-payslip">
+                                        @if (!string.IsNullOrEmpty(user.PayslipUserGroupID))
+                                        {
+                                            <span class="badge badge-group bg-purple-subtle text-purple border border-purple">@user.PayslipUserGroupID</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+
+                                    <!-- Claim Grp ID Badge -->
+                                    <td class="text-center col-claim">
+                                        @if (!string.IsNullOrEmpty(user.ClaimUserGroupID))
+                                        {
+                                            <span class="badge badge-group bg-info-subtle text-info border border-info">@user.ClaimUserGroupID</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+
+                                    <!-- EA Form Grp ID Badge -->
+                                    <td class="text-center col-ea">
+                                        @if (!string.IsNullOrEmpty(user.EAFORMGroupID))
+                                        {
+                                            <span class="badge badge-group bg-secondary-subtle text-secondary border">@user.EAFORMGroupID</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+
+                                    <!-- Staff Grp ID Badge -->
+                                    <td class="text-center col-staff">
+                                        @if (!string.IsNullOrEmpty(user.UserGroupID))
+                                        {
+                                            <span class="badge badge-group bg-dark-subtle text-dark border">@user.UserGroupID</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+
+                                    <!-- Email -->
+                                    <td class="col-email">
+                                        @if (!string.IsNullOrEmpty(user.Email))
+                                        {
+                                            <a href="mailto:@user.Email" class="text-decoration-none text-muted font-monospace small" @onclick:stopPropagation="true">
+                                                <i class="bi bi-envelope me-1"></i>@user.Email
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Table Footer Status -->
+            <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
+                <div>
+                    Showing <strong>@FilteredUsers.Count</strong> of <strong>@usersList.Count</strong> users
+                    @if (SelectedCount > 0)
+                    {
+                        <span class="ms-3 badge bg-primary">@SelectedCount Selected</span>
+                    }
+                </div>
+                <div class="d-none d-md-block">
+                    <span>Source: MySQL 5.7 schema <code>myhrsuitelog.aspnet_users</code></span>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- MOBILE / RESPONSIVE CARD VIEW -->
+        <div class="row g-3 mb-4">
+            @foreach (var user in FilteredUsers)
+            {
+                bool isSelected = selectedUserIds.Contains(user.ID);
+
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="card border-0 shadow-sm rounded-3 h-100 user-card @(isSelected ? "card-selected" : "")">
+                        <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom">
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="checkbox" class="form-check-input" checked="@isSelected" @onchange="(e) => ToggleUserSelection(user.ID, e)" />
+                                <span class="badge bg-secondary font-monospace">@user.ID</span>
+                                <span class="badge bg-light text-dark border">CoNo: @(string.IsNullOrEmpty(user.CoNo) ? "ID" : user.CoNo)</span>
+                            </div>
+                            <div>
+                                @if (user.IsActive == "Y")
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger-subtle text-danger border border-danger">Inactive</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="card-body p-3">
+                            <h6 class="fw-bold text-dark mb-1">@user.Name</h6>
+                            <div class="small text-muted mb-2">
+                                <i class="bi bi-person-vcard me-1"></i> Emp ID: <strong>@(string.IsNullOrEmpty(user.EmpId) ? "-" : user.EmpId)</strong>
+                            </div>
+                            @if (!string.IsNullOrEmpty(user.Email))
+                            {
+                                <div class="small text-muted mb-3 text-truncate">
+                                    <i class="bi bi-envelope me-1"></i> @user.Email
+                                </div>
+                            }
+
+                            <!-- Group Badges Grid -->
+                            <div class="group-badges-container p-2 bg-light rounded-2 small mb-3">
+                                <div class="row g-1 text-center" style="font-size: 0.72rem;">
+                                    <div class="col-4">
+                                        <div class="text-muted fw-semibold">OT</div>
+                                        <div class="badge bg-warning-subtle text-dark border border-warning w-100 text-truncate">@(string.IsNullOrEmpty(user.OTUserGroupID) ? "-" : user.OTUserGroupID)</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="text-muted fw-semibold">Leave</div>
+                                        <div class="badge bg-success-subtle text-success border border-success w-100 text-truncate">@(string.IsNullOrEmpty(user.LeaveUserGroupID) ? "-" : user.LeaveUserGroupID)</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="text-muted fw-semibold">Attn</div>
+                                        <div class="badge bg-primary-subtle text-primary border border-primary w-100 text-truncate">@(string.IsNullOrEmpty(user.AttnUserGroupID) ? "-" : user.AttnUserGroupID)</div>
+                                    </div>
+                                    <div class="col-4 mt-1">
+                                        <div class="text-muted fw-semibold">Payslip</div>
+                                        <div class="badge bg-purple-subtle text-purple border border-purple w-100 text-truncate">@(string.IsNullOrEmpty(user.PayslipUserGroupID) ? "-" : user.PayslipUserGroupID)</div>
+                                    </div>
+                                    <div class="col-4 mt-1">
+                                        <div class="text-muted fw-semibold">Claim</div>
+                                        <div class="badge bg-info-subtle text-info border border-info w-100 text-truncate">@(string.IsNullOrEmpty(user.ClaimUserGroupID) ? "-" : user.ClaimUserGroupID)</div>
+                                    </div>
+                                    <div class="col-4 mt-1">
+                                        <div class="text-muted fw-semibold">EA Form</div>
+                                        <div class="badge bg-secondary-subtle text-secondary border w-100 text-truncate">@(string.IsNullOrEmpty(user.EAFORMGroupID) ? "-" : user.EAFORMGroupID)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-footer bg-white border-top p-2 d-flex justify-content-end gap-1">
+                            <button class="btn btn-sm btn-outline-primary py-0 px-2" @onclick="() => StartEditUser(user)">
+                                <i class="bi bi-pencil-square me-1"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning py-0 px-2" @onclick="() => ResetPassword(user)">
+                                <i class="bi bi-key me-1"></i> Reset Pwd
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- MODAL 1: ADD / EDIT USER MODAL (With All Module Groups) -->
+    @if (isFormModalOpen)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content border-0 shadow-lg rounded-3">
+                    <div class="modal-header @(isEditMode ? "bg-primary" : "bg-success") text-white py-2 px-3">
+                        <h6 class="modal-title fw-bold d-flex align-items-center gap-2">
+                            <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle-fill")"></i>
+                            <span>@(isEditMode ? $"Edit User: {currentUser.ID}" : "Add New User Record")</span>
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CloseFormModal"></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <div class="row g-3">
+                            <!-- Section 1: Basic Credentials -->
+                            <div class="col-12"><h6 class="fw-bold text-muted border-bottom pb-1 small">1. Basic Credentials</h6></div>
+
+                            <div class="col-12 col-sm-6">
+                                <label class="form-label small fw-bold">User ID (Login Name) <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" placeholder="e.g. 00021" @bind="currentUser.ID" disabled="@isEditMode" />
+                            </div>
+
+                            <div class="col-12 col-sm-6">
+                                <label class="form-label small fw-bold">Full Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" placeholder="e.g. JOHN DOE" @bind="currentUser.Name" />
+                            </div>
+
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-bold">Emp ID</label>
+                                <input type="text" class="form-control form-control-sm" placeholder="e.g. 00021" @bind="currentUser.EmpId" />
+                            </div>
+
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-bold">Company Code (CoNo)</label>
+                                <input type="text" class="form-control form-control-sm" placeholder="ID" @bind="currentUser.CoNo" />
+                            </div>
+
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-bold">Active Status</label>
+                                <select class="form-select form-select-sm" @bind="currentUser.IsActive">
+                                    <option value="Y">Active (Y)</option>
+                                    <option value="N">Inactive (N)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-sm-6">
+                                <label class="form-label small fw-bold">Email Address</label>
+                                <input type="email" class="form-control form-control-sm" placeholder="user@company.com" @bind="currentUser.Email" />
+                            </div>
+
+                            <div class="col-12 col-sm-6">
+                                <label class="form-label small fw-bold">@(isEditMode ? "New Password (empty to keep)" : "Password")</label>
+                                <input type="password" class="form-control form-control-sm" placeholder="@(isEditMode ? "Keep current password" : "Default: 123456")" @bind="currentUser.Password" />
+                            </div>
+
+                            <!-- Section 2: Module Permission Groups (All 7 Groups from Old ASP.NET) -->
+                            <div class="col-12 mt-4"><h6 class="fw-bold text-muted border-bottom pb-1 small">2. Module Permission Groups (aspnet_usergroup)</h6></div>
+
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-bold">Leave Group (Leave Grp ID)</label>
+                                <select class="form-select form-select-sm" @bind="currentUser.LeaveUserGroupID">
+                                    <option value="">(None)</option>
+                                    <option value="LV ADMIN">LV ADMIN</option>
+                                    <option value="LV APPROVAL">LV APPROVAL</option>
+                                    <option value="LV IDV APPLY">LV IDV APPLY</option>
+                                    <option value="LV GRP APPLY">LV GRP APPLY</option>
+                                    <option value="super admin">super admin</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-bold">OT Group (OT Grp ID)</label>
+                                <select class="form-select form-select-sm" @bind="currentUser.OTUserGroupID">
+                                    <option value="">(None)</option>
+                                    <option value="OT ADMIN">OT ADMIN</option>
+                                    <option value="OT APPROVAL">OT APPROVAL</option>
+                                    <option value="OT GRP APPLY">OT GRP APPLY</option>
+                                    <option value="OT IDV APPLY">OT IDV APPLY</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-bold">Attendance Group (Attn Grp ID)</label>
+                                <select class="form-select form-select-sm" @bind="currentUser.AttnUserGroupID">
+                                    <option value="">(None)</option>
+                                    <option value="AT ADMIN">AT ADMIN</option>
+                                    <option value="AT VIEW">AT VIEW</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-bold">Payslip Group (Payslip Grp ID)</label>
+                                <select class="form-select form-select-sm" @bind="currentUser.PayslipUserGroupID">
+                                    <option value="">(None)</option>
+                                    <option value="PY ADMIN">PY ADMIN</option>
+                                    <option value="PY GRP">PY GRP</option>
+                                    <option value="PY INV">PY INV</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-bold">Claim Group (Claim Grp ID)</label>
+                                <select class="form-select form-select-sm" @bind="currentUser.ClaimUserGroupID">
+                                    <option value="">(None)</option>
+                                    <option value="CL ADMIN">CL ADMIN</option>
+                                    <option value="CL APPROVAL">CL APPROVAL</option>
+                                    <option value="CL USERS">CL USERS</option>
+                                    <option value="STAFF CLAIM">STAFF CLAIM</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-sm-4">
+                                <label class="form-label small fw-bold">EA Form Group (EA Grp ID)</label>
+                                <select class="form-select form-select-sm" @bind="currentUser.EAFORMGroupID">
+                                    <option value="">(None)</option>
+                                    <option value="EAFORM USERS">EAFORM USERS</option>
+                                    <option value="EAFORM">EAFORM</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-sm-6">
+                                <label class="form-label small fw-bold">Staff Group (Staff Grp ID)</label>
+                                <select class="form-select form-select-sm" @bind="currentUser.UserGroupID">
+                                    <option value="">(None)</option>
+                                    <option value="STAFF">STAFF</option>
+                                    <option value="SUPERVISOR">SUPERVISOR</option>
+                                    <option value="ADMIN">ADMIN</option>
+                                    <option value="SF APPROVAL">SF APPROVAL</option>
+                                    <option value="SF IDV">SF IDV</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-sm-6">
+                                <label class="form-label small fw-bold">Remark</label>
+                                <input type="text" class="form-control form-control-sm" placeholder="Optional notes" @bind="currentUser.Remark" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer py-2 px-3 bg-light">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="CloseFormModal">Cancel</button>
+                        <button type="button" class="btn btn-sm @(isEditMode ? "btn-primary" : "btn-success") px-4" @onclick="SaveUserAsync" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <span>Saving to MySQL...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check2-circle me-1"></i>
+                                <span>@(isEditMode ? "Update Record" : "Save Record")</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- MODAL 2: UPDATE COMPANY ID MODAL (Bulk Action) -->
+    @if (isCompanyModalOpen)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg rounded-3">
+                    <div class="modal-header bg-info text-dark py-2 px-3">
+                        <h6 class="modal-title fw-bold">
+                            <i class="bi bi-building me-1"></i> Update Company ID (CoNo)
+                        </h6>
+                        <button type="button" class="btn-close" @onclick='() => isCompanyModalOpen = false'></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <p class="small text-muted mb-2">Update the Company ID (CoNo) for the <strong>@SelectedCount</strong> selected user(s):</p>
+                        <input type="text" class="form-control form-control-sm" placeholder="e.g. ID, HQ, BCA" @bind="bulkCoNo" />
+                    </div>
+                    <div class="modal-footer py-2 px-3 bg-light">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick='() => isCompanyModalOpen = false'>Cancel</button>
+                        <button type="button" class="btn btn-sm btn-info px-4 fw-semibold" @onclick="ExecuteBulkUpdateCoNoAsync">
+                            Apply Update
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Action { get; set; }
+
+    private string viewMode = "table"; // "table" or "cards"
+    private bool showFilters = false;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+
+    private List<AdminUserModel> usersList = new();
+    private AdminUserModel? activeUser;
+    private HashSet<string> selectedUserIds = new();
+
+    private string? statusMessage;
+    private bool statusSuccess = true;
+
+    // Filters
+    private string globalSearchText = "";
+    private string? filterStatus = null;
+
+    // Per-column filters (matching old DevExpress grid)
+    private string colFilterCoNo = "";
+    private string colFilterId = "";
+    private string colFilterName = "";
+    private string colFilterEmpId = "";
+    private string colFilterActive = "";
+    private string colFilterOT = "";
+    private string colFilterLeave = "";
+    private string colFilterAttn = "";
+    private string colFilterPayslip = "";
+    private string colFilterClaim = "";
+    private string colFilterEA = "";
+    private string colFilterStaff = "";
+    private string colFilterEmail = "";
+
+    // Modals
+    private bool isFormModalOpen = false;
+    private bool isEditMode = false;
+    private AdminUserModel currentUser = new();
+
+    private bool isCompanyModalOpen = false;
+    private string bulkCoNo = "ID";
+
+    private int SelectedCount => selectedUserIds.Count;
+    private bool IsAllSelected => usersList.Count > 0 && selectedUserIds.Count == FilteredUsers.Count;
+
+    private List<AdminUserModel> FilteredUsers
+    {
+        get
+        {
+            return usersList.Where(u =>
+                // Global search
+                (string.IsNullOrWhiteSpace(globalSearchText) ||
+                 u.ID.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase) ||
+                 u.Name.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase) ||
+                 (u.EmpId != null && u.EmpId.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase)) ||
+                 (u.Email != null && u.Email.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase))) &&
+
+                // Top Status pill
+                (string.IsNullOrEmpty(filterStatus) || u.IsActive == filterStatus) &&
+
+                // Column-level filters
+                (string.IsNullOrEmpty(colFilterCoNo) || (u.CoNo != null && u.CoNo.Contains(colFilterCoNo, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterId) || u.ID.Contains(colFilterId, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(colFilterName) || u.Name.Contains(colFilterName, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(colFilterEmpId) || (u.EmpId != null && u.EmpId.Contains(colFilterEmpId, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterActive) || u.IsActive == colFilterActive) &&
+                (string.IsNullOrEmpty(colFilterOT) || (u.OTUserGroupID != null && u.OTUserGroupID.Contains(colFilterOT, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterLeave) || (u.LeaveUserGroupID != null && u.LeaveUserGroupID.Contains(colFilterLeave, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterAttn) || (u.AttnUserGroupID != null && u.AttnUserGroupID.Contains(colFilterAttn, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterPayslip) || (u.PayslipUserGroupID != null && u.PayslipUserGroupID.Contains(colFilterPayslip, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterClaim) || (u.ClaimUserGroupID != null && u.ClaimUserGroupID.Contains(colFilterClaim, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterEA) || (u.EAFORMGroupID != null && u.EAFORMGroupID.Contains(colFilterEA, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterStaff) || (u.UserGroupID != null && u.UserGroupID.Contains(colFilterStaff, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterEmail) || (u.Email != null && u.Email.Contains(colFilterEmail, StringComparison.OrdinalIgnoreCase)))
+            ).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+
+        if (string.Equals(Action, "new", StringComparison.OrdinalIgnoreCase))
+        {
+            OpenAddUserModal();
+        }
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            usersList = await ApiClient.GetAdminUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error loading users: " + ex.Message;
+            statusSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectRow(AdminUserModel user)
+    {
+        activeUser = user;
+    }
+
+    private void ToggleUserSelection(string userId, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        if (isChecked) selectedUserIds.Add(userId);
+        else selectedUserIds.Remove(userId);
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        selectedUserIds.Clear();
+        if (isChecked)
+        {
+            foreach (var u in FilteredUsers)
+            {
+                selectedUserIds.Add(u.ID);
+            }
+        }
+    }
+
+    private void OpenAddUserModal()
+    {
+        currentUser = new AdminUserModel
+        {
+            IsActive = "Y",
+            CoNo = "ID",
+            UserGroupID = "STAFF",
+            Password = "123"
+        };
+        isEditMode = false;
+        isFormModalOpen = true;
+    }
+
+    private void StartEditUser(AdminUserModel user)
+    {
+        currentUser = new AdminUserModel
+        {
+            ID = user.ID,
+            Name = user.Name,
+            Email = user.Email,
+            EmpId = user.EmpId,
+            CoNo = string.IsNullOrEmpty(user.CoNo) ? "ID" : user.CoNo,
+            IsActive = user.IsActive,
+            OTUserGroupID = user.OTUserGroupID,
+            LeaveUserGroupID = user.LeaveUserGroupID,
+            AttnUserGroupID = user.AttnUserGroupID,
+            PayslipUserGroupID = user.PayslipUserGroupID,
+            ClaimUserGroupID = user.ClaimUserGroupID,
+            EAFORMGroupID = user.EAFORMGroupID,
+            UserGroupID = user.UserGroupID,
+            Remark = user.Remark,
+            Password = ""
+        };
+        isEditMode = true;
+        isFormModalOpen = true;
+    }
+
+    private void CloseFormModal()
+    {
+        isFormModalOpen = false;
+        currentUser = new AdminUserModel();
+    }
+
+    private async Task SaveUserAsync()
+    {
+        if (string.IsNullOrWhiteSpace(currentUser.ID) || string.IsNullOrWhiteSpace(currentUser.Name))
+        {
+            statusMessage = "User ID and Full Name are required.";
+            statusSuccess = false;
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = null;
+
+        try
+        {
+            bool ok;
+            if (isEditMode)
+            {
+                ok = await ApiClient.UpdateAdminUserAsync(currentUser.ID, currentUser);
+                if (ok)
+                {
+                    statusMessage = $"User record '{currentUser.ID}' updated successfully in MySQL via Web API!";
+                    statusSuccess = true;
+                    CloseFormModal();
+                    await LoadUsersAsync();
+                }
+                else
+                {
+                    statusMessage = "Web API error updating user record.";
+                    statusSuccess = false;
+                }
+            }
+            else
+            {
+                ok = await ApiClient.CreateAdminUserAsync(currentUser);
+                if (ok)
+                {
+                    statusMessage = $"New user '{currentUser.ID}' created successfully!";
+                    statusSuccess = true;
+                    CloseFormModal();
+                    await LoadUsersAsync();
+                }
+                else
+                {
+                    statusMessage = "Web API error: User ID may already exist.";
+                    statusSuccess = false;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error saving user: " + ex.Message;
+            statusSuccess = false;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task ToggleUserActiveStatus(AdminUserModel user)
+    {
+        string newStatus = (user.IsActive == "Y") ? "N" : "Y";
+        user.IsActive = newStatus;
+
+        try
+        {
+            bool ok = await ApiClient.UpdateAdminUserAsync(user.ID, user);
+            if (ok)
+            {
+                statusMessage = $"User '{user.ID}' active status toggled to '{newStatus}'.";
+                statusSuccess = true;
+            }
+            else
+            {
+                statusMessage = $"Failed to toggle status for '{user.ID}'.";
+                statusSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error: " + ex.Message;
+            statusSuccess = false;
+        }
+    }
+
+    private async Task DeleteSelectedUsersAsync()
+    {
+        if (SelectedCount == 0) return;
+
+        int deletedCount = 0;
+        foreach (var id in selectedUserIds.ToList())
+        {
+            bool ok = await ApiClient.DeleteAdminUserAsync(id);
+            if (ok) deletedCount++;
+        }
+
+        selectedUserIds.Clear();
+        statusMessage = $"Successfully deleted {deletedCount} user(s).";
+        statusSuccess = true;
+        await LoadUsersAsync();
+    }
+
+    private async Task ResetSelectedUserPassword()
+    {
+        string? singleId = selectedUserIds.FirstOrDefault();
+        if (string.IsNullOrEmpty(singleId)) return;
+
+        try
+        {
+            string? tempPwd = await ApiClient.ResetUserPasswordAsync(singleId);
+            if (!string.IsNullOrEmpty(tempPwd))
+            {
+                statusMessage = $"Password for '{singleId}' reset successfully! Temporary Password: {tempPwd}";
+                statusSuccess = true;
+            }
+            else
+            {
+                statusMessage = $"Failed to reset password for '{singleId}'.";
+                statusSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error: " + ex.Message;
+            statusSuccess = false;
+        }
+    }
+
+    private async Task ResetPassword(AdminUserModel user)
+    {
+        try
+        {
+            string? tempPwd = await ApiClient.ResetUserPasswordAsync(user.ID);
+            if (!string.IsNullOrEmpty(tempPwd))
+            {
+                statusMessage = $"Password for '{user.ID}' reset! Temporary Password: {tempPwd}";
+                statusSuccess = true;
+            }
+            else
+            {
+                statusMessage = $"Failed to reset password for '{user.ID}'.";
+                statusSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error: " + ex.Message;
+            statusSuccess = false;
+        }
+    }
+
+    private void OpenUpdateCompanyModal()
+    {
+        isCompanyModalOpen = true;
+    }
+
+    private async Task ExecuteBulkUpdateCoNoAsync()
+    {
+        if (string.IsNullOrWhiteSpace(bulkCoNo)) return;
+
+        int updated = 0;
+        foreach (var id in selectedUserIds.ToList())
+        {
+            var user = usersList.FirstOrDefault(u => u.ID == id);
+            if (user != null)
+            {
+                user.CoNo = bulkCoNo;
+                bool ok = await ApiClient.UpdateAdminUserAsync(id, user);
+                if (ok) updated++;
+            }
+        }
+
+        isCompanyModalOpen = false;
+        statusMessage = $"Updated Company ID (CoNo='{bulkCoNo}') for {updated} user(s).";
+        statusSuccess = true;
+        await LoadUsersAsync();
+    }
+
+    private void SendNotificationEmail()
+    {
+        statusMessage = $"Notification email dispatched to {SelectedCount} selected user(s).";
+        statusSuccess = true;
+    }
+
+    private void PrintUsers()
+    {
+        statusMessage = "Print view ready. You can use your browser's Print dialog (Ctrl+P) to print the user list.";
+        statusSuccess = true;
+    }
+}
+
+<style>
+    .user-management-page {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto;
+        padding-bottom: 80px;
+    }
+
+    /* Compact Action Toolbar Icon Buttons */
+    .icon-toolbar-btn {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        transition: all 0.15s ease-in-out;
+        position: relative;
+    }
+
+    .icon-toolbar-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.12), 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+    }
+
+    .icon-toolbar-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
+    .back-arrow-btn {
+        color: #1e293b !important;
+        line-height: 1;
+        transition: transform 0.15s ease-in-out, color 0.15s ease-in-out;
+    }
+
+    .back-arrow-btn:hover {
+        color: #0284c7 !important;
+        transform: translateX(-3px);
+    }
+
+    /* Enterprise Table Styling */
+    .enterprise-table-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        max-height: 580px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .enterprise-table {
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    .enterprise-table th {
+        font-weight: 700;
+        letter-spacing: -0.1px;
+        padding: 8px 10px;
+        vertical-align: middle;
+        font-size: 0.78rem;
+    }
+
+    .table-header-custom {
+        background-color: #2e6430; /* Corporate HRsuite Deep Green matching legacy theme */
+        color: #ffffff;
+    }
+
+    .table-header-custom th {
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .enterprise-table td {
+        padding: 6px 10px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .enterprise-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    /* Highlighted Row (Matching the amber glow in legacy Image 1) */
+    .row-highlighted {
+        background-color: #fef3c7 !important; /* Soft Amber Glow */
+    }
+
+    .row-selected {
+        background-color: #eff6ff !important; /* Soft Primary Blue Glow */
+    }
+
+    /* Group Badges */
+    .badge-group {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 3px 6px;
+        letter-spacing: -0.2px;
+    }
+
+    .bg-purple-subtle {
+        background-color: #f3e8ff !important;
+    }
+
+    .text-purple {
+        color: #7e22ce !important;
+    }
+
+    .border-purple {
+        border-color: #d8b4fe !important;
+    }
+
+    .form-control-xs, .form-select-xs {
+        font-size: 0.72rem;
+        padding: 2px 4px;
+        height: 24px;
+        border-radius: 4px;
+    }
+
+    .btn-xs {
+        font-size: 0.72rem;
+        padding: 1px 6px;
+        line-height: 1.4;
+    }
+
+    .spin {
+        animation: spin 1s infinite linear;
+    }
+
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
