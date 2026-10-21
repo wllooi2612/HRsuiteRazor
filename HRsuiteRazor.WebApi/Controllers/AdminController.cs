@@ -33,35 +33,35 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> GetEmployees()
     {
         var list = new List<EmployeeLookupModel>();
-        string mysqlConnStr = GetMyMySqlConnectionString();
 
         try
         {
-            using (var conn = new OdbcConnection(mysqlConnStr))
+            using (var conn = new MySqlConnection(GetMySqlConnectionString()))
             {
                 await conn.OpenAsync();
                 using (var cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "SELECT Emp_ID, Name FROM dw_emp WHERE status <> '*' ORDER BY Name";
+                    cmd.CommandText = "SELECT DISTINCT emp_id, Name FROM aspnet_users WHERE emp_id IS NOT NULL AND emp_id <> '' ORDER BY emp_id";
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
                         while (await reader.ReadAsync())
                         {
                             list.Add(new EmployeeLookupModel
                             {
-                                EmpId = reader["Emp_ID"]?.ToString() ?? "",
+                                EmpId = reader["emp_id"]?.ToString() ?? "",
                                 Name = reader["Name"]?.ToString() ?? ""
                             });
                         }
                     }
                 }
             }
-            return Ok(list);
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { Message = "MySQL database error.", Details = ex.Message });
+            System.Diagnostics.Debug.WriteLine($"Employee lookup error: {ex.Message}");
         }
+
+        return Ok(list);
     }
 
     // --- USER MANAGEMENT ---
@@ -145,7 +145,7 @@ public class AdminController : ControllerBase
                 {
                     cmd.CommandText = "SELECT COUNT(*) FROM aspnet_users WHERE ID = @ID";
                     cmd.Parameters.AddWithValue("@ID", user.ID);
-                    int count = (int)(await cmd.ExecuteScalarAsync())!;
+                    long count = Convert.ToInt64(await cmd.ExecuteScalarAsync() ?? 0);
                     if (count > 0)
                     {
                         return BadRequest(new { Message = "User ID already exists." });
@@ -159,7 +159,7 @@ public class AdminController : ControllerBase
                     {
                         cmd.CommandText = "SELECT COUNT(*) FROM aspnet_users WHERE emp_id = @EmpId";
                         cmd.Parameters.AddWithValue("@EmpId", user.EmpId);
-                        int count = (int)(await cmd.ExecuteScalarAsync())!;
+                        long count = Convert.ToInt64(await cmd.ExecuteScalarAsync() ?? 0);
                         if (count > 0)
                         {
                             return BadRequest(new { Message = "Employee ID is already assigned to another user." });
@@ -243,7 +243,7 @@ public class AdminController : ControllerBase
                         cmd.CommandText = "SELECT COUNT(*) FROM aspnet_users WHERE emp_id = @EmpId AND ID <> @ID";
                         cmd.Parameters.AddWithValue("@EmpId", user.EmpId);
                         cmd.Parameters.AddWithValue("@ID", id);
-                        int count = (int)(await cmd.ExecuteScalarAsync())!;
+                        long count = Convert.ToInt64(await cmd.ExecuteScalarAsync() ?? 0);
                         if (count > 0)
                         {
                             return BadRequest(new { Message = "Employee ID is already assigned to another user." });
@@ -566,7 +566,7 @@ public class AdminController : ControllerBase
                     cmd.CommandText = "SELECT COUNT(*) FROM aspnet_usergroup WHERE UserGroupID = @UserGroupID AND GroupID = @GroupID";
                     cmd.Parameters.AddWithValue("@UserGroupID", model.UserGroupID);
                     cmd.Parameters.AddWithValue("@GroupID", model.GroupID);
-                    int count = (int)(await cmd.ExecuteScalarAsync())!;
+                    long count = Convert.ToInt64(await cmd.ExecuteScalarAsync() ?? 0);
                     if (count > 0)
                     {
                         return BadRequest(new { Message = "Group already exists." });

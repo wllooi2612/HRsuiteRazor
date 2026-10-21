@@ -444,18 +444,29 @@ public class HrApiClient
         }
     }
 
-    public async Task<bool> UpdateAdminUserAsync(string id, AdminUserModel user)
+    public async Task<(bool Success, string? ErrorMessage)> UpdateAdminUserWithDetailsAsync(string id, AdminUserModel user)
     {
         try
         {
             var res = await _http.PutAsJsonAsync($"api/Admin/users/{Uri.EscapeDataString(id)}", user);
-            return res.IsSuccessStatusCode;
+            if (!res.IsSuccessStatusCode)
+            {
+                var content = await res.Content.ReadAsStringAsync();
+                return (false, string.IsNullOrWhiteSpace(content) ? res.ReasonPhrase : content);
+            }
+            return (true, null);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update user via Web API");
-            return false;
+            return (false, ex.Message);
         }
+    }
+
+    public async Task<bool> UpdateAdminUserAsync(string id, AdminUserModel user)
+    {
+        var (success, _) = await UpdateAdminUserWithDetailsAsync(id, user);
+        return success;
     }
 
     public async Task<bool> DeleteAdminUserAsync(string id)

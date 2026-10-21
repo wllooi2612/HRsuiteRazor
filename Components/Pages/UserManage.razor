@@ -943,10 +943,9 @@
 
         try
         {
-            bool ok;
             if (isEditMode)
             {
-                ok = await ApiClient.UpdateAdminUserAsync(currentUser.ID, currentUser);
+                var (ok, errMsg) = await ApiClient.UpdateAdminUserWithDetailsAsync(currentUser.ID, currentUser);
                 if (ok)
                 {
                     statusMessage = $"User record '{currentUser.ID}' updated successfully!";
@@ -957,12 +956,12 @@
                 else
                 {
                     isConfirmSaveModalOpen = false;
-                    formErrorMessage = "Web API error updating user record.";
+                    formErrorMessage = !string.IsNullOrWhiteSpace(errMsg) ? errMsg : "Web API error updating user record.";
                 }
             }
             else
             {
-                ok = await ApiClient.CreateAdminUserAsync(currentUser);
+                bool ok = await ApiClient.CreateAdminUserAsync(currentUser);
                 if (ok)
                 {
                     statusMessage = $"New user '{currentUser.ID}' created successfully!";
