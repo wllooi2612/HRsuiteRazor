@@ -32,6 +32,12 @@ public class UserGroupModel
     public string ApprovalLevel { get; set; } = string.Empty;
 }
 
+public class CompanyModel
+{
+    public string CoNo { get; set; } = string.Empty;
+    public string CompanyName { get; set; } = string.Empty;
+}
+
 public class EmployeeLookupModel
 {
     public string EmpId { get; set; } = string.Empty;

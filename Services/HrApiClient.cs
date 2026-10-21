@@ -416,6 +416,34 @@ public class HrApiClient
         }
     }
 
+    public async Task<List<CompanyModel>> GetCompaniesAsync()
+    {
+        try
+        {
+            var items = await _http.GetFromJsonAsync<List<CompanyModel>>("api/Admin/companies");
+            return items ?? new List<CompanyModel>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch companies from Web API");
+            return new List<CompanyModel>();
+        }
+    }
+
+    public async Task<List<EmployeeLookupModel>> GetEmployeesAsync()
+    {
+        try
+        {
+            var items = await _http.GetFromJsonAsync<List<EmployeeLookupModel>>("api/Admin/employees");
+            return items ?? new List<EmployeeLookupModel>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch employees from Web API");
+            return new List<EmployeeLookupModel>();
+        }
+    }
+
     public async Task<bool> UpdateAdminUserAsync(string id, AdminUserModel user)
     {
         try

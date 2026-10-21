@@ -465,12 +465,24 @@
 
                             <div class="col-12 col-sm-4">
                                 <label class="form-label small fw-bold">Emp ID</label>
-                                <input type="text" class="form-control form-control-sm" placeholder="e.g. 00021" @bind="currentUser.EmpId" />
+                                <input type="text" class="form-control form-control-sm" list="empOptions" placeholder="e.g. 00021" @bind="currentUser.EmpId" @bind:after="OnEmpIdChanged" />
+                                <datalist id="empOptions">
+                                    @foreach (var emp in employeeList)
+                                    {
+                                        <option value="@emp.EmpId">@emp.Name</option>
+                                    }
+                                </datalist>
                             </div>
 
                             <div class="col-12 col-sm-4">
                                 <label class="form-label small fw-bold">Company Code (CoNo)</label>
-                                <input type="text" class="form-control form-control-sm" placeholder="ID" @bind="currentUser.CoNo" />
+                                <select class="form-select form-select-sm" @bind="currentUser.CoNo">
+                                    <option value="">(None)</option>
+                                    @foreach (var comp in companyList)
+                                    {
+                                        <option value="@comp.CoNo">@comp.CoNo - @comp.CompanyName</option>
+                                    }
+                                </select>
                             </div>
 
                             <div class="col-12 col-sm-4">
@@ -491,18 +503,17 @@
                                 <input type="password" class="form-control form-control-sm" placeholder="@(isEditMode ? "Keep current password" : "Default: 123456")" @bind="currentUser.Password" />
                             </div>
 
-                            <!-- Section 2: Module Permission Groups (All 7 Groups from Old ASP.NET) -->
+                            <!-- Section 2: Module Permission Groups (aspnet_usergroup) -->
                             <div class="col-12 mt-4"><h6 class="fw-bold text-muted border-bottom pb-1 small">2. Module Permission Groups (aspnet_usergroup)</h6></div>
 
                             <div class="col-12 col-sm-4">
                                 <label class="form-label small fw-bold">Leave Group (Leave Grp ID)</label>
                                 <select class="form-select form-select-sm" @bind="currentUser.LeaveUserGroupID">
                                     <option value="">(None)</option>
-                                    <option value="LV ADMIN">LV ADMIN</option>
-                                    <option value="LV APPROVAL">LV APPROVAL</option>
-                                    <option value="LV IDV APPLY">LV IDV APPLY</option>
-                                    <option value="LV GRP APPLY">LV GRP APPLY</option>
-                                    <option value="super admin">super admin</option>
+                                    @foreach (var g in leaveGroups)
+                                    {
+                                        <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                    }
                                 </select>
                             </div>
 
@@ -510,10 +521,10 @@
                                 <label class="form-label small fw-bold">OT Group (OT Grp ID)</label>
                                 <select class="form-select form-select-sm" @bind="currentUser.OTUserGroupID">
                                     <option value="">(None)</option>
-                                    <option value="OT ADMIN">OT ADMIN</option>
-                                    <option value="OT APPROVAL">OT APPROVAL</option>
-                                    <option value="OT GRP APPLY">OT GRP APPLY</option>
-                                    <option value="OT IDV APPLY">OT IDV APPLY</option>
+                                    @foreach (var g in otGroups)
+                                    {
+                                        <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                    }
                                 </select>
                             </div>
 
@@ -521,8 +532,10 @@
                                 <label class="form-label small fw-bold">Attendance Group (Attn Grp ID)</label>
                                 <select class="form-select form-select-sm" @bind="currentUser.AttnUserGroupID">
                                     <option value="">(None)</option>
-                                    <option value="AT ADMIN">AT ADMIN</option>
-                                    <option value="AT VIEW">AT VIEW</option>
+                                    @foreach (var g in attnGroups)
+                                    {
+                                        <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                    }
                                 </select>
                             </div>
 
@@ -530,9 +543,10 @@
                                 <label class="form-label small fw-bold">Payslip Group (Payslip Grp ID)</label>
                                 <select class="form-select form-select-sm" @bind="currentUser.PayslipUserGroupID">
                                     <option value="">(None)</option>
-                                    <option value="PY ADMIN">PY ADMIN</option>
-                                    <option value="PY GRP">PY GRP</option>
-                                    <option value="PY INV">PY INV</option>
+                                    @foreach (var g in payslipGroups)
+                                    {
+                                        <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                    }
                                 </select>
                             </div>
 
@@ -540,10 +554,10 @@
                                 <label class="form-label small fw-bold">Claim Group (Claim Grp ID)</label>
                                 <select class="form-select form-select-sm" @bind="currentUser.ClaimUserGroupID">
                                     <option value="">(None)</option>
-                                    <option value="CL ADMIN">CL ADMIN</option>
-                                    <option value="CL APPROVAL">CL APPROVAL</option>
-                                    <option value="CL USERS">CL USERS</option>
-                                    <option value="STAFF CLAIM">STAFF CLAIM</option>
+                                    @foreach (var g in claimGroups)
+                                    {
+                                        <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                    }
                                 </select>
                             </div>
 
@@ -551,8 +565,10 @@
                                 <label class="form-label small fw-bold">EA Form Group (EA Grp ID)</label>
                                 <select class="form-select form-select-sm" @bind="currentUser.EAFORMGroupID">
                                     <option value="">(None)</option>
-                                    <option value="EAFORM USERS">EAFORM USERS</option>
-                                    <option value="EAFORM">EAFORM</option>
+                                    @foreach (var g in eaGroups)
+                                    {
+                                        <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                    }
                                 </select>
                             </div>
 
@@ -560,11 +576,10 @@
                                 <label class="form-label small fw-bold">Staff Group (Staff Grp ID)</label>
                                 <select class="form-select form-select-sm" @bind="currentUser.UserGroupID">
                                     <option value="">(None)</option>
-                                    <option value="STAFF">STAFF</option>
-                                    <option value="SUPERVISOR">SUPERVISOR</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="SF APPROVAL">SF APPROVAL</option>
-                                    <option value="SF IDV">SF IDV</option>
+                                    @foreach (var g in staffGroups)
+                                    {
+                                        <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                    }
                                 </select>
                             </div>
 
@@ -608,7 +623,12 @@
                     </div>
                     <div class="modal-body p-3">
                         <p class="small text-muted mb-2">Update the Company ID (CoNo) for the <strong>@SelectedCount</strong> selected user(s):</p>
-                        <input type="text" class="form-control form-control-sm" placeholder="e.g. ID, HQ, BCA" @bind="bulkCoNo" />
+                        <select class="form-select form-select-sm" @bind="bulkCoNo">
+                            @foreach (var comp in companyList)
+                            {
+                                <option value="@comp.CoNo">@comp.CoNo - @comp.CompanyName</option>
+                            }
+                        </select>
                     </div>
                     <div class="modal-footer py-2 px-3 bg-light">
                         <button type="button" class="btn btn-sm btn-outline-secondary" @onclick='() => isCompanyModalOpen = false'>Cancel</button>
@@ -665,6 +685,19 @@
     private bool isCompanyModalOpen = false;
     private string bulkCoNo = "ID";
 
+    // Dynamic Lookups from MySQL (aspnet_usergroup, aspnet_general, dw_emp)
+    private List<UserGroupModel> allGroups = new();
+    private List<CompanyModel> companyList = new();
+    private List<EmployeeLookupModel> employeeList = new();
+
+    private IEnumerable<UserGroupModel> leaveGroups => allGroups.Where(g => g.GroupID.Equals("LEAVE", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> otGroups => allGroups.Where(g => g.GroupID.Equals("OT", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> attnGroups => allGroups.Where(g => g.GroupID.Equals("ATTENDANCE", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> payslipGroups => allGroups.Where(g => g.GroupID.Equals("PAYSLIP", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> claimGroups => allGroups.Where(g => g.GroupID.Equals("CLAIM", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> eaGroups => allGroups.Where(g => g.GroupID.Equals("EAFORM", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> staffGroups => allGroups.Where(g => g.GroupID.Equals("STAFF", StringComparison.OrdinalIgnoreCase));
+
     private int SelectedCount => selectedUserIds.Count;
     private bool IsAllSelected => usersList.Count > 0 && selectedUserIds.Count == FilteredUsers.Count;
 
@@ -703,11 +736,52 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadUsersAsync();
+        await Task.WhenAll(
+            LoadUsersAsync(),
+            LoadLookupsAsync()
+        );
 
         if (string.Equals(Action, "new", StringComparison.OrdinalIgnoreCase))
         {
             OpenAddUserModal();
+        }
+    }
+
+    private async Task LoadLookupsAsync()
+    {
+        try
+        {
+            allGroups = await ApiClient.GetAdminGroupsAsync();
+            companyList = await ApiClient.GetCompaniesAsync();
+            employeeList = await ApiClient.GetEmployeesAsync();
+
+            if (companyList.Count > 0 && (string.IsNullOrEmpty(bulkCoNo) || bulkCoNo == "ID"))
+            {
+                bulkCoNo = companyList[0].CoNo;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error loading lookup data: " + ex.Message);
+        }
+    }
+
+    private void OnEmpIdChanged()
+    {
+        if (!string.IsNullOrWhiteSpace(currentUser.EmpId))
+        {
+            var matchedEmp = employeeList.FirstOrDefault(e => e.EmpId.Equals(currentUser.EmpId, StringComparison.OrdinalIgnoreCase));
+            if (matchedEmp != null)
+            {
+                if (string.IsNullOrWhiteSpace(currentUser.Name))
+                {
+                    currentUser.Name = matchedEmp.Name;
+                }
+                if (!isEditMode && string.IsNullOrWhiteSpace(currentUser.ID))
+                {
+                    currentUser.ID = matchedEmp.EmpId;
+                }
+            }
         }
     }
 
@@ -760,8 +834,9 @@
         currentUser = new AdminUserModel
         {
             IsActive = "Y",
-            CoNo = "ID",
-            UserGroupID = "STAFF",
+            CoNo = companyList.FirstOrDefault()?.CoNo ?? "ID",
+            UserGroupID = staffGroups.FirstOrDefault()?.UserGroupID ?? "",
+            LeaveUserGroupID = leaveGroups.FirstOrDefault()?.UserGroupID ?? "",
             Password = "123"
         };
         isEditMode = false;

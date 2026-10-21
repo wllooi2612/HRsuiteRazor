@@ -499,6 +499,41 @@ public class AdminController : ControllerBase
         }
     }
 
+    [HttpGet("companies")]
+    public async Task<IActionResult> GetCompanies()
+    {
+        var list = new List<CompanyModel>();
+        string connStr = GetMySqlConnectionString();
+
+        try
+        {
+            using (var conn = new MySqlConnection(connStr))
+            {
+                await conn.OpenAsync();
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT DISTINCT CoNo, CompanyName FROM aspnet_general ORDER BY CoNo";
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            list.Add(new CompanyModel
+                            {
+                                CoNo = reader["CoNo"]?.ToString() ?? "",
+                                CompanyName = reader["CompanyName"]?.ToString() ?? ""
+                            });
+                        }
+                    }
+                }
+            }
+            return Ok(list);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Error querying companies.", Details = ex.Message });
+        }
+    }
+
     [HttpPost("groups")]
     public async Task<IActionResult> CreateGroup([FromBody] UserGroupModel model)
     {
