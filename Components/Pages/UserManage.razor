@@ -110,7 +110,7 @@
                 </div>
 
                 <!-- Refresh Button -->
-                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="LoadUsersAsync" title="Refresh Users from Database">
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="() => LoadUsersAsync()" title="Refresh Users from Database">
                     <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
                 </button>
             </div>
@@ -449,6 +449,13 @@
                         <button type="button" class="btn-close btn-close-white" @onclick="CloseFormModal"></button>
                     </div>
                     <div class="modal-body p-3">
+                        @if (!string.IsNullOrEmpty(formErrorMessage))
+                        {
+                            <div class="alert alert-danger py-2 px-3 small d-flex align-items-center gap-2 mb-3">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                <span>@formErrorMessage</span>
+                            </div>
+                        }
                         <div class="row g-3">
                             <!-- Section 1: Basic Credentials -->
                             <div class="col-12"><h6 class="fw-bold text-muted border-bottom pb-1 small">1. Basic Credentials</h6></div>
@@ -591,16 +598,53 @@
                     </div>
                     <div class="modal-footer py-2 px-3 bg-light">
                         <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="CloseFormModal">Cancel</button>
-                        <button type="button" class="btn btn-sm @(isEditMode ? "btn-primary" : "btn-success") px-4" @onclick="SaveUserAsync" disabled="@isSubmitting">
+                        <button type="button" class="btn btn-sm @(isEditMode ? "btn-primary" : "btn-success") px-4" @onclick="RequestSaveUser" disabled="@isSubmitting">
+                            <i class="bi bi-check2-circle me-1"></i>
+                            <span>@(isEditMode ? "Update Record" : "Save Record")</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- MODAL: CONFIRMATION BEFORE SAVE/UPDATE -->
+    @if (isConfirmSaveModalOpen)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.65); z-index: 1060;">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content border-0 shadow-lg rounded-3">
+                    <div class="modal-header @(isEditMode ? "bg-primary text-white" : "bg-success text-white") py-2 px-3">
+                        <h6 class="modal-title fw-bold">
+                            <i class="bi bi-question-circle me-1"></i> Confirmation
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white" @onclick="() => isConfirmSaveModalOpen = false"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-question-circle-fill text-primary" style="font-size: 3rem;"></i>
+                        </div>
+                        <h6 class="fw-bold mb-2">Are you sure you want to continue?</h6>
+                        <p class="small text-muted mb-0">
+                            @(isEditMode 
+                                ? $"Are you sure you want to update user '{currentUser.ID}'?" 
+                                : $"Are you sure you want to add new user '{currentUser.ID}'?")
+                        </p>
+                    </div>
+                    <div class="modal-footer py-2 px-3 bg-light justify-content-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-3" @onclick="() => isConfirmSaveModalOpen = false" disabled="@isSubmitting">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn btn-sm @(isEditMode ? "btn-primary" : "btn-success") px-4 fw-semibold" @onclick="ConfirmAndSaveUserAsync" disabled="@isSubmitting">
                             @if (isSubmitting)
                             {
                                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                                <span>Saving to MySQL...</span>
+                                <span>Saving...</span>
                             }
                             else
                             {
                                 <i class="bi bi-check2-circle me-1"></i>
-                                <span>@(isEditMode ? "Update Record" : "Save Record")</span>
+                                <span>Confirm</span>
                             }
                         </button>
                     </div>
@@ -681,6 +725,8 @@
     private bool isFormModalOpen = false;
     private bool isEditMode = false;
     private AdminUserModel currentUser = new();
+    private bool isConfirmSaveModalOpen = false;
+    private string? formErrorMessage;
 
     private bool isCompanyModalOpen = false;
     private string bulkCoNo = "ID";
@@ -785,10 +831,13 @@
         }
     }
 
-    private async Task LoadUsersAsync()
+    private async Task LoadUsersAsync(bool keepStatus = false)
     {
         isLoading = true;
-        statusMessage = null;
+        if (!keepStatus)
+        {
+            statusMessage = null;
+        }
         try
         {
             usersList = await ApiClient.GetAdminUsersAsync();
@@ -870,20 +919,27 @@
     private void CloseFormModal()
     {
         isFormModalOpen = false;
+        isConfirmSaveModalOpen = false;
         currentUser = new AdminUserModel();
+        formErrorMessage = null;
     }
 
-    private async Task SaveUserAsync()
+    private void RequestSaveUser()
     {
         if (string.IsNullOrWhiteSpace(currentUser.ID) || string.IsNullOrWhiteSpace(currentUser.Name))
         {
-            statusMessage = "User ID and Full Name are required.";
-            statusSuccess = false;
+            formErrorMessage = "User ID and Full Name are required.";
             return;
         }
 
+        formErrorMessage = null;
+        isConfirmSaveModalOpen = true;
+    }
+
+    private async Task ConfirmAndSaveUserAsync()
+    {
         isSubmitting = true;
-        statusMessage = null;
+        formErrorMessage = null;
 
         try
         {
@@ -893,15 +949,15 @@
                 ok = await ApiClient.UpdateAdminUserAsync(currentUser.ID, currentUser);
                 if (ok)
                 {
-                    statusMessage = $"User record '{currentUser.ID}' updated successfully in MySQL via Web API!";
+                    statusMessage = $"User record '{currentUser.ID}' updated successfully!";
                     statusSuccess = true;
                     CloseFormModal();
-                    await LoadUsersAsync();
+                    await LoadUsersAsync(keepStatus: true);
                 }
                 else
                 {
-                    statusMessage = "Web API error updating user record.";
-                    statusSuccess = false;
+                    isConfirmSaveModalOpen = false;
+                    formErrorMessage = "Web API error updating user record.";
                 }
             }
             else
@@ -912,19 +968,19 @@
                     statusMessage = $"New user '{currentUser.ID}' created successfully!";
                     statusSuccess = true;
                     CloseFormModal();
-                    await LoadUsersAsync();
+                    await LoadUsersAsync(keepStatus: true);
                 }
                 else
                 {
-                    statusMessage = "Web API error: User ID may already exist.";
-                    statusSuccess = false;
+                    isConfirmSaveModalOpen = false;
+                    formErrorMessage = "Web API error: User ID may already exist.";
                 }
             }
         }
         catch (Exception ex)
         {
-            statusMessage = "Error saving user: " + ex.Message;
-            statusSuccess = false;
+            isConfirmSaveModalOpen = false;
+            formErrorMessage = "Error saving user: " + ex.Message;
         }
         finally
         {
@@ -961,6 +1017,9 @@
     private async Task DeleteSelectedUsersAsync()
     {
         if (SelectedCount == 0) return;
+
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to delete the {SelectedCount} selected user(s)?");
+        if (!confirmed) return;
 
         int deletedCount = 0;
         foreach (var id in selectedUserIds.ToList())
