@@ -57,31 +57,6 @@
                 </div>
             </div>
 
-            <!-- Filter By Module/System Group -->
-            <div class="d-flex align-items-center gap-1">
-                <span class="text-muted small me-1">System:</span>
-                <select class="form-select form-select-xs" style="width: 130px; height: 31px; font-size: 0.8rem;" @bind="filterSystemGroup">
-                    <option value="">All Systems</option>
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="ATTENDANCE">ATTENDANCE</option>
-                    <option value="LEAVE">LEAVE</option>
-                    <option value="OT">OT</option>
-                    <option value="PAYSLIP">PAYSLIP</option>
-                    <option value="CLAIM">CLAIM</option>
-                    <option value="EAFORM">EAFORM</option>
-                    <option value="STAFF">STAFF</option>
-                    <option value="APPRAISAL">APPRAISAL</option>
-                </select>
-            </div>
-
-            <!-- Filter By Access Status (All, Granted, Denied) -->
-            <div class="d-flex align-items-center gap-1">
-                <span class="text-muted small me-1">Access:</span>
-                <button class="btn btn-xs rounded-pill @(filterAccess == null ? "btn-dark text-white" : "btn-light text-dark border")" @onclick='() => filterAccess = null' title="Show all pages">All</button>
-                <button class="btn btn-xs rounded-pill @(filterAccess == true ? "btn-success text-white" : "btn-light text-dark border")" @onclick='() => filterAccess = true' title="Show granted pages only">Granted</button>
-                <button class="btn btn-xs rounded-pill @(filterAccess == false ? "btn-danger text-white" : "btn-light text-dark border")" @onclick='() => filterAccess = false' title="Show denied pages only">Denied</button>
-            </div>
-
             <div class="vr mx-1 my-auto text-secondary opacity-25 d-none d-sm-block" style="height: 22px;"></div>
 
             <!-- Action Icons Toolbar (All Icon Buttons with Tooltips in ONE Line) -->
@@ -105,13 +80,6 @@
                 <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="ReloadPermissionsAsync" title="Refresh Pages & Rights">
                     <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
                 </button>
-
-                @if (!string.IsNullOrEmpty(selectedGroupKey) && pagesList.Count > 0)
-                {
-                    <span class="badge bg-light text-secondary border fw-normal ms-1">
-                        @GrantedCount / @pagesList.Count Granted
-                    </span>
-                }
             </div>
         </div>
     </div>
@@ -213,9 +181,6 @@
                     <span>No group selected</span>
                 }
             </div>
-            <div class="d-none d-md-block">
-                <span>Source: MySQL 5.7 schema <code>myhrsuitelog.aspnet_useraccessright</code></span>
-            </div>
         </div>
     </div>
 </div>
@@ -271,8 +236,6 @@
     private string selectedSystemGroupId = "";
 
     private string searchText = "";
-    private string filterSystemGroup = "";
-    private bool? filterAccess = null;
 
     private bool isLoading = false;
     private bool isSaving = false;
@@ -297,16 +260,6 @@
                     p.GroupID.ToLowerInvariant().Contains(term) ||
                     p.FormID.ToString().Contains(term)
                 );
-            }
-
-            if (!string.IsNullOrWhiteSpace(filterSystemGroup))
-            {
-                query = query.Where(p => string.Equals(p.GroupID, filterSystemGroup, StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (filterAccess.HasValue)
-            {
-                query = query.Where(p => p.IsSelected == filterAccess.Value);
             }
 
             return query.ToList();
