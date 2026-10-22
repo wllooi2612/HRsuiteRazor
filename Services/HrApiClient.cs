@@ -590,6 +590,151 @@ public class HrApiClient
             return (false, ex.Message);
         }
     }
+
+    public async Task<List<QdeEmployeeModel>> GetQdeEmployeesAsync()
+    {
+        try
+        {
+            var res = await _http.GetFromJsonAsync<List<QdeEmployeeModel>>("api/Admin/qde-employees");
+            return res ?? new List<QdeEmployeeModel>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch QDE employees via Web API");
+            return new List<QdeEmployeeModel>();
+        }
+    }
+
+    public async Task<(bool Success, BatchCreateUsersResult? Result, string? ErrorMessage)> BatchCreateUsersAsync(BatchCreateUsersRequest request)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Admin/batch-create-users", request);
+            if (res.IsSuccessStatusCode)
+            {
+                var result = await res.Content.ReadFromJsonAsync<BatchCreateUsersResult>();
+                return (true, result, null);
+            }
+            var err = await res.Content.ReadAsStringAsync();
+            return (false, null, string.IsNullOrWhiteSpace(err) ? res.ReasonPhrase : err);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to batch create users via Web API");
+            return (false, null, ex.Message);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // General Settings & Company Admin
+    // -------------------------------------------------------------
+
+    public async Task<GeneralSettingsModel?> GetGeneralSettingsAsync(string coNo = "1")
+    {
+        try
+        {
+            return await _http.GetFromJsonAsync<GeneralSettingsModel>($"api/Admin/general/{Uri.EscapeDataString(coNo)}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get general settings for CoNo={CoNo}", coNo);
+            return null;
+        }
+    }
+
+    public async Task<List<CompanyDetailModel>> GetCompanyDetailsAsync()
+    {
+        try
+        {
+            var res = await _http.GetFromJsonAsync<List<CompanyDetailModel>>("api/Admin/general/companies-detail");
+            return res ?? new List<CompanyDetailModel>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get company details");
+            return new List<CompanyDetailModel>();
+        }
+    }
+
+    public async Task<(bool Success, string? Message)> SaveGeneralSettingsAsync(GeneralSettingsModel model)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Admin/general", model);
+            if (res.IsSuccessStatusCode)
+            {
+                return (true, "Settings saved successfully.");
+            }
+            var err = await res.Content.ReadAsStringAsync();
+            return (false, string.IsNullOrWhiteSpace(err) ? res.ReasonPhrase : err);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save general settings");
+            return (false, ex.Message);
+        }
+    }
+
+    public async Task<(bool Success, string? Message)> SaveCompanyAsync(CompanyDetailModel model)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Admin/general/company", model);
+            if (res.IsSuccessStatusCode)
+            {
+                return (true, "Company saved successfully.");
+            }
+            var err = await res.Content.ReadAsStringAsync();
+            return (false, string.IsNullOrWhiteSpace(err) ? res.ReasonPhrase : err);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save company");
+            return (false, ex.Message);
+        }
+    }
+
+    public async Task<(bool Success, string? Message)> DeleteCompanyAsync(string coNo)
+    {
+        try
+        {
+            var res = await _http.DeleteAsync($"api/Admin/general/company/{Uri.EscapeDataString(coNo)}");
+            if (res.IsSuccessStatusCode)
+            {
+                return (true, "Company deleted successfully.");
+            }
+            var err = await res.Content.ReadAsStringAsync();
+            return (false, string.IsNullOrWhiteSpace(err) ? res.ReasonPhrase : err);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete company CoNo={CoNo}", coNo);
+            return (false, ex.Message);
+        }
+    }
+
+    public async Task<(bool Success, string Message)> TestEmailConnectionAsync(GeneralSettingsModel model)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Admin/general/test-email", model);
+            if (res.IsSuccessStatusCode)
+            {
+                var doc = await res.Content.ReadFromJsonAsync<JsonElement>();
+                bool success = doc.TryGetProperty("success", out var s) && s.GetBoolean();
+                string msg = doc.TryGetProperty("message", out var m) ? m.GetString() ?? "" : "Connection tested.";
+                return (success, msg);
+            }
+            var err = await res.Content.ReadAsStringAsync();
+            return (false, string.IsNullOrWhiteSpace(err) ? "Test request failed" : err);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to test email connection");
+            return (false, ex.Message);
+        }
+    }
 }
+
 
 

@@ -10,14 +10,14 @@
     <div class="admin-grid-wrapper mb-3">
         <div class="admin-grid">
             <!-- Row 1: Green Tiles -->
-            <button class="admin-tile tile-green @(activeTab == "general" ? "active" : "")" @onclick='() => ToggleTab("general")' title="General Settings">
+            <button class="admin-tile tile-green" @onclick='() => NavManager.NavigateTo("admin/general")' title="General Settings">
                 <div class="icon-circle">
                     <img src="img/icon/General.png" alt="General" />
                 </div>
                 <span class="tile-label">General</span>
             </button>
 
-            <button class="admin-tile tile-green" @onclick='() => NavManager.NavigateTo("admin/users/new")' title="Add New User QDE">
+            <button class="admin-tile tile-green" @onclick='() => NavManager.NavigateTo("admin/users/qde")' title="Add New User QDE">
                 <div class="icon-circle">
                     <img src="img/icon/AddNewUserQDE.png" alt="Add New User QDE" />
                 </div>

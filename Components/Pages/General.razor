@@ -1,0 +1,1195 @@
+@page "/admin/general"
+@page "/general"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>General Settings - HRsuite</PageTitle>
+
+<div class="general-settings-page pb-5">
+    <!-- Top Header Bar -->
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-4 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <div>
+                <h4 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                    <span class="general-icon-badge"><i class="bi bi-gear-wide-connected"></i></span>
+                    <span>General Settings</span>
+                </h4>
+                <div class="text-muted small">Configure company profiles, mail server, OT, leave, and claim policies</div>
+            </div>
+        </div>
+
+        <!-- Right Action Controls -->
+        <div class="d-flex align-items-center gap-2">
+            <!-- Company Selector -->
+            <div class="d-flex align-items-center gap-1 bg-white px-2 py-1 rounded-3 border shadow-sm">
+                <i class="bi bi-building text-success small"></i>
+                <span class="small text-muted fw-semibold me-1">Company:</span>
+                <select class="form-select form-select-sm border-0 bg-transparent fw-semibold" style="width: auto; min-width: 140px;" value="@selectedCoNo" @onchange="OnCompanySelected">
+                    @foreach (var c in companies)
+                    {
+                        <option value="@c.CoNo">@c.CoNo - @c.CompanyName</option>
+                    }
+                </select>
+            </div>
+
+            <!-- Reload Button -->
+            <button class="btn btn-sm btn-outline-secondary shadow-sm px-3" @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh settings">
+                <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                <span class="d-none d-md-inline ms-1">Refresh</span>
+            </button>
+
+            <!-- Save All Settings Button -->
+            <button class="btn btn-sm btn-success shadow-sm px-3 fw-semibold" @onclick="SaveSettingsAsync" disabled="@(isLoading || isSaving)" title="Save General Settings">
+                @if (isSaving)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <i class="bi bi-floppy-fill me-1"></i>
+                    <span>Save Settings</span>
+                }
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Message Alert Banner -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(statusSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm" role="alert">
+            <i class="bi @(statusSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") fs-5"></i>
+            <div class="flex-grow-1 small">@statusMessage</div>
+            <button type="button" class="btn-close btn-close-sm" @onclick="() => statusMessage = null"></button>
+        </div>
+    }
+
+    <!-- Modern Navigation Tabs -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white overflow-hidden">
+        <div class="settings-tabs-header border-bottom px-3 pt-2 bg-light bg-opacity-50">
+            <ul class="nav nav-pills custom-settings-pills gap-1 flex-nowrap overflow-x-auto pb-2">
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "company" ? "active" : "")" @onclick='() => activeTab = "company"'>
+                        <i class="bi bi-buildings-fill me-1"></i>
+                        <span>Company Setting</span>
+                        <span class="badge bg-secondary-subtle text-secondary rounded-pill ms-1">@companies.Count</span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "general" ? "active" : "")" @onclick='() => activeTab = "general"'>
+                        <i class="bi bi-envelope-at-fill me-1"></i>
+                        <span>General & Email</span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "ot" ? "active" : "")" @onclick='() => activeTab = "ot"'>
+                        <i class="bi bi-clock-history me-1"></i>
+                        <span>OT Setting</span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "leave" ? "active" : "")" @onclick='() => activeTab = "leave"'>
+                        <i class="bi bi-calendar2-check-fill me-1"></i>
+                        <span>Leave Setting</span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "claim" ? "active" : "")" @onclick='() => activeTab = "claim"'>
+                        <i class="bi bi-receipt-cutoff me-1"></i>
+                        <span>Claim Setting</span>
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="card-body p-4">
+            @if (isLoading)
+            {
+                <div class="text-center py-5 text-muted">
+                    <div class="spinner-border text-success mb-3" role="status"></div>
+                    <div>Loading system configuration...</div>
+                </div>
+            }
+            else
+            {
+                <!-- ========================================== -->
+                <!-- TAB 1: COMPANY SETTING                     -->
+                <!-- ========================================== -->
+                @if (activeTab == "company")
+                {
+                    <div class="tab-pane-content animate-fade-in">
+                        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                            <div>
+                                <h6 class="fw-bold mb-1 text-dark">Registered Companies Directory</h6>
+                                <p class="text-muted small mb-0">Multi-company setup and corporate contact profiles</p>
+                            </div>
+                            <button class="btn btn-sm btn-success px-3 shadow-sm" @onclick="OpenAddCompanyModal">
+                                <i class="bi bi-plus-circle-fill me-1"></i>
+                                <span>Add New Company</span>
+                            </button>
+                        </div>
+
+                        <div class="table-responsive rounded-3 border">
+                            <table class="table table-hover align-middle mb-0 custom-company-table">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 80px;">Co No</th>
+                                        <th style="min-width: 180px;">Company Name</th>
+                                        <th style="min-width: 220px;">Address</th>
+                                        <th style="width: 130px;">Contact</th>
+                                        <th style="min-width: 160px;">Email</th>
+                                        <th style="min-width: 140px;">Website</th>
+                                        <th style="width: 140px;" class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (companies.Count == 0)
+                                    {
+                                        <tr>
+                                            <td colspan="7" class="text-center py-4 text-muted">No companies configured.</td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var comp in companies)
+                                        {
+                                            var isSelected = comp.CoNo.Equals(selectedCoNo, StringComparison.OrdinalIgnoreCase);
+                                            <tr class="@(isSelected ? "table-active-row" : "")">
+                                                <td>
+                                                    <span class="badge @(comp.CoNo == "1" ? "bg-primary" : "bg-secondary")">@comp.CoNo</span>
+                                                </td>
+                                                <td>
+                                                    <div class="fw-bold text-dark">@comp.CompanyName</div>
+                                                    @if (isSelected)
+                                                    {
+                                                        <span class="badge bg-success-subtle text-success border border-success extra-small">Active In View</span>
+                                                    }
+                                                </td>
+                                                <td class="small text-secondary">
+                                                    <div>@comp.Add1</div>
+                                                    @if (!string.IsNullOrWhiteSpace(comp.Add2))
+                                                    {
+                                                        <div>@comp.Add2</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(comp.Add3))
+                                                    {
+                                                        <div>@comp.Add3</div>
+                                                    }
+                                                </td>
+                                                <td class="small">
+                                                    @if (!string.IsNullOrWhiteSpace(comp.Tel))
+                                                    {
+                                                        <div><i class="bi bi-telephone text-muted me-1"></i>@comp.Tel</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(comp.Fax))
+                                                    {
+                                                        <div><i class="bi bi-printer text-muted me-1"></i>@comp.Fax</div>
+                                                    }
+                                                </td>
+                                                <td class="small">
+                                                    @if (!string.IsNullOrWhiteSpace(comp.Email))
+                                                    {
+                                                        <a href="mailto:@comp.Email" class="text-decoration-none text-primary">@comp.Email</a>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
+                                                    }
+                                                </td>
+                                                <td class="small">
+                                                    @if (!string.IsNullOrWhiteSpace(comp.HttpMain))
+                                                    {
+                                                        <a href="@comp.HttpMain" target="_blank" class="text-decoration-none text-truncate d-inline-block" style="max-width: 140px;">@comp.HttpMain</a>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
+                                                    }
+                                                </td>
+                                                <td class="text-end">
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-outline-primary" @onclick="() => OpenEditCompanyModal(comp)" title="Edit Company Details">
+                                                            <i class="bi bi-pencil-fill"></i>
+                                                        </button>
+                                                        @if (comp.CoNo != "1")
+                                                        {
+                                                            <button class="btn btn-outline-danger" @onclick="() => PromptDeleteCompany(comp.CoNo)" title="Delete Company">
+                                                                <i class="bi bi-trash-fill"></i>
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+
+                <!-- ========================================== -->
+                <!-- TAB 2: GENERAL & EMAIL SETTING             -->
+                <!-- ========================================== -->
+                @if (activeTab == "general")
+                {
+                    <div class="tab-pane-content animate-fade-in">
+                        <div class="row g-4">
+                            <!-- Email Server Configuration Card -->
+                            <div class="col-12 col-lg-7">
+                                <div class="card border rounded-3 h-100 shadow-sm">
+                                    <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="bi bi-mailbox2 text-success fs-5"></i>
+                                            <h6 class="mb-0 fw-bold text-dark">Email Server Configuration</h6>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-primary px-3" @onclick="TestEmailConnectionAsync" disabled="@isTestingEmail" title="Test SMTP Server Connection">
+                                            @if (isTestingEmail)
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                                <span>Testing...</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-broadcast me-1"></i>
+                                                <span>Test Connection</span>
+                                            }
+                                        </button>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        @if (!string.IsNullOrEmpty(testEmailResult))
+                                        {
+                                            <div class="alert @(testEmailSuccess ? "alert-success" : "alert-warning") alert-dismissible fade show small p-2 mb-3" role="alert">
+                                                <i class="bi @(testEmailSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") me-1"></i>
+                                                <span>@testEmailResult</span>
+                                                <button type="button" class="btn-close btn-close-sm" @onclick="() => testEmailResult = null"></button>
+                                            </div>
+                                        }
+
+                                        <!-- Email Type Radio -->
+                                        <div class="mb-3">
+                                            <label class="form-label small text-muted fw-semibold">Email Type</label>
+                                            <div class="d-flex gap-4">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="emailType" id="etSmtp" value="0" checked="@(model.EmailType == "0")" @onchange='() => model.EmailType = "0"' />
+                                                    <label class="form-check-label fw-semibold" for="etSmtp">Standard SMTP Server</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="emailType" id="etExch" value="1" checked="@(model.EmailType == "1")" @onchange='() => model.EmailType = "1"' />
+                                                    <label class="form-check-label fw-semibold" for="etExch">Exchange Server</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Server & Port -->
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-8">
+                                                <label class="form-label small text-muted fw-semibold">Server / Hosting Host</label>
+                                                <input type="text" class="form-control form-control-sm" placeholder="e.g. mail.company.com or 192.168.1.10" @bind="model.EmailServer" />
+                                            </div>
+                                            <div class="col-4">
+                                                <label class="form-label small text-muted fw-semibold">Port</label>
+                                                <input type="text" class="form-control form-control-sm" placeholder="25" @bind="model.EmailPort" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Domain & SSL -->
+                                        <div class="row g-2 mb-3 align-items-center">
+                                            <div class="col-8">
+                                                <label class="form-label small text-muted fw-semibold">Domain (if required)</label>
+                                                <input type="text" class="form-control form-control-sm" placeholder="e.g. yourdomain.local" @bind="model.EmailDomain" />
+                                            </div>
+                                            <div class="col-4 pt-3">
+                                                <div class="form-check form-switch mt-2">
+                                                    <input class="form-check-input" type="checkbox" id="sslSwitch" checked="@(model.EmailSSL == "Y")" @onchange='(e) => model.EmailSSL = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                                    <label class="form-check-label fw-semibold small" for="sslSwitch">Enable SSL</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <hr class="my-3 opacity-25" />
+
+                                        <!-- Credentials & Sender -->
+                                        <div class="mb-3">
+                                            <label class="form-label small text-muted fw-semibold">Sender Company Email</label>
+                                            <input type="email" class="form-control form-control-sm" placeholder="noreply@company.com" @bind="model.CompanyEmail" />
+                                        </div>
+
+                                        <div class="row g-2 mb-2">
+                                            <div class="col-6">
+                                                <label class="form-label small text-muted fw-semibold">Username</label>
+                                                <input type="text" class="form-control form-control-sm" placeholder="Username" @bind="model.EmailUserName" />
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small text-muted fw-semibold">Password</label>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="@(showPassword ? "text" : "password")" class="form-control" placeholder="••••••••" @bind="model.EmailPassword" />
+                                                    <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword">
+                                                        <i class="bi @(showPassword ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Logging, Paths, & Security Policies -->
+                            <div class="col-12 col-lg-5">
+                                <div class="d-flex flex-column gap-3">
+                                    <!-- Log File Settings Card -->
+                                    <div class="card border rounded-3 shadow-sm">
+                                        <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center gap-2">
+                                            <i class="bi bi-file-earmark-text text-warning fs-6"></i>
+                                            <h6 class="mb-0 fw-bold small text-dark">Log File Settings</h6>
+                                        </div>
+                                        <div class="card-body p-3">
+                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                                <span class="small fw-semibold text-muted">Enable Log File Recording</span>
+                                                <div class="form-check form-switch m-0">
+                                                    <input class="form-check-input" type="checkbox" id="logSwitch" checked="@(model.OpenMsg == "Y")" @onchange='(e) => model.OpenMsg = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="form-label small text-muted fw-semibold">Log File Storage Path</label>
+                                                <input type="text" class="form-control form-control-sm" placeholder="c:\logfile" @bind="model.LogFilePath" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Network & Date Format Card -->
+                                    <div class="card border rounded-3 shadow-sm">
+                                        <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center gap-2">
+                                            <i class="bi bi-hdd-network text-info fs-6"></i>
+                                            <h6 class="mb-0 fw-bold small text-dark">Network & Date Formatting</h6>
+                                        </div>
+                                        <div class="card-body p-3">
+                                            <div class="mb-2">
+                                                <label class="form-label small text-muted fw-semibold">Localhost URL / Address</label>
+                                                <input type="text" class="form-control form-control-sm" placeholder="http://localhost:5103" @bind="model.LocalhostAdd" />
+                                                <div class="form-text extra-small">Base URL used to format notification and email approval links.</div>
+                                            </div>
+                                            <div>
+                                                <label class="form-label small text-muted fw-semibold">Application Date Time Format</label>
+                                                <input type="text" class="form-control form-control-sm" placeholder="yyyy-MM-dd" @bind="model.DatetimeFormat" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Security & Policies Card -->
+                                    <div class="card border rounded-3 shadow-sm">
+                                        <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center gap-2">
+                                            <i class="bi bi-shield-lock-fill text-danger fs-6"></i>
+                                            <h6 class="mb-0 fw-bold small text-dark">Security & Feature Policies</h6>
+                                        </div>
+                                        <div class="card-body p-3">
+                                            <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                                                <div>
+                                                    <div class="small fw-semibold text-dark">Allow Email Direct Link Login</div>
+                                                    <div class="extra-small text-muted">Users can approve directly via tokenized email links without password prompt.</div>
+                                                </div>
+                                                <div class="form-check form-switch m-0">
+                                                    <input class="form-check-input" type="checkbox" id="directLinkSwitch" checked="@(model.AllowEmaildirectlink == "Y")" @onchange='(e) => model.AllowEmaildirectlink = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                                </div>
+                                            </div>
+
+                                            <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                                                <div>
+                                                    <div class="small fw-semibold text-dark">Password Required for Payslip</div>
+                                                    <div class="extra-small text-muted">Enforce password check before decrypting or downloading payslip PDF.</div>
+                                                </div>
+                                                <div class="form-check form-switch m-0">
+                                                    <input class="form-check-input" type="checkbox" id="payslipPwdSwitch" checked="@(model.PasswordPayslip == "Y")" @onchange='(e) => model.PasswordPayslip = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                                </div>
+                                            </div>
+
+                                            <div class="d-flex align-items-center justify-content-between pt-2">
+                                                <div>
+                                                    <div class="small fw-semibold text-dark">Allow Employee Password & Email Updates</div>
+                                                    <div class="extra-small text-muted">Permit employees to update personal email and credentials in self-service.</div>
+                                                </div>
+                                                <div class="form-check form-switch m-0">
+                                                    <input class="form-check-input" type="checkbox" id="modifyPwdSwitch" checked="@(model.Offpwdemailmodify == "Y")" @onchange='(e) => model.Offpwdemailmodify = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- ========================================== -->
+                <!-- TAB 3: OT (OVERTIME) SETTING               -->
+                <!-- ========================================== -->
+                @if (activeTab == "ot")
+                {
+                    <div class="tab-pane-content animate-fade-in">
+                        <div class="row g-4">
+                            <!-- Left: General OT Policies -->
+                            <div class="col-12 col-lg-7">
+                                <div class="card border rounded-3 h-100 shadow-sm">
+                                    <div class="card-header bg-white py-3 border-bottom d-flex align-items-center gap-2">
+                                        <i class="bi bi-clock-history text-success fs-5"></i>
+                                        <h6 class="mb-0 fw-bold text-dark">Overtime (OT) General Rules</h6>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <!-- Active Time & Insert Type -->
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-6">
+                                                <label class="form-label small text-muted fw-semibold">OT Active Date (From)</label>
+                                                <input type="date" class="form-control form-control-sm" value="@(model.OTDateFrom?.ToString("yyyy-MM-dd"))" @onchange="OnOTDateChanged" />
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small text-muted fw-semibold">OT Insert Type</label>
+                                                <div class="d-flex gap-3 pt-1">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="otInsertType" id="otitH" value="H" checked="@(model.OTInsertType == "H")" @onchange='() => model.OTInsertType = "H"' />
+                                                        <label class="form-check-label small fw-semibold" for="otitH">Hour Type</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="otInsertType" id="otitT" value="T" checked="@(model.OTInsertType == "T")" @onchange='() => model.OTInsertType = "T"' />
+                                                        <label class="form-check-label small fw-semibold" for="otitT">Time Type</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Break Time Generation Mode -->
+                                        <div class="mb-3">
+                                            <label class="form-label small text-muted fw-semibold">Break Time Generation Mode</label>
+                                            <div class="d-flex gap-4">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="otBreakType" id="btA" value="A" checked="@(model.OTBreakTimeType == "A")" @onchange='() => model.OTBreakTimeType = "A"' />
+                                                    <label class="form-check-label small fw-semibold" for="btA">Auto Calculate</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="otBreakType" id="btM" value="M" checked="@(model.OTBreakTimeType == "M")" @onchange='() => model.OTBreakTimeType = "M"' />
+                                                    <label class="form-check-label small fw-semibold" for="btM">Manual Input</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="otBreakType" id="btD" value="D" checked="@(model.OTBreakTimeType == "D")" @onchange='() => model.OTBreakTimeType = "D"' />
+                                                    <label class="form-check-label small fw-semibold" for="btD">Define (Custom Schedule)</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- OT Break Time Definition -->
+                                        <div class="mb-3">
+                                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                                <label class="form-label small text-muted fw-semibold mb-0">Break Time Definition Syntax</label>
+                                                <button type="button" class="btn btn-xs btn-outline-info" @onclick="() => showBreakTimeHelperModal = true">
+                                                    <i class="bi bi-question-circle me-1"></i>Syntax Guide & Examples
+                                                </button>
+                                            </div>
+                                            <textarea class="form-control font-monospace small" rows="5" placeholder="e.g. 12:00-13:00=60;18:00-18:30=30;" @bind="model.OTBreakTimeDefinition"></textarea>
+                                            <div class="form-text extra-small">Custom break schedule applied when break time mode is set to 'Define'.</div>
+                                        </div>
+
+                                        <hr class="my-3 opacity-25" />
+
+                                        <!-- Code Type & Limits -->
+                                        <div class="row g-3">
+                                            <div class="col-6">
+                                                <label class="form-label small text-muted fw-semibold">OT Code Selection</label>
+                                                <div class="d-flex gap-3 pt-1">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="otCodeSelect" id="otcsY" value="Y" checked="@(model.OTCodeSelect == "Y")" @onchange='() => model.OTCodeSelect = "Y"' />
+                                                        <label class="form-check-label small fw-semibold" for="otcsY">Select from List</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="otCodeSelect" id="otcsN" value="N" checked="@(model.OTCodeSelect == "N")" @onchange='() => model.OTCodeSelect = "N"' />
+                                                        <label class="form-check-label small fw-semibold" for="otcsN">Fixed Code</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small text-muted fw-semibold">Max OT Allowed Per Day (Hours)</label>
+                                                <div class="input-group input-group-sm" style="max-width: 140px;">
+                                                    <input type="number" min="1" max="24" class="form-control" @bind="model.TotalOtAllowPerDay" />
+                                                    <span class="input-group-text">hrs</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-3">
+                                            <label class="form-label small text-muted fw-semibold">OT Reason Assignment</label>
+                                            <div class="d-flex gap-3 pt-1">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="otReason" id="otrY" value="Y" checked="@(model.OTReason == "Y")" @onchange='() => model.OTReason = "Y"' />
+                                                    <label class="form-check-label small fw-semibold" for="otrY">Auto Populate</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="otReason" id="otrN" value="N" checked="@(model.OTReason == "N")" @onchange='() => model.OTReason = "N"' />
+                                                    <label class="form-check-label small fw-semibold" for="otrN">Manual Entry</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Processing Delays -->
+                            <div class="col-12 col-lg-5">
+                                <div class="card border rounded-3 shadow-sm">
+                                    <div class="card-header bg-white py-3 border-bottom d-flex align-items-center gap-2">
+                                        <i class="bi bi-hourglass-split text-warning fs-5"></i>
+                                        <h6 class="mb-0 fw-bold text-dark">OT Processing & Submission Delay</h6>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                                            <div>
+                                                <div class="small fw-semibold text-dark">Unlimited Submission Delay</div>
+                                                <div class="extra-small text-muted">When enabled, employees can submit OT without interval cutoff restriction.</div>
+                                            </div>
+                                            <div class="form-check form-switch m-0">
+                                                <input class="form-check-input" type="checkbox" id="otSubUnl" checked="@(model.OTSubmitUnlimited == "Y")" @onchange='(e) => model.OTSubmitUnlimited = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label class="form-label small text-muted fw-semibold">Submission Interval Buffer (Minutes)</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" step="5" min="0" class="form-control" @bind="model.OTPendingProcessInterval" />
+                                                <span class="input-group-text">mins</span>
+                                            </div>
+                                            <div class="form-text extra-small">Minimum interval between applying pending OT and processing now (default: 300 mins).</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- ========================================== -->
+                <!-- TAB 4: LEAVE SETTING                       -->
+                <!-- ========================================== -->
+                @if (activeTab == "leave")
+                {
+                    <div class="tab-pane-content animate-fade-in">
+                        <div class="row g-4">
+                            <div class="col-12 col-lg-6">
+                                <div class="card border rounded-3 shadow-sm h-100">
+                                    <div class="card-header bg-white py-3 border-bottom d-flex align-items-center gap-2">
+                                        <i class="bi bi-calendar2-range text-success fs-5"></i>
+                                        <h6 class="mb-0 fw-bold text-dark">Leave General & Submission Policies</h6>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <div class="mb-3">
+                                            <label class="form-label small text-muted fw-semibold">Leave Active Date (From)</label>
+                                            <input type="date" class="form-control form-control-sm" value="@(model.LeaveDateFrom?.ToString("yyyy-MM-dd"))" @onchange="OnLeaveDateChanged" />
+                                        </div>
+
+                                        <div class="d-flex align-items-center justify-content-between py-2 border-bottom mb-3">
+                                            <div>
+                                                <div class="small fw-semibold text-dark">Unlimited Leave Submission Delay</div>
+                                                <div class="extra-small text-muted">Allows applying for pending leave at any time.</div>
+                                            </div>
+                                            <div class="form-check form-switch m-0">
+                                                <input class="form-check-input" type="checkbox" id="leaveSubUnl" checked="@(model.LEAVESubmitUnlimited == "Y")" @onchange='(e) => model.LEAVESubmitUnlimited = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label small text-muted fw-semibold">Leave Submission Delay Interval</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" step="5" min="0" class="form-control" @bind="model.LEAVEPendingProcessInterval" />
+                                                <span class="input-group-text">mins</span>
+                                            </div>
+                                            <div class="form-text extra-small">Interval buffer between applying pending leave and present execution.</div>
+                                        </div>
+
+                                        <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+                                            <div>
+                                                <div class="small fw-semibold text-dark">Open Timeman Schedule Integration</div>
+                                                <div class="extra-small text-muted">Synchronize schedule shifts and roster with leave balance calculator.</div>
+                                            </div>
+                                            <div class="form-check form-switch m-0">
+                                                <input class="form-check-input" type="checkbox" id="timemanSwitch" checked="@(model.OpenMysqlSchd == "Y")" @onchange='(e) => model.OpenMysqlSchd = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-lg-6">
+                                <div class="card border rounded-3 shadow-sm h-100">
+                                    <div class="card-header bg-white py-3 border-bottom d-flex align-items-center gap-2">
+                                        <i class="bi bi-bell-fill text-warning fs-5"></i>
+                                        <h6 class="mb-0 fw-bold text-dark">Daily Email Reminder Setup</h6>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                                            <div>
+                                                <div class="small fw-semibold text-dark">Enable Daily Leave Reminder Email</div>
+                                                <div class="extra-small text-muted">Trigger automatic notification emails to managers and pending approvers.</div>
+                                            </div>
+                                            <div class="form-check form-switch m-0">
+                                                <input class="form-check-input" type="checkbox" id="remindSwitch" checked="@(model.AllowLeaveRemindTimeGeneral == "Y")" @onchange='(e) => model.AllowLeaveRemindTimeGeneral = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label class="form-label small text-muted fw-semibold">Scheduled Reminder Time (24h:min:sec)</label>
+                                            <div class="input-group input-group-sm" style="max-width: 220px;">
+                                                <span class="input-group-text"><i class="bi bi-clock"></i></span>
+                                                <input type="text" class="form-control" placeholder="13:00:00" @bind="model.LeaveRemindTimeGeneral" />
+                                            </div>
+                                            <div class="form-text extra-small">Example: <code>13:00:00</code> means emails are dispatched daily at 1:00 PM.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- ========================================== -->
+                <!-- TAB 5: CLAIM SETTING                       -->
+                <!-- ========================================== -->
+                @if (activeTab == "claim")
+                {
+                    <div class="tab-pane-content animate-fade-in">
+                        <div class="card border rounded-3 shadow-sm" style="max-width: 650px;">
+                            <div class="card-header bg-white py-3 border-bottom d-flex align-items-center gap-2">
+                                <i class="bi bi-receipt-cutoff text-success fs-5"></i>
+                                <h6 class="mb-0 fw-bold text-dark">Expense & Claim Cut-Off Period</h6>
+                            </div>
+                            <div class="card-body p-3">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label small text-muted fw-semibold">Cut-Off Start Date</label>
+                                        <input type="date" class="form-control form-control-sm" value="@(model.ClaimCutOffStart?.ToString("yyyy-MM-dd"))" @onchange="OnClaimStartChanged" />
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small text-muted fw-semibold">Cut-Off End Date</label>
+                                        <input type="date" class="form-control form-control-sm" value="@(model.ClaimCutOffEnd?.ToString("yyyy-MM-dd"))" @onchange="OnClaimEndChanged" />
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+                                    <div>
+                                        <div class="small fw-semibold text-dark">Individual Employee Cut-Off Overrides</div>
+                                        <div class="extra-small text-muted">Allow individual employee exceptions to default claim cycle boundaries.</div>
+                                    </div>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" id="claimIndSwitch" checked="@(model.ClaimIndividualCutOff == "Y")" @onchange='(e) => model.ClaimIndividualCutOff = (bool)(e.Value ?? false) ? "Y" : "N"' />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: ADD / EDIT COMPANY                  -->
+<!-- ========================================== -->
+@if (showCompanyModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content shadow-lg rounded-4 border-0">
+                <div class="modal-header bg-success text-white py-3 px-4 rounded-top-4">
+                    <h5 class="modal-head-title mb-0 d-flex align-items-center gap-2">
+                        <i class="bi @(isEditCompany ? "bi-pencil-square" : "bi-building-add")"></i>
+                        <span>@(isEditCompany ? "Edit Company Information" : "Add New Company Profile")</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => showCompanyModal = false"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold text-muted">Company ID (CoNo) *</label>
+                            <input type="text" class="form-control form-control-sm" @bind="companyForm.CoNo" disabled="@isEditCompany" placeholder="e.g. 2" />
+                        </div>
+                        <div class="col-8">
+                            <label class="form-label small fw-semibold text-muted">Company Name *</label>
+                            <input type="text" class="form-control form-control-sm" @bind="companyForm.CompanyName" placeholder="e.g. Acme Corporation Sdn Bhd" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold text-muted">Address Line 1</label>
+                            <input type="text" class="form-control form-control-sm" @bind="companyForm.Add1" placeholder="Street Address" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-muted">Address Line 2</label>
+                            <input type="text" class="form-control form-control-sm" @bind="companyForm.Add2" placeholder="Suite / Unit / Building" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-muted">Address Line 3</label>
+                            <input type="text" class="form-control form-control-sm" @bind="companyForm.Add3" placeholder="City, State, Postcode" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-muted">Telephone</label>
+                            <input type="text" class="form-control form-control-sm" @bind="companyForm.Tel" placeholder="+60 3-1234 5678" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-muted">Fax</label>
+                            <input type="text" class="form-control form-control-sm" @bind="companyForm.Fax" placeholder="+60 3-1234 5679" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-muted">Corporate Email</label>
+                            <input type="email" class="form-control form-control-sm" @bind="companyForm.Email" placeholder="info@company.com" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-muted">Website / HTTP Main</label>
+                            <input type="text" class="form-control form-control-sm" @bind="companyForm.HttpMain" placeholder="https://company.com" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light px-4 py-2 rounded-bottom-4">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" @onclick="() => showCompanyModal = false">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-success px-4 fw-semibold" @onclick="SaveCompanyAsync">
+                        <i class="bi bi-check-lg me-1"></i>
+                        <span>Save Company</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ========================================== -->
+<!-- MODAL: DELETE COMPANY CONFIRMATION         -->
+<!-- ========================================== -->
+@if (showDeleteModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content shadow rounded-4 border-0">
+                <div class="modal-header bg-danger text-white py-2 px-3 rounded-top-4">
+                    <h6 class="modal-title mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i>Delete Company</h6>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => showDeleteModal = false"></button>
+                </div>
+                <div class="modal-body p-3 text-center">
+                    <p class="mb-0">Are you sure you want to delete company ID <strong>@companyToDelete</strong>?</p>
+                    <div class="extra-small text-danger mt-1">This action cannot be undone.</div>
+                </div>
+                <div class="modal-footer bg-light px-3 py-2 rounded-bottom-4 d-flex justify-content-center">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" @onclick="() => showDeleteModal = false">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-danger px-3" @onclick="ConfirmDeleteCompanyAsync">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ========================================== -->
+<!-- MODAL: BREAK TIME SYNTAX HELPER            -->
+<!-- ========================================== -->
+@if (showBreakTimeHelperModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content shadow-lg rounded-4 border-0">
+                <div class="modal-header bg-dark text-white py-3 px-4 rounded-top-4">
+                    <h6 class="modal-title mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle-fill text-info"></i>
+                        <span>Break Time Definition Syntax Cheatsheet</span>
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => showBreakTimeHelperModal = false"></button>
+                </div>
+                <div class="modal-body p-4 small">
+                    <div class="alert alert-info py-2 px-3 mb-3">
+                        Break time definitions dictate unpaid or deducted intervals when employee OT falls within specific periods.
+                    </div>
+
+                    <h6 class="fw-bold text-dark">Syntax Format:</h6>
+                    <div class="p-3 bg-light rounded-3 border mb-3 font-monospace">
+                        [Start Time]-[End Time]=[Deducted Minutes];<br />
+                        e.g. <code>12:00-13:00=60;18:00-18:30=30;</code>
+                    </div>
+
+                    <h6 class="fw-bold text-dark">Examples:</h6>
+                    <table class="table table-sm table-bordered mb-3">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Definition</th>
+                                <th>Explanation</th>
+                                <th>Quick Apply</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>12:00-13:00=60;</code></td>
+                                <td>Deducts 60 mins break if OT spans between 12:00 PM and 1:00 PM.</td>
+                                <td>
+                                    <button class="btn btn-xs btn-outline-primary" @onclick='() => ApplyDefinitionTemplate("12:00-13:00=60;")'>Use</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><code>12:00-13:00=60;18:00-18:30=30;</code></td>
+                                <td>Deducts lunch break (60 mins) and dinner break (30 mins).</td>
+                                <td>
+                                    <button class="btn btn-xs btn-outline-primary" @onclick='() => ApplyDefinitionTemplate("12:00-13:00=60;18:00-18:30=30;")'>Use</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><code>00:00-01:00=60;12:00-13:00=60;18:00-19:00=60;</code></td>
+                                <td>3-shift rotational break deduction configuration.</td>
+                                <td>
+                                    <button class="btn btn-xs btn-outline-primary" @onclick='() => ApplyDefinitionTemplate("00:00-01:00=60;12:00-13:00=60;18:00-19:00=60;")'>Use</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer bg-light px-4 py-2 rounded-bottom-4">
+                    <button type="button" class="btn btn-sm btn-secondary px-4" @onclick="() => showBreakTimeHelperModal = false">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .general-settings-page {
+        padding: 0.5rem 0.25rem;
+    }
+    .general-icon-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        background: rgba(25, 135, 84, 0.12);
+        color: #198754;
+        border-radius: 8px;
+        font-size: 1.25rem;
+    }
+    .custom-settings-pills .nav-link {
+        color: #495057;
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.45rem 0.9rem;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    .custom-settings-pills .nav-link:hover {
+        background-color: rgba(25, 135, 84, 0.08);
+        color: #198754;
+    }
+    .custom-settings-pills .nav-link.active {
+        background-color: #198754 !important;
+        color: #fff !important;
+        box-shadow: 0 2px 4px rgba(25, 135, 84, 0.25);
+    }
+    .custom-company-table th {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+        font-weight: 700;
+        padding: 0.65rem 0.75rem;
+    }
+    .custom-company-table td {
+        padding: 0.65rem 0.75rem;
+    }
+    .table-active-row {
+        background-color: rgba(25, 135, 84, 0.05) !important;
+    }
+    .extra-small {
+        font-size: 0.72rem;
+    }
+    .btn-xs {
+        padding: 0.15rem 0.4rem;
+        font-size: 0.75rem;
+        border-radius: 4px;
+    }
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-in;
+    }
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+@code {
+    private string activeTab = "general";
+    private string selectedCoNo = "1";
+    private GeneralSettingsModel model = new();
+    private List<CompanyDetailModel> companies = new();
+
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool isTestingEmail = false;
+    private string? testEmailResult = null;
+    private bool testEmailSuccess = false;
+
+    private string? statusMessage = null;
+    private bool statusSuccess = true;
+
+    private bool showPassword = false;
+
+    // Modals
+    private bool showCompanyModal = false;
+    private bool isEditCompany = false;
+    private CompanyDetailModel companyForm = new();
+
+    private bool showDeleteModal = false;
+    private string? companyToDelete = null;
+
+    private bool showBreakTimeHelperModal = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            companies = await ApiClient.GetCompanyDetailsAsync();
+            if (companies.Count > 0 && !companies.Any(c => c.CoNo.Equals(selectedCoNo, StringComparison.OrdinalIgnoreCase)))
+            {
+                selectedCoNo = companies[0].CoNo;
+            }
+
+            var res = await ApiClient.GetGeneralSettingsAsync(selectedCoNo);
+            if (res != null)
+            {
+                model = res;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusSuccess = false;
+            statusMessage = $"Error loading configuration: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnCompanySelected(ChangeEventArgs e)
+    {
+        selectedCoNo = e.Value?.ToString() ?? "1";
+        isLoading = true;
+        try
+        {
+            var res = await ApiClient.GetGeneralSettingsAsync(selectedCoNo);
+            if (res != null)
+            {
+                model = res;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusSuccess = false;
+            statusMessage = $"Error switching company: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        isSaving = true;
+        statusMessage = null;
+        try
+        {
+            model.CoNo = selectedCoNo;
+            var (success, msg) = await ApiClient.SaveGeneralSettingsAsync(model);
+            statusSuccess = success;
+            statusMessage = msg ?? (success ? "Settings saved successfully." : "Failed to save settings.");
+
+            if (success)
+            {
+                // Reload list to synchronize company name if updated
+                companies = await ApiClient.GetCompanyDetailsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            statusSuccess = false;
+            statusMessage = $"Error saving settings: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task TestEmailConnectionAsync()
+    {
+        isTestingEmail = true;
+        testEmailResult = null;
+        try
+        {
+            var (success, msg) = await ApiClient.TestEmailConnectionAsync(model);
+            testEmailSuccess = success;
+            testEmailResult = msg;
+        }
+        catch (Exception ex)
+        {
+            testEmailSuccess = false;
+            testEmailResult = $"Test failed: {ex.Message}";
+        }
+        finally
+        {
+            isTestingEmail = false;
+        }
+    }
+
+    // --- COMPANY MODAL HANDLERS ---
+    private void OpenAddCompanyModal()
+    {
+        isEditCompany = false;
+        companyForm = new CompanyDetailModel();
+        showCompanyModal = true;
+    }
+
+    private void OpenEditCompanyModal(CompanyDetailModel comp)
+    {
+        isEditCompany = true;
+        companyForm = new CompanyDetailModel
+        {
+            CoNo = comp.CoNo,
+            CompanyName = comp.CompanyName,
+            Add1 = comp.Add1,
+            Add2 = comp.Add2,
+            Add3 = comp.Add3,
+            Tel = comp.Tel,
+            Fax = comp.Fax,
+            Email = comp.Email,
+            HttpMain = comp.HttpMain
+        };
+        showCompanyModal = true;
+    }
+
+    private async Task SaveCompanyAsync()
+    {
+        if (string.IsNullOrWhiteSpace(companyForm.CoNo))
+        {
+            statusSuccess = false;
+            statusMessage = "Company ID (CoNo) is required.";
+            return;
+        }
+
+        try
+        {
+            var (success, msg) = await ApiClient.SaveCompanyAsync(companyForm);
+            showCompanyModal = false;
+            statusSuccess = success;
+            statusMessage = msg;
+
+            if (success)
+            {
+                companies = await ApiClient.GetCompanyDetailsAsync();
+                if (companyForm.CoNo.Equals(selectedCoNo, StringComparison.OrdinalIgnoreCase))
+                {
+                    model.CompanyName = companyForm.CompanyName;
+                    model.Add1 = companyForm.Add1;
+                    model.Add2 = companyForm.Add2;
+                    model.Add3 = companyForm.Add3;
+                    model.Tel = companyForm.Tel;
+                    model.Fax = companyForm.Fax;
+                    model.Email = companyForm.Email;
+                    model.HttpMain = companyForm.HttpMain;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            statusSuccess = false;
+            statusMessage = $"Failed to save company: {ex.Message}";
+        }
+    }
+
+    private void PromptDeleteCompany(string coNo)
+    {
+        companyToDelete = coNo;
+        showDeleteModal = true;
+    }
+
+    private async Task ConfirmDeleteCompanyAsync()
+    {
+        if (string.IsNullOrWhiteSpace(companyToDelete)) return;
+
+        try
+        {
+            var (success, msg) = await ApiClient.DeleteCompanyAsync(companyToDelete);
+            showDeleteModal = false;
+            statusSuccess = success;
+            statusMessage = msg;
+
+            if (success)
+            {
+                companies = await ApiClient.GetCompanyDetailsAsync();
+                if (selectedCoNo.Equals(companyToDelete, StringComparison.OrdinalIgnoreCase))
+                {
+                    selectedCoNo = companies.FirstOrDefault()?.CoNo ?? "1";
+                    await LoadDataAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            statusSuccess = false;
+            statusMessage = $"Failed to delete company: {ex.Message}";
+        }
+    }
+
+    // --- DATE PICKER BINDINGS ---
+    private void OnOTDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+            model.OTDateFrom = dt;
+        else
+            model.OTDateFrom = null;
+    }
+
+    private void OnLeaveDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+            model.LeaveDateFrom = dt;
+        else
+            model.LeaveDateFrom = null;
+    }
+
+    private void OnClaimStartChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+            model.ClaimCutOffStart = dt;
+        else
+            model.ClaimCutOffStart = null;
+    }
+
+    private void OnClaimEndChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+            model.ClaimCutOffEnd = dt;
+        else
+            model.ClaimCutOffEnd = null;
+    }
+
+    private void ApplyDefinitionTemplate(string template)
+    {
+        model.OTBreakTimeDefinition = template;
+        showBreakTimeHelperModal = false;
+    }
+}

@@ -1,0 +1,707 @@
+@page "/admin/users/qde"
+@page "/admin/add-new-user"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>Add New User QDE - HRsuite</PageTitle>
+
+<div class="qde-page-container">
+    <!-- Top Header Bar (Matching UserManage design pattern) -->
+    <div class="page-top-bar d-flex align-items-center gap-3 mb-3">
+        <button class="btn btn-link text-dark p-0 text-decoration-none fs-4 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
+            <i class="bi bi-arrow-left"></i>
+        </button>
+        <h4 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+            <i class="bi bi-person-plus-fill text-success"></i>
+            <span>Add New User QDE</span>
+        </h4>
+        <span class="badge bg-light text-muted border px-2 py-1 ms-1 small fw-normal">Quick Data Entry</span>
+    </div>
+
+    <!-- Status Alert Banner -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(statusSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-2 shadow-sm animate-fade-in" role="alert">
+            <i class="bi @(statusSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") fs-5"></i>
+            <div class="flex-grow-1 small">@statusMessage</div>
+            <button type="button" class="btn-close btn-close-sm" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Unified Single-Line Control Bar -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+        <div class="card-body p-2 d-flex flex-wrap align-items-center gap-2">
+            <!-- Search Box -->
+            <div class="search-box" style="width: 250px; min-width: 180px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0 py-1"><i class="bi bi-search text-muted small"></i></span>
+                    <input type="text" class="form-control border-start-0 bg-light py-1" placeholder="Search Emp ID, Name, Dept..." @bind="globalSearchText" @bind:event="oninput" title="Search by Emp ID, Name, Dept, etc." />
+                    @if (!string.IsNullOrEmpty(globalSearchText))
+                    {
+                        <button class="btn btn-sm btn-outline-secondary bg-light border-start-0 py-1" @onclick='() => globalSearchText = ""' title="Clear search">✕</button>
+                    }
+                </div>
+            </div>
+
+            <!-- Legacy Filter Mode Chips (rdo_Show: Not In Myhrsuite vs All User) -->
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted small me-1">Filter:</span>
+                <button class="btn btn-xs rounded-pill @(filterMode == "not_in_system" ? "btn-success text-white" : "btn-light text-dark border")" @onclick='() => filterMode = "not_in_system"' title="Show employees not yet registered in MyHRsuite">
+                    Not in MyHRsuite
+                    <span class="badge @(filterMode == "not_in_system" ? "bg-white text-success" : "bg-secondary text-white") ms-1 rounded-pill" style="font-size: 0.65rem;">@UnregisteredCount</span>
+                </button>
+                <button class="btn btn-xs rounded-pill @(filterMode == "all" ? "btn-dark text-white" : "btn-light text-dark border")" @onclick='() => filterMode = "all"' title="Show all employees">
+                    All Employees
+                    <span class="badge @(filterMode == "all" ? "bg-white text-dark" : "bg-light text-muted border") ms-1 rounded-pill" style="font-size: 0.65rem;">@allEmployees.Count</span>
+                </button>
+                <button class="btn btn-xs rounded-pill @(filterMode == "registered" ? "btn-primary text-white" : "btn-light text-dark border")" @onclick='() => filterMode = "registered"' title="Show already registered users">
+                    Already Registered
+                    <span class="badge @(filterMode == "registered" ? "bg-white text-primary" : "bg-secondary text-white") ms-1 rounded-pill" style="font-size: 0.65rem;">@RegisteredCount</span>
+                </button>
+            </div>
+
+            <div class="vr mx-1 my-auto text-secondary opacity-25 d-none d-sm-block" style="height: 22px;"></div>
+
+            <!-- Action Icons Toolbar (All Icon Buttons with Tooltips in ONE Line) -->
+            <div class="d-flex align-items-center gap-1 flex-wrap">
+                <!-- Add Selected Users (Batch Action) -->
+                <button class="btn btn-sm btn-success icon-toolbar-btn position-relative shadow-sm" @onclick="OpenBatchCreateModal" disabled="@(SelectedUnregisteredCount == 0)" title="Add Selected Employee(s) to MyHRsuite">
+                    <i class="bi bi-person-plus-fill"></i>
+                    @if (SelectedUnregisteredCount > 0)
+                    {
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size: 0.65rem;">
+                            @SelectedUnregisteredCount
+                        </span>
+                    }
+                </button>
+
+                <!-- Select All Visible -->
+                <button class="btn btn-sm btn-outline-primary icon-toolbar-btn shadow-sm" @onclick="SelectAllVisibleUnregistered" disabled="@(VisibleUnregisteredCount == 0)" title="Select all visible unregistered employees">
+                    <i class="bi bi-check2-all"></i>
+                </button>
+
+                <!-- Deselect All -->
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="DeselectAll" disabled="@(selectedEmpIds.Count == 0)" title="Clear selection">
+                    <i class="bi bi-dash-square"></i>
+                </button>
+
+                <div class="vr mx-1 my-auto text-secondary opacity-25" style="height: 22px;"></div>
+
+                <!-- Column Filters Toggle -->
+                <button class="btn btn-sm @(showFilters ? "btn-dark text-white" : "btn-outline-dark") icon-toolbar-btn shadow-sm" @onclick='() => showFilters = !showFilters' title="Toggle Per-Column Filters">
+                    <i class="bi bi-funnel-fill"></i>
+                </button>
+
+                <!-- Navigate to User Management Directory -->
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick='() => NavManager.NavigateTo("admin/users")' title="Go to User Management Directory">
+                    <i class="bi bi-person-lines-fill"></i>
+                </button>
+
+                <!-- Refresh Button -->
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="LoadEmployeesAsync" title="Refresh Employee List">
+                    <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DATA DISPLAY (GRID / TABLE VIEW) -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+        <div class="table-responsive enterprise-table-container">
+            <table class="table table-hover table-sm align-middle enterprise-table mb-0">
+                <thead class="table-header-custom sticky-top">
+                    <!-- Main Header Row -->
+                    <tr>
+                        <th class="col-checkbox text-center" style="width: 40px;">
+                            <input type="checkbox" class="form-check-input" checked="@IsAllVisibleSelected" @onchange="ToggleSelectAllVisible" title="Select All Visible Unregistered" />
+                        </th>
+                        <th class="text-center" style="width: 45px;">#</th>
+                        <th style="min-width: 100px;">Emp ID</th>
+                        <th style="min-width: 180px;">Name</th>
+                        <th class="text-center" style="width: 65px;">CoNo</th>
+                        <th style="min-width: 90px;">Branch</th>
+                        <th style="min-width: 90px;">Div</th>
+                        <th style="min-width: 110px;">Dept</th>
+                        <th style="min-width: 110px;">Job</th>
+                        <th class="text-center" style="width: 80px;">Status</th>
+                        <th class="text-center" style="min-width: 130px;">MyHRsuite</th>
+                        <th class="text-center" style="width: 90px;">Action</th>
+                    </tr>
+
+                    <!-- Per-Column Filter Row -->
+                    @if (showFilters)
+                    {
+                        <tr class="filter-row bg-light">
+                            <th></th>
+                            <th class="text-center"><small class="text-muted"><i class="bi bi-funnel"></i></small></th>
+                            <th><input type="text" class="form-control form-control-xs" @bind="colFilterEmpId" @bind:event="oninput" placeholder="Emp ID" /></th>
+                            <th><input type="text" class="form-control form-control-xs" @bind="colFilterName" @bind:event="oninput" placeholder="Name" /></th>
+                            <th><input type="text" class="form-control form-control-xs text-center" @bind="colFilterCoNo" @bind:event="oninput" placeholder="Co" /></th>
+                            <th><input type="text" class="form-control form-control-xs" @bind="colFilterBranch" @bind:event="oninput" placeholder="Branch" /></th>
+                            <th><input type="text" class="form-control form-control-xs" @bind="colFilterDiv" @bind:event="oninput" placeholder="Div" /></th>
+                            <th><input type="text" class="form-control form-control-xs" @bind="colFilterDept" @bind:event="oninput" placeholder="Dept" /></th>
+                            <th><input type="text" class="form-control form-control-xs" @bind="colFilterJob" @bind:event="oninput" placeholder="Job" /></th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    }
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr>
+                            <td colspan="12" class="text-center py-5 text-muted">
+                                <div class="spinner-border spinner-border-sm text-success me-2" role="status"></div>
+                                Loading employees from database...
+                            </td>
+                        </tr>
+                    }
+                    else if (FilteredEmployees.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="12" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
+                                No employee records matching the selected criteria.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        int idx = 1;
+                        @foreach (var emp in FilteredEmployees)
+                        {
+                            bool isSelected = selectedEmpIds.Contains(emp.EmpId);
+                            string rowClass = isSelected ? "row-selected" : "";
+
+                            <tr class="@rowClass">
+                                <td class="text-center">
+                                    @if (!emp.IsInMyHrsuite)
+                                    {
+                                        <input type="checkbox" class="form-check-input" checked="@isSelected" @onchange="() => ToggleRowSelection(emp.EmpId)" />
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-check2 text-muted" title="Already registered"></i>
+                                    }
+                                </td>
+                                <td class="text-center text-muted small">@idx</td>
+                                <td class="fw-bold font-monospace text-primary">@emp.EmpId</td>
+                                <td>
+                                    <div class="fw-semibold text-dark">@emp.Name</div>
+                                    @if (!string.IsNullOrEmpty(emp.Email))
+                                    {
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;"><i class="bi bi-envelope me-1"></i>@emp.Email</small>
+                                    }
+                                </td>
+                                <td class="text-center small">
+                                    <span class="badge bg-light text-dark border">@emp.CompanyId</span>
+                                </td>
+                                <td class="small text-secondary">@emp.BranchId</td>
+                                <td class="small text-secondary">@emp.DivisionId</td>
+                                <td class="small text-secondary">@emp.DeptId</td>
+                                <td class="small text-secondary">@emp.JobId</td>
+                                <td class="text-center">
+                                    <span class="badge @(emp.Status == "Active" || emp.Status == "C" ? "bg-success-subtle text-success border border-success-subtle" : "bg-secondary-subtle text-secondary border border-secondary-subtle")" style="font-size: 0.7rem;">
+                                        @(emp.Status == "C" ? "Active" : emp.Status)
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    @if (emp.IsInMyHrsuite)
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1" style="font-size: 0.72rem;">
+                                            <i class="bi bi-check-circle-fill text-success me-1"></i> Registered
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1" style="font-size: 0.72rem;">
+                                            <i class="bi bi-clock-history me-1"></i> Not in System
+                                        </span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (!emp.IsInMyHrsuite)
+                                    {
+                                        <button class="btn btn-xs btn-outline-success rounded-pill px-2" @onclick="() => OpenSingleCreateModal(emp)" title="Register this user">
+                                            <i class="bi bi-plus-lg me-1"></i> Add
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-xs btn-outline-secondary rounded-pill px-2" @onclick='() => NavManager.NavigateTo($"admin/users/edit/{emp.EmpId}")' title="Edit user in User Management">
+                                            <i class="bi bi-pencil me-1"></i> Edit
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                            idx++;
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Table Footer -->
+        <div class="card-footer bg-white border-top py-2 d-flex flex-wrap justify-content-between align-items-center small text-muted">
+            <div>
+                Showing <strong>@FilteredEmployees.Count</strong> of <strong>@allEmployees.Count</strong> employees
+                @if (selectedEmpIds.Count > 0)
+                {
+                    <span class="ms-2 text-dark">• <strong>@selectedEmpIds.Count</strong> selected (@SelectedUnregisteredCount ready to add)</span>
+                }
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                @if (SelectedUnregisteredCount > 0)
+                {
+                    <button class="btn btn-xs btn-success rounded px-3" @onclick="OpenBatchCreateModal">
+                        <i class="bi bi-person-plus-fill me-1"></i> Add @SelectedUnregisteredCount Selected Users
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add User Confirmation Modal (Matching legacy AddNewUser.aspx popup) -->
+@if (showCreateModal)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-3">
+                <div class="modal-header bg-light py-2 px-3 border-bottom">
+                    <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
+                        <i class="bi bi-person-plus-fill text-success fs-5"></i>
+                        <span>Add New User to System</span>
+                    </h6>
+                    <button type="button" class="btn-close btn-close-sm" @onclick="CloseCreateModal" disabled="@isSubmitting"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <p class="text-muted small mb-3">
+                        You are about to create <strong>@modalTargetEmpIds.Count</strong> user account(s) in MyHRsuite.
+                    </p>
+
+                    <!-- Target Employees Preview Chips -->
+                    <div class="p-2 bg-light rounded border mb-3" style="max-height: 110px; overflow-y: auto;">
+                        <div class="d-flex flex-wrap gap-1">
+                            @foreach (var id in modalTargetEmpIds)
+                            {
+                                var empObj = allEmployees.FirstOrDefault(e => e.EmpId == id);
+                                <span class="badge bg-white text-dark border px-2 py-1 small">
+                                    <strong class="text-primary font-monospace">@id</strong>: @(empObj?.Name ?? "Employee")
+                                </span>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Password Rule Selection (from legacy rbnPassword) -->
+                    <label class="form-label fw-bold small text-dark mb-2">Default Password Options</label>
+                    <div class="border rounded p-3 bg-white mb-3">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="pwdOption" id="pwdDobIc" value="DOB_IC" checked="@(passwordMode == "DOB_IC")" @onchange='() => passwordMode = "DOB_IC"' />
+                            <label class="form-check-label small fw-semibold text-dark" for="pwdDobIc">
+                                Use DOB + IC No last 4 digits as password (YYMMDD)
+                            </label>
+                            <div class="form-text text-muted ps-1" style="font-size: 0.75rem;">
+                                Legacy rule: Birthdate in <code>YYMMDD</code> format plus the last 4 characters of New IC. Falls back to default password if missing.
+                            </div>
+                        </div>
+
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="radio" name="pwdOption" id="pwdDefault" value="DEFAULT" checked="@(passwordMode == "DEFAULT")" @onchange='() => passwordMode = "DEFAULT"' />
+                            <label class="form-check-label small fw-semibold text-dark" for="pwdDefault">
+                                Standard Default Password
+                            </label>
+                            @if (passwordMode == "DEFAULT")
+                            {
+                                <div class="mt-2 ps-1">
+                                    <input type="text" class="form-control form-control-sm" placeholder="Default Password" @bind="customPassword" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(modalError))
+                    {
+                        <div class="alert alert-danger py-2 small mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> @modalError
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer bg-light py-2 px-3 border-top">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" @onclick="CloseCreateModal" disabled="@isSubmitting">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-sm btn-success px-3 fw-bold" @onclick="ExecuteBatchCreateAsync" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>Creating Users...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                            <span>Confirm & Add Users</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<QdeEmployeeModel> allEmployees = new();
+    private HashSet<string> selectedEmpIds = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string? statusMessage;
+    private bool statusSuccess = true;
+
+    // Filter Controls
+    private string globalSearchText = "";
+    private string filterMode = "not_in_system"; // "not_in_system", "all", "registered"
+    private bool showFilters = false;
+
+    // Per-column filters
+    private string colFilterEmpId = "";
+    private string colFilterName = "";
+    private string colFilterCoNo = "";
+    private string colFilterBranch = "";
+    private string colFilterDiv = "";
+    private string colFilterDept = "";
+    private string colFilterJob = "";
+
+    // Modal state
+    private bool showCreateModal = false;
+    private List<string> modalTargetEmpIds = new();
+    private string passwordMode = "DOB_IC";
+    private string customPassword = "123456";
+    private string? modalError;
+
+    private int UnregisteredCount => allEmployees.Count(e => !e.IsInMyHrsuite);
+    private int RegisteredCount => allEmployees.Count(e => e.IsInMyHrsuite);
+
+    private int SelectedUnregisteredCount =>
+        allEmployees.Count(e => !e.IsInMyHrsuite && selectedEmpIds.Contains(e.EmpId));
+
+    private int VisibleUnregisteredCount =>
+        FilteredEmployees.Count(e => !e.IsInMyHrsuite);
+
+    private bool IsAllVisibleSelected
+    {
+        get
+        {
+            var visibleUnregistered = FilteredEmployees.Where(e => !e.IsInMyHrsuite).ToList();
+            return visibleUnregistered.Count > 0 && visibleUnregistered.All(e => selectedEmpIds.Contains(e.EmpId));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployeesAsync();
+    }
+
+    private async Task LoadEmployeesAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            allEmployees = await ApiClient.GetQdeEmployeesAsync();
+            selectedEmpIds.Clear();
+        }
+        catch (Exception ex)
+        {
+            statusSuccess = false;
+            statusMessage = $"Failed to load employees: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private List<QdeEmployeeModel> FilteredEmployees
+    {
+        get
+        {
+            var list = allEmployees.AsEnumerable();
+
+            // Status filter mode
+            if (filterMode == "not_in_system")
+            {
+                list = list.Where(e => !e.IsInMyHrsuite);
+            }
+            else if (filterMode == "registered")
+            {
+                list = list.Where(e => e.IsInMyHrsuite);
+            }
+
+            // Global search
+            if (!string.IsNullOrWhiteSpace(globalSearchText))
+            {
+                string search = globalSearchText.Trim();
+                list = list.Where(e =>
+                    e.EmpId.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    e.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    e.DeptId.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    e.BranchId.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    e.Email.Contains(search, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Per-column filters
+            if (showFilters)
+            {
+                if (!string.IsNullOrWhiteSpace(colFilterEmpId))
+                    list = list.Where(e => e.EmpId.Contains(colFilterEmpId.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(colFilterName))
+                    list = list.Where(e => e.Name.Contains(colFilterName.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(colFilterCoNo))
+                    list = list.Where(e => e.CompanyId.Contains(colFilterCoNo.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(colFilterBranch))
+                    list = list.Where(e => e.BranchId.Contains(colFilterBranch.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(colFilterDiv))
+                    list = list.Where(e => e.DivisionId.Contains(colFilterDiv.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(colFilterDept))
+                    list = list.Where(e => e.DeptId.Contains(colFilterDept.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(colFilterJob))
+                    list = list.Where(e => e.JobId.Contains(colFilterJob.Trim(), StringComparison.OrdinalIgnoreCase));
+            }
+
+            return list.ToList();
+        }
+    }
+
+    private void ToggleRowSelection(string empId)
+    {
+        if (selectedEmpIds.Contains(empId))
+            selectedEmpIds.Remove(empId);
+        else
+            selectedEmpIds.Add(empId);
+    }
+
+    private void ToggleSelectAllVisible(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        var visibleUnreg = FilteredEmployees.Where(emp => !emp.IsInMyHrsuite).Select(emp => emp.EmpId);
+        if (isChecked)
+        {
+            foreach (var id in visibleUnreg)
+                selectedEmpIds.Add(id);
+        }
+        else
+        {
+            foreach (var id in visibleUnreg)
+                selectedEmpIds.Remove(id);
+        }
+    }
+
+    private void SelectAllVisibleUnregistered()
+    {
+        foreach (var emp in FilteredEmployees.Where(e => !e.IsInMyHrsuite))
+        {
+            selectedEmpIds.Add(emp.EmpId);
+        }
+    }
+
+    private void DeselectAll()
+    {
+        selectedEmpIds.Clear();
+    }
+
+    private void OpenSingleCreateModal(QdeEmployeeModel emp)
+    {
+        modalTargetEmpIds = new List<string> { emp.EmpId };
+        passwordMode = "DOB_IC";
+        customPassword = "123456";
+        modalError = null;
+        showCreateModal = true;
+    }
+
+    private void OpenBatchCreateModal()
+    {
+        var targetIds = allEmployees
+            .Where(e => !e.IsInMyHrsuite && selectedEmpIds.Contains(e.EmpId))
+            .Select(e => e.EmpId)
+            .ToList();
+
+        if (targetIds.Count == 0) return;
+
+        modalTargetEmpIds = targetIds;
+        passwordMode = "DOB_IC";
+        customPassword = "123456";
+        modalError = null;
+        showCreateModal = true;
+    }
+
+    private void CloseCreateModal()
+    {
+        showCreateModal = false;
+        modalTargetEmpIds.Clear();
+        modalError = null;
+    }
+
+    private async Task ExecuteBatchCreateAsync()
+    {
+        if (modalTargetEmpIds.Count == 0) return;
+
+        isSubmitting = true;
+        modalError = null;
+
+        try
+        {
+            var req = new BatchCreateUsersRequest
+            {
+                EmpIds = modalTargetEmpIds,
+                PasswordMode = passwordMode,
+                DefaultPassword = customPassword
+            };
+
+            var (success, result, error) = await ApiClient.BatchCreateUsersAsync(req);
+
+            if (success && result != null)
+            {
+                statusSuccess = true;
+                statusMessage = $"Success! Created {result.SuccessCount} user account(s) into MyHRsuite." +
+                                (result.SkippedCount > 0 ? $" ({result.SkippedCount} skipped/already existing)" : "");
+
+                CloseCreateModal();
+                await LoadEmployeesAsync();
+            }
+            else
+            {
+                modalError = error ?? "Failed to create user accounts.";
+            }
+        }
+        catch (Exception ex)
+        {
+            modalError = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}
+
+<style>
+    .qde-page-container {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .back-arrow-btn {
+        color: #1e293b !important;
+        line-height: 1;
+        transition: transform 0.15s ease-in-out, color 0.15s ease-in-out;
+    }
+
+    .back-arrow-btn:hover {
+        color: #0284c7 !important;
+        transform: translateX(-3px);
+    }
+
+    /* Enterprise Table Styling (exact match with UserManage.razor) */
+    .enterprise-table-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        max-height: 580px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .enterprise-table {
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    .enterprise-table th {
+        font-weight: 700;
+        letter-spacing: -0.1px;
+        padding: 8px 10px;
+        vertical-align: middle;
+        font-size: 0.78rem;
+    }
+
+    .table-header-custom {
+        background-color: #2e6430; /* Corporate HRsuite Deep Green matching legacy theme */
+        color: #ffffff;
+    }
+
+    .table-header-custom th {
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .enterprise-table td {
+        padding: 6px 10px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .enterprise-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .row-selected {
+        background-color: #eff6ff !important;
+    }
+
+    .icon-toolbar-btn {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        transition: all 0.15s ease-in-out;
+        position: relative;
+    }
+
+    .icon-toolbar-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.12), 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+    }
+
+    .icon-toolbar-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
+    .form-control-xs {
+        font-size: 0.72rem;
+        padding: 2px 4px;
+        height: 24px;
+        border-radius: 4px;
+    }
+
+    .btn-xs {
+        font-size: 0.72rem;
+        padding: 2px 8px;
+        line-height: 1.4;
+    }
+
+    .spin {
+        animation: spin 1s infinite linear;
+    }
+
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>

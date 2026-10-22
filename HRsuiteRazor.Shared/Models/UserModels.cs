@@ -88,3 +88,36 @@ public class SavePermissionsRequest
     public string GroupID { get; set; } = string.Empty;
     public List<int> FormIDs { get; set; } = new();
 }
+
+public class QdeEmployeeModel
+{
+    public string EmpId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string BranchId { get; set; } = string.Empty;
+    public string DivisionId { get; set; } = string.Empty;
+    public string DeptId { get; set; } = string.Empty;
+    public string JobId { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string CompanyId { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public DateTime? Birthdate { get; set; }
+    public string IcNew { get; set; } = string.Empty;
+    public bool IsInMyHrsuite { get; set; }
+}
+
+public class BatchCreateUsersRequest
+{
+    public List<string> EmpIds { get; set; } = new();
+    public string PasswordMode { get; set; } = "DOB_IC"; // "DOB_IC" or "DEFAULT"
+    public string? DefaultPassword { get; set; } = "123456";
+}
+
+public class BatchCreateUsersResult
+{
+    public int SuccessCount { get; set; }
+    public int SkippedCount { get; set; }
+    public List<string> CreatedIds { get; set; } = new();
+    public List<string> SkippedIds { get; set; } = new();
+    public List<string> Messages { get; set; } = new();
+}
+
