@@ -32,7 +32,7 @@
                 <span class="tile-label">User<br />Manage</span>
             </button>
 
-            <button class="admin-tile tile-red @(activeTab == "group_setup" ? "active" : "")" @onclick='() => ToggleTab("group_setup")' title="Group Setup">
+            <button class="admin-tile tile-red" @onclick='() => NavManager.NavigateTo("admin/groups")' title="Group Setup">
                 <div class="icon-circle">
                     <img src="img/icon/GroupSetup.png" alt="Group Setup" />
                 </div>

@@ -505,6 +505,58 @@ public class HrApiClient
             return null;
         }
     }
+
+    public async Task<(bool Success, string? ErrorMessage)> CreateAdminGroupWithDetailsAsync(UserGroupModel group)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Admin/groups", group);
+            if (!res.IsSuccessStatusCode)
+            {
+                var content = await res.Content.ReadAsStringAsync();
+                return (false, string.IsNullOrWhiteSpace(content) ? res.ReasonPhrase : content);
+            }
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create group via Web API");
+            return (false, ex.Message);
+        }
+    }
+
+    public async Task<(bool Success, string? ErrorMessage)> UpdateAdminGroupWithDetailsAsync(string userGroupId, string groupId, UserGroupModel group)
+    {
+        try
+        {
+            var res = await _http.PutAsJsonAsync($"api/Admin/groups/{Uri.EscapeDataString(userGroupId)}/{Uri.EscapeDataString(groupId)}", group);
+            if (!res.IsSuccessStatusCode)
+            {
+                var content = await res.Content.ReadAsStringAsync();
+                return (false, string.IsNullOrWhiteSpace(content) ? res.ReasonPhrase : content);
+            }
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update group via Web API");
+            return (false, ex.Message);
+        }
+    }
+
+    public async Task<bool> DeleteAdminGroupAsync(string userGroupId, string groupId)
+    {
+        try
+        {
+            var res = await _http.DeleteAsync($"api/Admin/groups/{Uri.EscapeDataString(userGroupId)}/{Uri.EscapeDataString(groupId)}");
+            return res.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete group via Web API");
+            return false;
+        }
+    }
 }
 
 

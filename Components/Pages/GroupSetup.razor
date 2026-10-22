@@ -1,0 +1,728 @@
+@page "/admin/groups"
+@page "/admin/group-setup"
+@page "/admin/groups/new"
+@page "/admin/groups/edit/{EditUserGroupId}/{EditGroupId}"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>Group Setup - HRsuite</PageTitle>
+
+<div class="group-management-page">
+    @if (!isFormView)
+    {
+        <!-- Top Header Bar (Matching Image 1: Clean back arrow and title) -->
+        <div class="page-top-bar d-flex align-items-center gap-3 mb-3">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-4 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <h4 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <i class="bi bi-diagram-3-fill text-danger"></i>
+                <span>Group Setup</span>
+            </h4>
+        </div>
+
+        <!-- Status Alert Banner -->
+        @if (!string.IsNullOrEmpty(statusMessage))
+        {
+            <div class="alert @(statusSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-2 shadow-sm animate-fade-in" role="alert">
+                <i class="bi @(statusSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") fs-5"></i>
+                <div class="flex-grow-1">@statusMessage</div>
+                <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+            </div>
+        }
+
+        <!-- Compact Action Toolbar -->
+        <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+            <div class="card-body p-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                    <!-- Add New Group -->
+                    <button class="btn btn-sm btn-success d-inline-flex align-items-center gap-1 px-3 fw-semibold" @onclick="() => OpenAddGroupView()" title="Add New Group">
+                        <i class="bi bi-plus-lg"></i>
+                        <span>Add New Record</span>
+                    </button>
+
+                    <!-- Delete Selected -->
+                    <button class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-3 fw-semibold" 
+                            @onclick="PromptDeleteSelected" 
+                            disabled="@(selectedGroupKeys.Count == 0)"
+                            title="Delete Selected Groups">
+                        <i class="bi bi-trash"></i>
+                        <span>Delete (@selectedGroupKeys.Count)</span>
+                    </button>
+
+                    <!-- Refresh -->
+                    <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2" @onclick="() => LoadGroupsAsync(keepStatus: false)" title="Reload Groups">
+                        <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+
+                <!-- Search and Module Filter -->
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <select class="form-select form-select-sm" style="width: 150px;" @bind="filterSystemGroup">
+                        <option value="">All Groups</option>
+                        <option value="ATTENDANCE">ATTENDANCE</option>
+                        <option value="LEAVE">LEAVE</option>
+                        <option value="OT">OT</option>
+                        <option value="PAYSLIP">PAYSLIP</option>
+                        <option value="CLAIM">CLAIM</option>
+                        <option value="EAFORM">EAFORM</option>
+                        <option value="STAFF">STAFF</option>
+                    </select>
+
+                    <div class="input-group input-group-sm" style="width: 220px;">
+                        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" class="form-control" placeholder="Search groups..." @bind="searchText" @bind:event="oninput" />
+                        @if (!string.IsNullOrEmpty(searchText))
+                        {
+                            <button class="btn btn-outline-secondary" type="button" @onclick="() => searchText = string.Empty">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Groups Data Table -->
+        <div class="card border-0 shadow-sm rounded-3 bg-white">
+            <div class="card-header bg-danger text-white py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-diagram-3-fill"></i>
+                    <h6 class="mb-0 fw-bold">User Groups Setup (aspnet_usergroup)</h6>
+                </div>
+                <span class="badge bg-white text-danger fw-semibold">
+                    @FilteredGroups.Count of @groupsList.Count Records
+                </span>
+            </div>
+
+            <div class="card-body p-0">
+                @if (isLoading)
+                {
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-danger spinner-border-sm" role="status"></div>
+                        <span class="text-muted ms-2 small">Loading group records...</span>
+                    </div>
+                }
+                else if (FilteredGroups.Count == 0)
+                {
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                        <span>No group records found matching criteria.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped align-middle small mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 40px;" class="text-center">
+                                        <input type="checkbox" class="form-check-input" checked="@isAllSelected" @onchange="ToggleSelectAll" />
+                                    </th>
+                                    <th style="width: 70px;" class="text-center">Action</th>
+                                    <th>User Group ID</th>
+                                    <th>System Group</th>
+                                    <th>Group Name / Description</th>
+                                    <th>Remarks</th>
+                                    <th style="width: 120px;" class="text-center">Approval Level</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var g in FilteredGroups)
+                                {
+                                    var key = $"{g.UserGroupID}||{g.GroupID}";
+                                    var isChecked = selectedGroupKeys.Contains(key);
+                                    <tr>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input" checked="@isChecked" @onchange="() => ToggleRowSelection(key)" />
+                                        </td>
+                                        <td class="text-center">
+                                            <button class="btn btn-sm btn-outline-primary py-0 px-2" @onclick="() => StartEditGroup(g)" title="Edit Group">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-dark font-monospace">@g.UserGroupID</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge @GetGroupBadgeClass(g.GroupID)">@g.GroupID</span>
+                                        </td>
+                                        <td class="fw-semibold">@g.UserGroup</td>
+                                        <td class="text-muted">@(string.IsNullOrWhiteSpace(g.Remark) ? "-" : g.Remark)</td>
+                                        <td class="text-center">
+                                            @if (g.ApprovalLevel == "Y")
+                                            {
+                                                <span class="badge bg-success" title="Group user is active / approval level enabled">Active (Y)</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary" title="Standard level / inactive">No (N)</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- NEW / EDIT GROUP FULL PAGE VIEW (In Page, Vertical Layout, Arrow Icon Back Button) -->
+        <div class="group-edit-page animate-fade-in">
+            @if (!string.IsNullOrEmpty(formErrorMessage))
+            {
+                <div class="alert alert-danger py-2 px-3 small d-flex align-items-center gap-2 mb-3 shadow-sm">
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                    <span>@formErrorMessage</span>
+                </div>
+            }
+
+            <!-- Form Card -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+                <div class="card-header @(isEditMode ? "bg-danger" : "bg-success") text-white py-2 px-3 d-flex align-items-center justify-content-between">
+                    <h6 class="mb-0 fw-bold d-flex align-items-center gap-2">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle-fill")"></i>
+                        <span>@(isEditMode ? $"Group Details — {currentGroup.UserGroupID} ({currentGroup.GroupID})" : "New User Group Registration")</span>
+                    </h6>
+                    <!-- Clean Back Arrow matching Image 1 -->
+                    <button type="button" class="btn btn-link text-white p-0 text-decoration-none fs-4 d-inline-flex align-items-center" @onclick="CloseFormView" title="Back to Group List">
+                        <i class="bi bi-arrow-left"></i>
+                    </button>
+                </div>
+
+                <div class="card-body p-3 p-md-4">
+                    <div class="row g-3">
+                        <!-- User Group ID -->
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">User Group ID <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" placeholder="e.g. LV APPROVAL (max 12 chars, no hyphens)" @bind="currentGroup.UserGroupID" disabled="@isEditMode" />
+                        </div>
+
+                        <!-- System Group ID -->
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">System Group ID <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" @bind="currentGroup.GroupID" disabled="@isEditMode">
+                                <option value="ATTENDANCE">ATTENDANCE</option>
+                                <option value="LEAVE">LEAVE</option>
+                                <option value="OT">OT</option>
+                                <option value="PAYSLIP">PAYSLIP</option>
+                                <option value="CLAIM">CLAIM</option>
+                                <option value="EAFORM">EAFORM</option>
+                                <option value="STAFF">STAFF</option>
+                            </select>
+                        </div>
+
+                        <!-- Group Name / Description -->
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">User Group Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" placeholder="e.g. LEAVE APPROVAL" @bind="currentGroup.UserGroup" />
+                        </div>
+
+                        <!-- Remarks -->
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Remark</label>
+                            <input type="text" class="form-control form-control-sm" placeholder="Optional notes" @bind="currentGroup.Remark" />
+                        </div>
+
+                        <!-- Approval Level -->
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Approval Level</label>
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="chkApproval" checked="@(currentGroup.ApprovalLevel == "Y")" @onchange="OnApprovalLevelChanged" />
+                                <label class="form-check-label small" for="chkApproval">
+                                    Allow group approval to be active / selectable in leave maintain
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Footer Actions: Cancel and Save/Update -->
+                <div class="card-footer py-3 px-4 bg-light d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseFormView">Cancel</button>
+                    <button type="button" class="btn @(isEditMode ? "btn-danger" : "btn-success") px-4 fw-semibold" @onclick="RequestSaveGroup" disabled="@isSubmitting">
+                        <i class="bi bi-check2-circle me-1"></i>
+                        <span>@(isEditMode ? "Update Record" : "Save Record")</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- MODAL: CONFIRMATION BEFORE SAVE/UPDATE -->
+    @if (isConfirmSaveModalOpen)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.65); z-index: 1060;">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content border-0 shadow-lg rounded-3">
+                    <div class="modal-header @(isEditMode ? "bg-danger text-white" : "bg-success text-white") py-2 px-3">
+                        <h6 class="modal-title fw-bold">
+                            <i class="bi bi-question-circle me-1"></i> Confirmation
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white" @onclick="() => isConfirmSaveModalOpen = false"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-question-circle-fill text-danger" style="font-size: 3rem;"></i>
+                        </div>
+                        <h6 class="fw-bold mb-2">Are you sure you want to continue?</h6>
+                        <p class="small text-muted mb-0">
+                            @(isEditMode 
+                                ? $"Are you sure you want to update group '{currentGroup.UserGroupID}'?" 
+                                : $"Are you sure you want to create group '{currentGroup.UserGroupID}'?")
+                        </p>
+                    </div>
+                    <div class="modal-footer py-2 px-3 bg-light justify-content-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-3" @onclick="() => isConfirmSaveModalOpen = false" disabled="@isSubmitting">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn btn-sm @(isEditMode ? "btn-danger" : "btn-success") px-4 fw-semibold" @onclick="ConfirmAndSaveGroupAsync" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check2-circle me-1"></i>
+                                <span>Confirm</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- MODAL: DELETE CONFIRMATION -->
+    @if (isConfirmDeleteModalOpen)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.65); z-index: 1060;">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content border-0 shadow-lg rounded-3">
+                    <div class="modal-header bg-danger text-white py-2 px-3">
+                        <h6 class="modal-title fw-bold">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> Confirm Delete
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white" @onclick="() => isConfirmDeleteModalOpen = false"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-trash-fill text-danger" style="font-size: 3rem;"></i>
+                        </div>
+                        <h6 class="fw-bold mb-2">Continue to Process?</h6>
+                        <p class="small text-muted mb-0">
+                            Delete @selectedGroupKeys.Count selected group record(s)? This action cannot be undone.
+                        </p>
+                    </div>
+                    <div class="modal-footer py-2 px-3 bg-light justify-content-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-3" @onclick="() => isConfirmDeleteModalOpen = false" disabled="@isSubmitting">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger px-4 fw-semibold" @onclick="ConfirmDeleteSelectedAsync" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <span>Deleting...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-trash me-1"></i>
+                                <span>Delete</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? EditUserGroupId { get; set; }
+
+    [Parameter]
+    public string? EditGroupId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Action { get; set; }
+
+    private bool isFormView = false;
+    private bool isEditMode = false;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+
+    private List<UserGroupModel> groupsList = new();
+    private HashSet<string> selectedGroupKeys = new();
+
+    private string searchText = "";
+    private string filterSystemGroup = "";
+
+    private UserGroupModel currentGroup = new();
+    private string? formErrorMessage;
+    private string? statusMessage;
+    private bool statusSuccess = false;
+
+    private bool isConfirmSaveModalOpen = false;
+    private bool isConfirmDeleteModalOpen = false;
+
+    private bool isAllSelected => FilteredGroups.Count > 0 && FilteredGroups.All(g => selectedGroupKeys.Contains($"{g.UserGroupID}||{g.GroupID}"));
+
+    private List<UserGroupModel> FilteredGroups
+    {
+        get
+        {
+            var query = groupsList.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(filterSystemGroup))
+            {
+                query = query.Where(g => g.GroupID.Equals(filterSystemGroup, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                var term = searchText.Trim();
+                query = query.Where(g =>
+                    (!string.IsNullOrEmpty(g.UserGroupID) && g.UserGroupID.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(g.UserGroup) && g.UserGroup.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(g.GroupID) && g.GroupID.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(g.Remark) && g.Remark.Contains(term, StringComparison.OrdinalIgnoreCase))
+                );
+            }
+
+            return query.ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGroupsAsync();
+        ApplyRouteParameters();
+    }
+
+    protected override void OnParametersSet()
+    {
+        ApplyRouteParameters();
+    }
+
+    private void ApplyRouteParameters()
+    {
+        if (!string.IsNullOrEmpty(EditUserGroupId) && !string.IsNullOrEmpty(EditGroupId) && groupsList.Count > 0)
+        {
+            var g = groupsList.FirstOrDefault(x => 
+                x.UserGroupID.Equals(EditUserGroupId, StringComparison.OrdinalIgnoreCase) &&
+                x.GroupID.Equals(EditGroupId, StringComparison.OrdinalIgnoreCase));
+
+            if (g != null && (!isFormView || currentGroup.UserGroupID != g.UserGroupID || currentGroup.GroupID != g.GroupID))
+            {
+                StartEditGroup(g, syncUrl: false);
+            }
+        }
+        else if (string.Equals(Action, "new", StringComparison.OrdinalIgnoreCase) || NavManager.Uri.EndsWith("/new", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!isFormView || isEditMode)
+            {
+                OpenAddGroupView(syncUrl: false);
+            }
+        }
+        else if (string.IsNullOrEmpty(EditUserGroupId) && !string.Equals(Action, "new", StringComparison.OrdinalIgnoreCase) && !NavManager.Uri.EndsWith("/new", StringComparison.OrdinalIgnoreCase))
+        {
+            isFormView = false;
+        }
+    }
+
+    private async Task LoadGroupsAsync(bool keepStatus = false)
+    {
+        isLoading = true;
+        if (!keepStatus) statusMessage = null;
+
+        try
+        {
+            groupsList = await ApiClient.GetAdminGroupsAsync();
+            selectedGroupKeys.Clear();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error loading groups: {ex.Message}";
+            statusSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ToggleRowSelection(string key)
+    {
+        if (selectedGroupKeys.Contains(key))
+            selectedGroupKeys.Remove(key);
+        else
+            selectedGroupKeys.Add(key);
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool selectAll = (bool)(e.Value ?? false);
+        if (selectAll)
+        {
+            foreach (var g in FilteredGroups)
+            {
+                selectedGroupKeys.Add($"{g.UserGroupID}||{g.GroupID}");
+            }
+        }
+        else
+        {
+            selectedGroupKeys.Clear();
+        }
+    }
+
+    private void OpenAddGroupView(bool syncUrl = true)
+    {
+        currentGroup = new UserGroupModel
+        {
+            UserGroupID = "",
+            GroupID = "LEAVE",
+            UserGroup = "",
+            Remark = "",
+            ApprovalLevel = "N"
+        };
+        isEditMode = false;
+        isFormView = true;
+        formErrorMessage = null;
+
+        if (syncUrl)
+        {
+            NavManager.NavigateTo("admin/groups?action=new");
+        }
+    }
+
+    private void StartEditGroup(UserGroupModel group, bool syncUrl = true)
+    {
+        currentGroup = new UserGroupModel
+        {
+            UserGroupID = group.UserGroupID,
+            GroupID = group.GroupID,
+            UserGroup = group.UserGroup,
+            Remark = group.Remark,
+            ApprovalLevel = group.ApprovalLevel
+        };
+        isEditMode = true;
+        isFormView = true;
+        formErrorMessage = null;
+
+        if (syncUrl)
+        {
+            NavManager.NavigateTo($"admin/groups/edit/{Uri.EscapeDataString(group.UserGroupID)}/{Uri.EscapeDataString(group.GroupID)}");
+        }
+    }
+
+    private void CloseFormView()
+    {
+        isFormView = false;
+        isConfirmSaveModalOpen = false;
+        currentGroup = new UserGroupModel();
+        formErrorMessage = null;
+        NavManager.NavigateTo("admin/groups");
+    }
+
+    private void OnApprovalLevelChanged(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        currentGroup.ApprovalLevel = isChecked ? "Y" : "N";
+    }
+
+    private void RequestSaveGroup()
+    {
+        if (string.IsNullOrWhiteSpace(currentGroup.UserGroupID))
+        {
+            formErrorMessage = "User Group ID is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(currentGroup.GroupID))
+        {
+            formErrorMessage = "System Group ID is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(currentGroup.UserGroup))
+        {
+            formErrorMessage = "User Group Name is required.";
+            return;
+        }
+
+        if (currentGroup.UserGroupID.Length > 12)
+        {
+            formErrorMessage = "User Group ID must be 12 characters or less.";
+            return;
+        }
+
+        if (currentGroup.UserGroupID.Contains("-"))
+        {
+            formErrorMessage = "User Group ID cannot contain hyphens (-).";
+            return;
+        }
+
+        formErrorMessage = null;
+        isConfirmSaveModalOpen = true;
+    }
+
+    private async Task ConfirmAndSaveGroupAsync()
+    {
+        isSubmitting = true;
+        formErrorMessage = null;
+
+        try
+        {
+            if (isEditMode)
+            {
+                var (success, errMsg) = await ApiClient.UpdateAdminGroupWithDetailsAsync(currentGroup.UserGroupID, currentGroup.GroupID, currentGroup);
+                if (success)
+                {
+                    statusMessage = $"User group '{currentGroup.UserGroupID}' updated successfully!";
+                    statusSuccess = true;
+                    CloseFormView();
+                    await LoadGroupsAsync(keepStatus: true);
+                }
+                else
+                {
+                    formErrorMessage = errMsg ?? "Failed to update group.";
+                    isConfirmSaveModalOpen = false;
+                }
+            }
+            else
+            {
+                var (success, errMsg) = await ApiClient.CreateAdminGroupWithDetailsAsync(currentGroup);
+                if (success)
+                {
+                    statusMessage = $"New group '{currentGroup.UserGroupID}' created successfully!";
+                    statusSuccess = true;
+                    CloseFormView();
+                    await LoadGroupsAsync(keepStatus: true);
+                }
+                else
+                {
+                    formErrorMessage = errMsg ?? "Failed to create group.";
+                    isConfirmSaveModalOpen = false;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            formErrorMessage = ex.Message;
+            isConfirmSaveModalOpen = false;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void PromptDeleteSelected()
+    {
+        if (selectedGroupKeys.Count == 0) return;
+        isConfirmDeleteModalOpen = true;
+    }
+
+    private async Task ConfirmDeleteSelectedAsync()
+    {
+        isSubmitting = true;
+        int deletedCount = 0;
+        int failedCount = 0;
+
+        try
+        {
+            foreach (var key in selectedGroupKeys.ToList())
+            {
+                var parts = key.Split("||");
+                if (parts.Length == 2)
+                {
+                    var success = await ApiClient.DeleteAdminGroupAsync(parts[0], parts[1]);
+                    if (success)
+                        deletedCount++;
+                    else
+                        failedCount++;
+                }
+            }
+
+            statusMessage = $"Deleted {deletedCount} group(s) successfully." + (failedCount > 0 ? $" ({failedCount} failed)." : "");
+            statusSuccess = deletedCount > 0;
+            isConfirmDeleteModalOpen = false;
+            await LoadGroupsAsync(keepStatus: true);
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error deleting groups: {ex.Message}";
+            statusSuccess = false;
+            isConfirmDeleteModalOpen = false;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private string GetGroupBadgeClass(string? groupId)
+    {
+        return (groupId?.ToUpperInvariant()) switch
+        {
+            "ATTENDANCE" => "bg-primary text-white",
+            "LEAVE" => "bg-success text-white",
+            "OT" => "bg-warning text-dark",
+            "PAYSLIP" => "bg-info text-dark",
+            "CLAIM" => "bg-secondary text-white",
+            "EAFORM" => "bg-dark text-white",
+            "STAFF" => "bg-primary-subtle text-primary border border-primary",
+            _ => "bg-secondary text-white"
+        };
+    }
+}
+
+<style>
+    .group-management-page {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto;
+        padding-bottom: 80px;
+    }
+
+    .group-edit-page {
+        width: 100%;
+        max-width: 680px;
+        margin: 0;
+        padding-bottom: 100px;
+    }
+
+    .back-arrow-btn {
+        transition: transform 0.15s ease-in-out;
+    }
+
+    .back-arrow-btn:hover {
+        transform: translateX(-2px);
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
