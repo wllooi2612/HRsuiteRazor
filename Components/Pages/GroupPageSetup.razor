@@ -1,0 +1,613 @@
+@page "/admin/group-page-setup"
+@page "/admin/grouppagesetup"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>Group Page Setup - HRsuite</PageTitle>
+
+<div class="group-page-setup-container">
+    <!-- Top Header Bar (Matching UserManage / GroupSetup Pattern) -->
+    <div class="page-top-bar d-flex align-items-center gap-3 mb-3">
+        <button class="btn btn-link text-dark p-0 text-decoration-none fs-4 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
+            <i class="bi bi-arrow-left"></i>
+        </button>
+        <h4 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+            <i class="bi bi-file-earmark-lock2-fill text-warning"></i>
+            <span>Group Page Setup</span>
+        </h4>
+    </div>
+
+    <!-- Status Alert Banner -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(statusSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-2 shadow-sm animate-fade-in" role="alert">
+            <i class="bi @(statusSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") fs-5"></i>
+            <div class="flex-grow-1 small">@statusMessage</div>
+            <button type="button" class="btn-close btn-close-sm" @onclick="() => statusMessage = null"></button>
+        </div>
+    }
+
+    <!-- Unified Single-Line Control Bar (Compact Icons with Tooltips, Matching UserManage) -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+        <div class="card-body p-2 d-flex flex-wrap align-items-center gap-2">
+            <!-- User Group Selector Dropdown -->
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted small fw-semibold me-1">Group:</span>
+                <select class="form-select form-select-xs" style="min-width: 190px; max-width: 280px; height: 31px; font-size: 0.8rem;" value="@selectedGroupKey" @onchange="OnGroupSelectedAsync">
+                    <option value="">-- Select User Group --</option>
+                    @foreach (var g in groupsList)
+                    {
+                        var key = $"{g.UserGroupID}||{g.GroupID}";
+                        <option value="@key">@g.UserGroupID - @g.UserGroup (@g.GroupID)</option>
+                    }
+                </select>
+            </div>
+
+            <!-- Search Box -->
+            <div class="search-box" style="width: 220px; min-width: 170px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0 py-1"><i class="bi bi-search text-muted small"></i></span>
+                    <input type="text" class="form-control border-start-0 bg-light py-1" placeholder="Search page or ID..." @bind="searchText" @bind:event="oninput" title="Search by Page Name, Form ID, or System Group" />
+                    @if (!string.IsNullOrEmpty(searchText))
+                    {
+                        <button class="btn btn-sm btn-outline-secondary bg-light border-start-0 py-1" @onclick='() => searchText = ""' title="Clear search">✕</button>
+                    }
+                </div>
+            </div>
+
+            <!-- Filter By Module/System Group -->
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted small me-1">System:</span>
+                <select class="form-select form-select-xs" style="width: 130px; height: 31px; font-size: 0.8rem;" @bind="filterSystemGroup">
+                    <option value="">All Systems</option>
+                    <option value="ADMIN">ADMIN</option>
+                    <option value="ATTENDANCE">ATTENDANCE</option>
+                    <option value="LEAVE">LEAVE</option>
+                    <option value="OT">OT</option>
+                    <option value="PAYSLIP">PAYSLIP</option>
+                    <option value="CLAIM">CLAIM</option>
+                    <option value="EAFORM">EAFORM</option>
+                    <option value="STAFF">STAFF</option>
+                    <option value="APPRAISAL">APPRAISAL</option>
+                </select>
+            </div>
+
+            <!-- Filter By Access Status (All, Granted, Denied) -->
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted small me-1">Access:</span>
+                <button class="btn btn-xs rounded-pill @(filterAccess == null ? "btn-dark text-white" : "btn-light text-dark border")" @onclick='() => filterAccess = null' title="Show all pages">All</button>
+                <button class="btn btn-xs rounded-pill @(filterAccess == true ? "btn-success text-white" : "btn-light text-dark border")" @onclick='() => filterAccess = true' title="Show granted pages only">Granted</button>
+                <button class="btn btn-xs rounded-pill @(filterAccess == false ? "btn-danger text-white" : "btn-light text-dark border")" @onclick='() => filterAccess = false' title="Show denied pages only">Denied</button>
+            </div>
+
+            <div class="vr mx-1 my-auto text-secondary opacity-25 d-none d-sm-block" style="height: 22px;"></div>
+
+            <!-- Action Icons Toolbar (All Icon Buttons with Tooltips in ONE Line) -->
+            <div class="d-flex align-items-center gap-1 flex-wrap">
+                <!-- Save / Update Button (Floppy / Disk icon) -->
+                <button class="btn btn-sm btn-success icon-toolbar-btn shadow-sm" @onclick="PromptSavePermissions" disabled="@(string.IsNullOrEmpty(selectedGroupKey) || isSaving)" title="Save / Update Page Access Rights">
+                    <i class="bi bi-floppy-fill fs-6"></i>
+                </button>
+
+                <!-- Select All Visible Pages -->
+                <button class="btn btn-sm btn-outline-primary icon-toolbar-btn shadow-sm" @onclick="SelectAllVisible" disabled="@(string.IsNullOrEmpty(selectedGroupKey))" title="Grant Access to All Visible Pages">
+                    <i class="bi bi-check-all fs-6"></i>
+                </button>
+
+                <!-- Deselect All Visible Pages -->
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="DeselectAllVisible" disabled="@(string.IsNullOrEmpty(selectedGroupKey))" title="Revoke Access for All Visible Pages">
+                    <i class="bi bi-square fs-6"></i>
+                </button>
+
+                <!-- Refresh Button -->
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="ReloadPermissionsAsync" title="Refresh Pages & Rights">
+                    <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                </button>
+
+                @if (!string.IsNullOrEmpty(selectedGroupKey) && pagesList.Count > 0)
+                {
+                    <span class="badge bg-light text-secondary border fw-normal ms-1">
+                        @GrantedCount / @pagesList.Count Granted
+                    </span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DATA DISPLAY (GRID / TABLE VIEW) -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+        <div class="table-responsive enterprise-table-container">
+            <table class="table table-hover table-sm align-middle enterprise-table mb-0">
+                <thead class="table-header-custom sticky-top">
+                    <tr>
+                        <th class="col-checkbox text-center" style="width: 45px;">
+                            <input type="checkbox" class="form-check-input" checked="@IsAllSelected" @onchange="ToggleSelectAll" title="Toggle Select All" disabled="@(string.IsNullOrEmpty(selectedGroupKey))" />
+                        </th>
+                        <th class="text-center" style="width: 50px;">#</th>
+                        <th class="col-name">Page Name</th>
+                        <th class="col-formid text-center" style="width: 100px;">Form ID</th>
+                        <th class="col-group text-center" style="width: 140px;">System Group</th>
+                        <th class="col-status text-center" style="width: 130px;">Access Right</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (string.IsNullOrEmpty(selectedGroupKey))
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="bi bi-arrow-up-circle fs-2 text-warning opacity-75 d-block mb-2"></i>
+                                <span>Please select a <strong>User Group</strong> above to view and configure page access rights.</span>
+                            </td>
+                        </tr>
+                    }
+                    else if (isLoading)
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center py-5">
+                                <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                <div class="text-muted small mt-2">Loading page access rights from MySQL via Web API...</div>
+                            </td>
+                        </tr>
+                    }
+                    else if (FilteredPages.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                                <span>No pages found matching the filter criteria.</span>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        var index = 1;
+                        @foreach (var p in FilteredPages)
+                        {
+                            var isChecked = p.IsSelected;
+                            <tr class="@(isChecked ? "row-selected" : "")" @onclick="() => TogglePage(p)" style="cursor: pointer;">
+                                <td class="text-center col-checkbox" @onclick:stopPropagation="true">
+                                    <input type="checkbox" class="form-check-input" checked="@p.IsSelected" @onchange="() => TogglePage(p)" />
+                                </td>
+                                <td class="text-center text-muted small">@index</td>
+                                <td class="col-name fw-semibold text-dark">
+                                    <i class="bi bi-file-earmark-text text-secondary me-2"></i>
+                                    @p.Name
+                                </td>
+                                <td class="col-formid text-center">
+                                    <span class="badge bg-secondary font-monospace">@p.FormID</span>
+                                </td>
+                                <td class="col-group text-center">
+                                    <span class="badge @GetGroupBadgeClass(p.GroupID)">@p.GroupID</span>
+                                </td>
+                                <td class="col-status text-center" @onclick:stopPropagation="true">
+                                    <button class="btn btn-xs @(p.IsSelected ? "btn-success" : "btn-outline-danger")" @onclick="() => TogglePage(p)" title="Click to toggle access">
+                                        @if (p.IsSelected)
+                                        {
+                                            <i class="bi bi-check-circle-fill me-1"></i><span>Granted (Y)</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-x-circle me-1"></i><span>Denied (N)</span>
+                                        }
+                                    </button>
+                                </td>
+                            </tr>
+                            index++;
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Table Footer Status (Matching UserManage) -->
+        <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
+            <div>
+                @if (!string.IsNullOrEmpty(selectedGroupKey))
+                {
+                    <span>Showing <strong>@FilteredPages.Count</strong> of <strong>@pagesList.Count</strong> pages &bull; <strong>@GrantedCount</strong> Granted, <strong>@(pagesList.Count - GrantedCount)</strong> Denied</span>
+                }
+                else
+                {
+                    <span>No group selected</span>
+                }
+            </div>
+            <div class="d-none d-md-block">
+                <span>Source: MySQL 5.7 schema <code>myhrsuitelog.aspnet_useraccessright</code></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Save Modal -->
+@if (isConfirmSaveModalOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+            <div class="modal-content border-0 shadow-lg rounded-3">
+                <div class="modal-header bg-warning text-dark py-2 px-3">
+                    <h6 class="modal-title fw-bold d-flex align-items-center gap-2">
+                        <i class="bi bi-question-circle-fill"></i>
+                        <span>Confirm Save Access Rights</span>
+                    </h6>
+                    <button type="button" class="btn-close" @onclick="() => isConfirmSaveModalOpen = false"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <p class="mb-2">Are you sure you want to update page access rights for:</p>
+                    <div class="p-2 bg-light rounded border mb-3 small">
+                        <div><strong>User Group ID:</strong> <code>@selectedUserGroupId</code></div>
+                        <div><strong>System Group:</strong> <span class="badge @GetGroupBadgeClass(selectedSystemGroupId)">@selectedSystemGroupId</span></div>
+                        <div><strong>Granted Pages:</strong> <strong class="text-success">@GrantedCount</strong> of @pagesList.Count</div>
+                    </div>
+                    <p class="small text-muted mb-0">This will update the group's permissions in <code>aspnet_useraccessright</code> and apply to all users assigned to this group.</p>
+                </div>
+                <div class="modal-footer p-2 bg-light">
+                    <button type="button" class="btn btn-sm btn-secondary" @onclick="() => isConfirmSaveModalOpen = false" disabled="@isSaving">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-warning fw-semibold" @onclick="ConfirmAndSavePermissionsAsync" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                            <span>Confirm & Update</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UserGroupModel> groupsList = new();
+    private List<PermissionPageModel> pagesList = new();
+
+    private string selectedGroupKey = "";
+    private string selectedUserGroupId = "";
+    private string selectedSystemGroupId = "";
+
+    private string searchText = "";
+    private string filterSystemGroup = "";
+    private bool? filterAccess = null;
+
+    private bool isLoading = false;
+    private bool isSaving = false;
+    private bool isConfirmSaveModalOpen = false;
+
+    private string? statusMessage;
+    private bool statusSuccess;
+
+    private int GrantedCount => pagesList.Count(p => p.IsSelected);
+
+    private List<PermissionPageModel> FilteredPages
+    {
+        get
+        {
+            var query = pagesList.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                var term = searchText.Trim().ToLowerInvariant();
+                query = query.Where(p =>
+                    p.Name.ToLowerInvariant().Contains(term) ||
+                    p.GroupID.ToLowerInvariant().Contains(term) ||
+                    p.FormID.ToString().Contains(term)
+                );
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterSystemGroup))
+            {
+                query = query.Where(p => string.Equals(p.GroupID, filterSystemGroup, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (filterAccess.HasValue)
+            {
+                query = query.Where(p => p.IsSelected == filterAccess.Value);
+            }
+
+            return query.ToList();
+        }
+    }
+
+    private bool IsAllSelected
+    {
+        get
+        {
+            var visible = FilteredPages;
+            return visible.Count > 0 && visible.All(p => p.IsSelected);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGroupsAsync();
+    }
+
+    private async Task LoadGroupsAsync()
+    {
+        try
+        {
+            groupsList = await ApiClient.GetAdminGroupsAsync();
+            if (groupsList.Count > 0 && string.IsNullOrEmpty(selectedGroupKey))
+            {
+                // Default to first group
+                var first = groupsList.First();
+                selectedGroupKey = $"{first.UserGroupID}||{first.GroupID}";
+                selectedUserGroupId = first.UserGroupID;
+                selectedSystemGroupId = first.GroupID;
+                await LoadPermissionsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error loading groups: {ex.Message}";
+            statusSuccess = false;
+        }
+    }
+
+    private async Task OnGroupSelectedAsync(ChangeEventArgs e)
+    {
+        selectedGroupKey = e.Value?.ToString() ?? "";
+        if (string.IsNullOrEmpty(selectedGroupKey))
+        {
+            selectedUserGroupId = "";
+            selectedSystemGroupId = "";
+            pagesList.Clear();
+            return;
+        }
+
+        var parts = selectedGroupKey.Split(new[] { "||" }, StringSplitOptions.None);
+        if (parts.Length == 2)
+        {
+            selectedUserGroupId = parts[0];
+            selectedSystemGroupId = parts[1];
+            await LoadPermissionsAsync();
+        }
+    }
+
+    private async Task ReloadPermissionsAsync()
+    {
+        if (!string.IsNullOrEmpty(selectedGroupKey))
+        {
+            await LoadPermissionsAsync();
+        }
+    }
+
+    private async Task LoadPermissionsAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            pagesList = await ApiClient.GetPermissionsAsync(selectedUserGroupId, selectedSystemGroupId);
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error loading permissions: {ex.Message}";
+            statusSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void TogglePage(PermissionPageModel page)
+    {
+        page.IsSelected = !page.IsSelected;
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool target = (bool)(e.Value ?? false);
+        var visible = FilteredPages;
+        foreach (var p in visible)
+        {
+            p.IsSelected = target;
+        }
+    }
+
+    private void SelectAllVisible()
+    {
+        foreach (var p in FilteredPages)
+        {
+            p.IsSelected = true;
+        }
+    }
+
+    private void DeselectAllVisible()
+    {
+        foreach (var p in FilteredPages)
+        {
+            p.IsSelected = false;
+        }
+    }
+
+    private void PromptSavePermissions()
+    {
+        if (string.IsNullOrEmpty(selectedGroupKey)) return;
+        isConfirmSaveModalOpen = true;
+    }
+
+    private async Task ConfirmAndSavePermissionsAsync()
+    {
+        isSaving = true;
+        try
+        {
+            var selectedFormIds = pagesList.Where(p => p.IsSelected).Select(p => p.FormID).ToList();
+            var req = new SavePermissionsRequest
+            {
+                UserGroupID = selectedUserGroupId,
+                GroupID = selectedSystemGroupId,
+                FormIDs = selectedFormIds
+            };
+
+            var (success, error) = await ApiClient.SavePermissionsAsync(req);
+            if (success)
+            {
+                statusMessage = $"Page access rights for '{selectedUserGroupId}' ({selectedSystemGroupId}) saved successfully! ({selectedFormIds.Count} pages granted).";
+                statusSuccess = true;
+                isConfirmSaveModalOpen = false;
+            }
+            else
+            {
+                statusMessage = $"Failed to save permissions: {error}";
+                statusSuccess = false;
+                isConfirmSaveModalOpen = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error saving permissions: {ex.Message}";
+            statusSuccess = false;
+            isConfirmSaveModalOpen = false;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private string GetGroupBadgeClass(string? groupId)
+    {
+        return (groupId?.ToUpperInvariant()) switch
+        {
+            "ATTENDANCE" => "bg-primary text-white",
+            "LEAVE" => "bg-success text-white",
+            "OT" => "bg-warning text-dark",
+            "PAYSLIP" => "bg-info text-dark",
+            "CLAIM" => "bg-secondary text-white",
+            "EAFORM" => "bg-dark text-white",
+            "STAFF" => "bg-primary-subtle text-primary border border-primary",
+            "ADMIN" => "bg-danger text-white",
+            "APPRAISAL" => "bg-purple-subtle text-purple border border-purple",
+            _ => "bg-secondary text-white"
+        };
+    }
+}
+
+<style>
+    .group-page-setup-container {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto;
+        padding-bottom: 80px;
+    }
+
+    /* Compact Action Toolbar Icon Buttons */
+    .icon-toolbar-btn {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        transition: all 0.15s ease-in-out;
+        position: relative;
+    }
+
+    .icon-toolbar-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.12), 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+    }
+
+    .icon-toolbar-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
+    .back-arrow-btn {
+        color: #1e293b !important;
+        line-height: 1;
+        transition: transform 0.15s ease-in-out, color 0.15s ease-in-out;
+    }
+
+    .back-arrow-btn:hover {
+        color: #0284c7 !important;
+        transform: translateX(-3px);
+    }
+
+    /* Enterprise Table Styling */
+    .enterprise-table-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        max-height: 580px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .enterprise-table {
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    .enterprise-table th {
+        font-weight: 700;
+        letter-spacing: -0.1px;
+        padding: 8px 10px;
+        vertical-align: middle;
+        font-size: 0.78rem;
+    }
+
+    .table-header-custom {
+        background-color: #f8fafc;
+        color: #1e293b;
+    }
+
+    .table-header-custom th {
+        border-color: #e2e8f0;
+    }
+
+    .enterprise-table td {
+        padding: 6px 10px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .enterprise-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .row-selected {
+        background-color: #eff6ff !important;
+    }
+
+    .btn-xs {
+        font-size: 0.72rem;
+        padding: 1px 6px;
+        line-height: 1.4;
+    }
+
+    .form-control-xs, .form-select-xs {
+        font-size: 0.72rem;
+        padding: 2px 4px;
+        height: 24px;
+        border-radius: 4px;
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>

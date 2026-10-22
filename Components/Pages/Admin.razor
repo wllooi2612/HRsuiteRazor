@@ -40,7 +40,7 @@
             </button>
 
             <!-- Row 2: Orange Tiles -->
-            <button class="admin-tile tile-orange @(activeTab == "group_page_setup" ? "active" : "")" @onclick='() => ToggleTab("group_page_setup")' title="Group Page Setup">
+            <button class="admin-tile tile-orange" @onclick='() => NavManager.NavigateTo("admin/group-page-setup")' title="Group Page Setup">
                 <div class="icon-circle">
                     <img src="img/icon/GroupPageSetup.png" alt="Group Page Setup" />
                 </div>

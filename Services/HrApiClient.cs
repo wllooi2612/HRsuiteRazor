@@ -557,6 +557,39 @@ public class HrApiClient
             return false;
         }
     }
+
+    public async Task<List<PermissionPageModel>> GetPermissionsAsync(string userGroupId, string groupId)
+    {
+        try
+        {
+            var res = await _http.GetFromJsonAsync<List<PermissionPageModel>>($"api/Admin/permissions?userGroupId={Uri.EscapeDataString(userGroupId)}&groupId={Uri.EscapeDataString(groupId)}");
+            return res ?? new List<PermissionPageModel>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get permissions via Web API");
+            return new List<PermissionPageModel>();
+        }
+    }
+
+    public async Task<(bool Success, string? ErrorMessage)> SavePermissionsAsync(SavePermissionsRequest request)
+    {
+        try
+        {
+            var res = await _http.PutAsJsonAsync("api/Admin/permissions", request);
+            if (!res.IsSuccessStatusCode)
+            {
+                var content = await res.Content.ReadAsStringAsync();
+                return (false, string.IsNullOrWhiteSpace(content) ? res.ReasonPhrase : content);
+            }
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save permissions via Web API");
+            return (false, ex.Message);
+        }
+    }
 }
 
 
