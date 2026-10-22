@@ -33,35 +33,25 @@
             </div>
         }
 
-        <!-- Compact Action Toolbar -->
+        <!-- Unified Single-Line Control Bar (Compact Icons with Tooltips, Matching UserManage) -->
         <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
-            <div class="card-body p-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <div class="d-flex align-items-center gap-1 flex-wrap">
-                    <!-- Add New Group -->
-                    <button class="btn btn-sm btn-success d-inline-flex align-items-center gap-1 px-3 fw-semibold" @onclick="() => OpenAddGroupView()" title="Add New Group">
-                        <i class="bi bi-plus-lg"></i>
-                        <span>Add New Record</span>
-                    </button>
-
-                    <!-- Delete Selected -->
-                    <button class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-3 fw-semibold" 
-                            @onclick="PromptDeleteSelected" 
-                            disabled="@(selectedGroupKeys.Count == 0)"
-                            title="Delete Selected Groups">
-                        <i class="bi bi-trash"></i>
-                        <span>Delete (@selectedGroupKeys.Count)</span>
-                    </button>
-
-                    <!-- Refresh -->
-                    <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2" @onclick="() => LoadGroupsAsync(keepStatus: false)" title="Reload Groups">
-                        <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
-                        <span>Refresh</span>
-                    </button>
+            <div class="card-body p-2 d-flex flex-wrap align-items-center gap-2">
+                <!-- Search Box -->
+                <div class="search-box" style="width: 230px; min-width: 180px;">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0 py-1"><i class="bi bi-search text-muted small"></i></span>
+                        <input type="text" class="form-control border-start-0 bg-light py-1" placeholder="Search ID, Name, Remark..." @bind="searchText" @bind:event="oninput" title="Search by Group ID, Name, or Remark" />
+                        @if (!string.IsNullOrEmpty(searchText))
+                        {
+                            <button class="btn btn-sm btn-outline-secondary bg-light border-start-0 py-1" @onclick='() => searchText = ""' title="Clear search">✕</button>
+                        }
+                    </div>
                 </div>
 
-                <!-- Search and Module Filter -->
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <select class="form-select form-select-sm" style="width: 150px;" @bind="filterSystemGroup">
+                <!-- System Group Filter Dropdown -->
+                <div class="d-flex align-items-center gap-1">
+                    <span class="text-muted small me-1">System:</span>
+                    <select class="form-select form-select-xs" style="width: 140px; height: 30px; font-size: 0.8rem;" @bind="filterSystemGroup">
                         <option value="">All Groups</option>
                         <option value="ATTENDANCE">ATTENDANCE</option>
                         <option value="LEAVE">LEAVE</option>
@@ -71,103 +61,137 @@
                         <option value="EAFORM">EAFORM</option>
                         <option value="STAFF">STAFF</option>
                     </select>
+                </div>
 
-                    <div class="input-group input-group-sm" style="width: 220px;">
-                        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                        <input type="text" class="form-control" placeholder="Search groups..." @bind="searchText" @bind:event="oninput" />
-                        @if (!string.IsNullOrEmpty(searchText))
+                <div class="vr mx-1 my-auto text-secondary opacity-25 d-none d-sm-block" style="height: 22px;"></div>
+
+                <!-- Action Icons Toolbar (All Icon Buttons with Tooltips in ONE Line) -->
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                    <!-- Add New Group (+) -->
+                    <button class="btn btn-sm btn-success icon-toolbar-btn shadow-sm" @onclick="() => OpenAddGroupView()" title="Add New Record">
+                        <i class="bi bi-plus-lg fs-6"></i>
+                    </button>
+
+                    <!-- Delete Selected Groups -->
+                    <button class="btn btn-sm btn-outline-danger icon-toolbar-btn position-relative shadow-sm" @onclick="PromptDeleteSelected" disabled="@(selectedGroupKeys.Count == 0)" title="Delete Selected Group(s)">
+                        <i class="bi bi-trash3-fill"></i>
+                        @if (selectedGroupKeys.Count > 0)
                         {
-                            <button class="btn btn-outline-secondary" type="button" @onclick="() => searchText = string.Empty">
-                                <i class="bi bi-x"></i>
-                            </button>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size: 0.65rem;">
+                                @selectedGroupKeys.Count
+                            </span>
                         }
-                    </div>
+                    </button>
+
+                    <!-- Refresh Button -->
+                    <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="() => LoadGroupsAsync(keepStatus: false)" title="Refresh Groups from Database">
+                        <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Groups Data Table -->
-        <div class="card border-0 shadow-sm rounded-3 bg-white">
-            <div class="card-header bg-danger text-white py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-diagram-3-fill"></i>
-                    <h6 class="mb-0 fw-bold">User Groups Setup (aspnet_usergroup)</h6>
-                </div>
-                <span class="badge bg-white text-danger fw-semibold">
-                    @FilteredGroups.Count of @groupsList.Count Records
-                </span>
+        <!-- MAIN DATA DISPLAY (GRID / TABLE VIEW) -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+            <div class="table-responsive enterprise-table-container">
+                <table class="table table-hover table-sm align-middle enterprise-table mb-0">
+                    <thead class="table-header-custom sticky-top">
+                        <tr>
+                            <th class="col-action text-center" style="width: 60px;">#</th>
+                            <th class="col-checkbox text-center" style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" checked="@isAllSelected" @onchange="ToggleSelectAll" title="Select All" />
+                            </th>
+                            <th class="col-id">User Group ID</th>
+                            <th class="col-system text-center">System Group</th>
+                            <th class="col-name">Group Name / Description</th>
+                            <th class="col-remarks">Remarks</th>
+                            <th class="col-approval text-center" style="width: 120px;">Approval Level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-5">
+                                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                    <div class="text-muted small mt-2">Loading group records from MySQL via Web API...</div>
+                                </td>
+                            </tr>
+                        }
+                        else if (FilteredGroups.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                                    <span>No group records match the search criteria.</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var g in FilteredGroups)
+                            {
+                                var key = $"{g.UserGroupID}||{g.GroupID}";
+                                var isChecked = selectedGroupKeys.Contains(key);
+                                <tr class="@(isChecked ? "row-selected" : "")">
+                                    <!-- Edit Button (Matching UserManage # column) -->
+                                    <td class="text-center col-action">
+                                        <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold text-decoration-none" @onclick="() => StartEditGroup(g)" title="Edit Group">
+                                            Edit
+                                        </button>
+                                    </td>
+
+                                    <!-- Selection Checkbox -->
+                                    <td class="text-center col-checkbox">
+                                        <input type="checkbox" class="form-check-input" checked="@isChecked" @onchange="() => ToggleRowSelection(key)" />
+                                    </td>
+
+                                    <!-- User Group ID -->
+                                    <td class="col-id">
+                                        <span class="badge bg-secondary font-monospace fw-bold">@g.UserGroupID</span>
+                                    </td>
+
+                                    <!-- System Group -->
+                                    <td class="col-system text-center">
+                                        <span class="badge @GetGroupBadgeClass(g.GroupID)">@g.GroupID</span>
+                                    </td>
+
+                                    <!-- Group Name / Description -->
+                                    <td class="col-name fw-semibold text-dark">@g.UserGroup</td>
+
+                                    <!-- Remarks -->
+                                    <td class="col-remarks text-muted">@(string.IsNullOrWhiteSpace(g.Remark) ? "-" : g.Remark)</td>
+
+                                    <!-- Approval Level -->
+                                    <td class="col-approval text-center">
+                                        @if (g.ApprovalLevel == "Y")
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success" title="Active Approval Level">Active (Y)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary-subtle text-secondary border" title="Standard Level">No (N)</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
             </div>
 
-            <div class="card-body p-0">
-                @if (isLoading)
-                {
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-danger spinner-border-sm" role="status"></div>
-                        <span class="text-muted ms-2 small">Loading group records...</span>
-                    </div>
-                }
-                else if (FilteredGroups.Count == 0)
-                {
-                    <div class="text-center py-5 text-muted">
-                        <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
-                        <span>No group records found matching criteria.</span>
-                    </div>
-                }
-                else
-                {
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped align-middle small mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="width: 40px;" class="text-center">
-                                        <input type="checkbox" class="form-check-input" checked="@isAllSelected" @onchange="ToggleSelectAll" />
-                                    </th>
-                                    <th style="width: 70px;" class="text-center">Action</th>
-                                    <th>User Group ID</th>
-                                    <th>System Group</th>
-                                    <th>Group Name / Description</th>
-                                    <th>Remarks</th>
-                                    <th style="width: 120px;" class="text-center">Approval Level</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var g in FilteredGroups)
-                                {
-                                    var key = $"{g.UserGroupID}||{g.GroupID}";
-                                    var isChecked = selectedGroupKeys.Contains(key);
-                                    <tr>
-                                        <td class="text-center">
-                                            <input type="checkbox" class="form-check-input" checked="@isChecked" @onchange="() => ToggleRowSelection(key)" />
-                                        </td>
-                                        <td class="text-center">
-                                            <button class="btn btn-sm btn-outline-primary py-0 px-2" @onclick="() => StartEditGroup(g)" title="Edit Group">
-                                                <i class="bi bi-pencil-square"></i>
-                                            </button>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-dark font-monospace">@g.UserGroupID</span>
-                                        </td>
-                                        <td>
-                                            <span class="badge @GetGroupBadgeClass(g.GroupID)">@g.GroupID</span>
-                                        </td>
-                                        <td class="fw-semibold">@g.UserGroup</td>
-                                        <td class="text-muted">@(string.IsNullOrWhiteSpace(g.Remark) ? "-" : g.Remark)</td>
-                                        <td class="text-center">
-                                            @if (g.ApprovalLevel == "Y")
-                                            {
-                                                <span class="badge bg-success" title="Group user is active / approval level enabled">Active (Y)</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-secondary" title="Standard level / inactive">No (N)</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
+            <!-- Table Footer Status (Matching UserManage) -->
+            <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
+                <div>
+                    Showing <strong>@FilteredGroups.Count</strong> of <strong>@groupsList.Count</strong> groups
+                    @if (selectedGroupKeys.Count > 0)
+                    {
+                        <span class="ms-3 badge bg-danger">@selectedGroupKeys.Count Selected</span>
+                    }
+                </div>
+                <div class="d-none d-md-block">
+                    <span>Source: MySQL 5.7 schema <code>myhrsuitelog.aspnet_usergroup</code></span>
+                </div>
             </div>
         </div>
     }
@@ -700,12 +724,99 @@
         padding-bottom: 100px;
     }
 
+    /* Compact Action Toolbar Icon Buttons */
+    .icon-toolbar-btn {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        transition: all 0.15s ease-in-out;
+        position: relative;
+    }
+
+    .icon-toolbar-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.12), 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+    }
+
+    .icon-toolbar-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
     .back-arrow-btn {
-        transition: transform 0.15s ease-in-out;
+        color: #1e293b !important;
+        line-height: 1;
+        transition: transform 0.15s ease-in-out, color 0.15s ease-in-out;
     }
 
     .back-arrow-btn:hover {
-        transform: translateX(-2px);
+        color: #0284c7 !important;
+        transform: translateX(-3px);
+    }
+
+    /* Enterprise Table Styling */
+    .enterprise-table-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        max-height: 580px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .enterprise-table {
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    .enterprise-table th {
+        font-weight: 700;
+        letter-spacing: -0.1px;
+        padding: 8px 10px;
+        vertical-align: middle;
+        font-size: 0.78rem;
+    }
+
+    .table-header-custom {
+        background-color: #f8fafc;
+        color: #1e293b;
+    }
+
+    .table-header-custom th {
+        border-color: #e2e8f0;
+    }
+
+    .enterprise-table td {
+        padding: 6px 10px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .enterprise-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .row-selected {
+        background-color: #eff6ff !important;
+    }
+
+    .btn-xs {
+        font-size: 0.72rem;
+        padding: 1px 6px;
+        line-height: 1.4;
+    }
+
+    .form-control-xs, .form-select-xs {
+        font-size: 0.72rem;
+        padding: 2px 4px;
+        height: 24px;
+        border-radius: 4px;
     }
 
     .spin {
