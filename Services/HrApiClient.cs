@@ -734,6 +734,49 @@ public class HrApiClient
             return (false, ex.Message);
         }
     }
+
+    // -------------------------------------------------------------
+    // LOG VIEWER & AUDIT LOGS
+    // -------------------------------------------------------------
+
+    public async Task<LogQueryResult> QueryLogsAsync(LogQueryRequest request)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Admin/logs/query", request);
+            if (res.IsSuccessStatusCode)
+            {
+                var data = await res.Content.ReadFromJsonAsync<LogQueryResult>();
+                return data ?? new LogQueryResult();
+            }
+            _logger.LogWarning("Failed to query logs: {StatusCode}", res.StatusCode);
+            return new LogQueryResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calling api/Admin/logs/query");
+            return new LogQueryResult();
+        }
+    }
+
+    public async Task<(bool Success, string? Message)> SeedSampleLogsAsync(int count = 60)
+    {
+        try
+        {
+            var res = await _http.PostAsync($"api/Admin/logs/seed-sample?count={count}", null);
+            if (res.IsSuccessStatusCode)
+            {
+                return (true, "Sample logs generated successfully.");
+            }
+            var err = await res.Content.ReadAsStringAsync();
+            return (false, err);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calling api/Admin/logs/seed-sample");
+            return (false, ex.Message);
+        }
+    }
 }
 
 

@@ -47,7 +47,7 @@
                 <span class="tile-label">Group<br />Page Setup</span>
             </button>
 
-            <button class="admin-tile tile-orange @(activeTab == "log_report" ? "active" : "")" @onclick='() => ToggleTab("log_report")' title="Log File Report">
+            <button class="admin-tile tile-orange" @onclick='() => NavManager.NavigateTo("admin/logviewer")' title="Log File Report">
                 <div class="icon-circle">
                     <img src="img/icon/LogViewer.png" alt="Log File Report" />
                 </div>
