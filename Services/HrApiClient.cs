@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using HRsuiteRazor.Shared.Models;
+using Microsoft.Extensions.Logging;
 
 namespace HRsuiteRazor.Services;
 

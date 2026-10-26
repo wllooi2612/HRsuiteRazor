@@ -9,8 +9,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HRsuiteRazor.WebApi", "HRsu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HRsuiteRazor.Shared", "HRsuiteRazor.Shared\HRsuiteRazor.Shared.csproj", "{D9E8A3EC-E982-4E8D-AFB4-14C56947173E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HRsuiteRazor.Mobile", "HRsuiteRazor.Mobile\HRsuiteRazor.Mobile.csproj", "{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,18 +55,6 @@ Global
 		{D9E8A3EC-E982-4E8D-AFB4-14C56947173E}.Release|x64.Build.0 = Release|Any CPU
 		{D9E8A3EC-E982-4E8D-AFB4-14C56947173E}.Release|x86.ActiveCfg = Release|Any CPU
 		{D9E8A3EC-E982-4E8D-AFB4-14C56947173E}.Release|x86.Build.0 = Release|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Debug|x64.Build.0 = Debug|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Debug|x86.Build.0 = Debug|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Release|Any CPU.Build.0 = Release|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Release|x64.ActiveCfg = Release|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Release|x64.Build.0 = Release|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Release|x86.ActiveCfg = Release|Any CPU
-		{94BC6403-F1D5-43F3-A9EC-45EBB8DEA561}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

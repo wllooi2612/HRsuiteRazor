@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+using HRsuiteRazor.Services;
+using Microsoft.Extensions.Logging;
 
 namespace HRsuiteRazor.Mobile;
 
@@ -15,6 +16,13 @@ public static class MauiProgram
 			});
 
 		builder.Services.AddMauiBlazorWebView();
+
+		builder.Services.AddHttpClient("WebApi", client =>
+		{
+			client.BaseAddress = new Uri("https://hrsuiterazor-production.up.railway.app");
+			client.Timeout = TimeSpan.FromSeconds(30);
+		});
+		builder.Services.AddScoped<HrApiClient>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

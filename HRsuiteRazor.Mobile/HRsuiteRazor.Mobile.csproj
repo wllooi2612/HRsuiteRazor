@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
         <TargetFrameworks>net9.0-android;net9.0-ios;net9.0-maccatalyst</TargetFrameworks>
@@ -63,7 +63,12 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.2" />
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.8" />
     </ItemGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\HRsuiteRazor.Shared\HRsuiteRazor.Shared.csproj" />
+        <Compile Include="..\Services\HrApiClient.cs" Link="Services\HrApiClient.cs" />
+    </ItemGroup>
 </Project>
