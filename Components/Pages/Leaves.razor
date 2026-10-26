@@ -1,207 +1,171 @@
 @page "/leaves"
+@page "/eleave"
+@page "/eLeave/eLeaveDefault.aspx"
 @rendermode InteractiveServer
 @inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
 
-<PageTitle>Leave Management - HRsuite</PageTitle>
+<PageTitle>Leave Portal - HRsuite</PageTitle>
 
-<div class="container-fluid px-0">
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <div>
-            <h2 class="fw-bold mb-1">Leave Management</h2>
-            <p class="text-muted mb-0">Select, Apply (INSERT), and Approve (UPDATE) leaves via <code>/api/Leave</code> in Web API</p>
-        </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-primary btn-sm" @onclick="LoadDataAsync">
-                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+<div class="leave-mobile-container pb-5">
+    <!-- Top Header Bar -->
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
+                <i class="bi bi-arrow-left"></i>
             </button>
-            <button class="btn btn-primary btn-sm" @onclick="() => showApplyModal = true">
-                <i class="bi bi-calendar-plus-fill me-1"></i> Apply for Leave
+            <h6 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="leave-icon-badge" style="width: 26px; height: 26px; font-size: 0.95rem;"><i class="bi bi-calendar2-check-fill"></i></span>
+                <span>Leave Management Portal</span>
+            </h6>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 extra-small" style="height: 28px;" @onclick="LoadDataAsync" title="Refresh Leave Data">
+                <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "") me-1"></i>
+                <span>Refresh</span>
             </button>
         </div>
     </div>
 
+    <!-- 12-Tile Dashboard Grid (Exact match to eLeaveDefault.aspx & User Reference) -->
+    <div class="leave-grid-wrapper mb-3">
+        <div class="leave-grid">
+            <!-- Row 1: Green & Red -->
+            <button type="button" class="leave-tile @(activeTab == "group_apply" ? "active" : "")" @onclick='() => SelectTile("group_apply")' title="Group Leave Apply">
+                <img src="img/icon/GroupLeaveApply.png" alt="Group Leave Apply" class="leave-tile-img" />
+            </button>
+
+            <button type="button" class="leave-tile @(activeTab == "ind_apply" ? "active" : "")" @onclick='() => SelectTile("ind_apply")' title="Individual Leave Apply">
+                <img src="img/icon/IndLeaveApply.png" alt="Individual Leave Apply" class="leave-tile-img" />
+            </button>
+
+            <button type="button" class="leave-tile @(activeTab == "supervisor" ? "active" : "")" @onclick='() => SelectTile("supervisor")' title="Leave Supervisor">
+                <img src="img/icon/LeaveSupervisor.png" alt="Leave Supervisor" class="leave-tile-img" />
+            </button>
+
+            <!-- Row 2: Orange, Cyan, Teal, Rust -->
+            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/create-user-access")' title="Create User Access">
+                <img src="img/icon/CreateUserAccess.png" alt="Create User Access" class="leave-tile-img" />
+            </button>
+
+            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/approval-level")' title="Leave Approval Level">
+                <img src="img/icon/LeaveApprovalLevel.png" alt="Leave Approval Level" class="leave-tile-img" />
+            </button>
+
+            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/maintenance")' title="Leave Maintenance">
+                <img src="img/icon/LeaveMaintenance.png" alt="Leave Maintenance" class="leave-tile-img" />
+            </button>
+
+            <button type="button" class="leave-tile @(activeTab == "doc_rule" ? "active" : "")" @onclick='() => SelectTile("doc_rule")' title="Leave Doc Rule">
+                <img src="img/icon/LeaveDocRule.png" alt="Leave Doc Rule" class="leave-tile-img" />
+            </button>
+
+            <!-- Row 3: Rust, Olive Green, Olive Green, Rust -->
+            <button type="button" class="leave-tile @(activeTab == "administrator" ? "active" : "")" @onclick='() => SelectTile("administrator")' title="Leave Administrator">
+                <img src="img/icon/LeaveAdministrator.png" alt="Leave Administrator" class="leave-tile-img" />
+            </button>
+
+            <button type="button" class="leave-tile @(activeTab == "view_leave" ? "active" : "")" @onclick='() => SelectTile("view_leave")' title="View Leave">
+                <img src="img/icon/ViewLeave.png" alt="View Leave" class="leave-tile-img" />
+            </button>
+
+            <button type="button" class="leave-tile @(activeTab == "calendar" ? "active" : "")" @onclick='() => SelectTile("calendar")' title="Leave Calendar">
+                <img src="img/icon/LeaveCalendar.png" alt="Leave Calendar" class="leave-tile-img" />
+            </button>
+
+            <button type="button" class="leave-tile @(activeTab == "user_review" ? "active" : "")" @onclick='() => SelectTile("user_review")' title="User Access Review">
+                <img src="img/icon/UserAccessReview.png" alt="User Access Review" class="leave-tile-img" />
+            </button>
+
+            <!-- Transparent spacer slot to maintain 4-column grid alignment -->
+            <div class="tile-spacer"></div>
+        </div>
+    </div>
+
+    <!-- Status Alert Notification -->
     @if (!string.IsNullOrEmpty(statusMessage))
     {
-        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
-            <i class="bi @(isSuccess ? "bi-check-circle" : "bi-exclamation-triangle") me-2"></i>
-            @statusMessage
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3 rounded-3" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-5"></i>
+            <div class="flex-grow-1 extra-small">@statusMessage</div>
             <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
         </div>
     }
 
-    <!-- Leave Balances -->
-    <div class="row g-3 mb-4">
-        @if (leaveTypes?.Count > 0)
-        {
-            @foreach (var lt in leaveTypes.Take(4))
-            {
-                <div class="col-sm-6 col-md-3">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <div class="text-muted small fw-semibold text-uppercase">@lt.Name</div>
-                            <div class="fs-4 fw-bold text-dark mt-1">@lt.Balance <span class="fs-6 fw-normal text-muted">days left</span></div>
-                            <div class="small text-muted mt-1">Entitled: @lt.Entitle | Taken: @lt.Taken</div>
-                        </div>
-                    </div>
-                </div>
-            }
-        }
-    </div>
+    <!-- ============================================================== -->
+    <!-- DETAIL FEATURE PANELS (Triggered only when a tile is tapped)   -->
+    <!-- ============================================================== -->
 
-    <!-- Leave Records Table -->
-    <div class="card shadow-sm border-0">
-        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-semibold">Leave Applications &amp; History</h5>
-            <span class="badge bg-primary rounded-pill">Total: @(leaves?.Count ?? 0)</span>
-        </div>
-        <div class="card-body p-0">
-            @if (isLoading)
-            {
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="text-muted mt-2">Loading leaves from Web API...</p>
+    <!-- 1. INDIVIDUAL LEAVE APPLY PANEL -->
+    @if (activeTab == "ind_apply")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header bg-success text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-person-fill"></i>
+                    <h6 class="mb-0 fw-bold">Individual Leave Application</h6>
                 </div>
-            }
-            else
-            {
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Leave No</th>
-                                <th>Employee</th>
-                                <th>Type</th>
-                                <th>From</th>
-                                <th>To</th>
-                                <th>Days</th>
-                                <th>Status</th>
-                                <th>Reason</th>
-                                <th class="text-end">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (leaves?.Count > 0)
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-2">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Employee ID</label>
+                        <input class="form-control form-control-sm" @bind="applyEmpId" placeholder="e.g. 00001" />
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Leave Type</label>
+                        <select class="form-select form-select-sm" @bind="applyLeaveCode">
+                            @if (leaveTypes?.Count > 0)
                             {
-                                @foreach (var l in leaves)
+                                @foreach (var lt in leaveTypes)
                                 {
-                                    <tr>
-                                        <td><code>@l.LeaveNo</code></td>
-                                        <td><span class="badge bg-light text-dark border">@l.Emp_ID</span> @l.EmpName</td>
-                                        <td><span class="badge bg-primary-subtle text-primary">@l.Leave_Type</span></td>
-                                        <td>@l.Leave_Date_From.ToString("yyyy-MM-dd")</td>
-                                        <td>@l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
-                                        <td><strong>@l.TotalDays</strong></td>
-                                        <td>
-                                            @if (l.Leave_Status == "APPROVE")
-                                            {
-                                                <span class="badge bg-success-subtle text-success">Approved</span>
-                                            }
-                                            else if (l.Leave_Status == "REJECT")
-                                            {
-                                                <span class="badge bg-danger-subtle text-danger">Rejected</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-warning-subtle text-warning">Pending</span>
-                                            }
-                                        </td>
-                                        <td>@(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)</td>
-                                        <td class="text-end">
-                                            @if (l.Leave_Status != "APPROVE" && l.Leave_Status != "REJECT")
-                                            {
-                                                <div class="btn-group btn-group-sm">
-                                                    <button class="btn btn-outline-success py-0 px-2" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "APPROVE")'>
-                                                        Approve
-                                                    </button>
-                                                    <button class="btn btn-outline-danger py-0 px-2" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "REJECT")'>
-                                                        Reject
-                                                    </button>
-                                                </div>
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted small">Processed</span>
-                                            }
-                                        </td>
-                                    </tr>
+                                    <option value="@lt.Code">@lt.Name (@lt.Code) - Bal: @lt.Balance</option>
                                 }
                             }
                             else
                             {
-                                <tr>
-                                    <td colspan="9" class="text-center py-4 text-muted">No leave records found.</td>
-                                </tr>
+                                <option value="AL">Annual Leave (AL) - Bal: 14</option>
+                                <option value="MC">Medical Leave (MC) - Bal: 14</option>
+                                <option value="HL">Hospitalization Leave (HL) - Bal: 60</option>
+                                <option value="EL">Emergency Leave (EL)</option>
+                                <option value="UL">Unpaid Leave (UL)</option>
                             }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </div>
-    </div>
-</div>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Day Type</label>
+                        <select class="form-select form-select-sm" @bind="applyDayType">
+                            <option value="FULL">Full Day</option>
+                            <option value="FIRST_HALF">First Half (Morning)</option>
+                            <option value="SECOND_HALF">Second Half (Afternoon)</option>
+                        </select>
+                    </div>
 
-<!-- Apply Leave Modal -->
-@if (showApplyModal)
-{
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Apply for Leave (INSERT via Web API)</h5>
-                    <button type="button" class="btn-close" @onclick="() => showApplyModal = false"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label small text-muted">Employee ID</label>
-                            <input class="form-control form-control-sm" @bind="applyEmpId" placeholder="e.g. 00001" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small text-muted">Leave Type</label>
-                            <select class="form-select form-select-sm" @bind="applyLeaveCode">
-                                @if (leaveTypes?.Count > 0)
-                                {
-                                    @foreach (var lt in leaveTypes)
-                                    {
-                                        <option value="@lt.Code">@lt.Name (@lt.Code)</option>
-                                    }
-                                }
-                                else
-                                {
-                                    <option value="AL">Annual Leave (AL)</option>
-                                    <option value="MC">Medical Leave (MC)</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small text-muted">Date From</label>
-                            <input type="date" class="form-control form-control-sm" @bind="applyDateFrom" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small text-muted">Date To</label>
-                            <input type="date" class="form-control form-control-sm" @bind="applyDateTo" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small text-muted">Total Days</label>
-                            <input type="number" step="0.5" class="form-control form-control-sm" @bind="applyDays" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small text-muted">Day Type</label>
-                            <select class="form-select form-select-sm" @bind="applyDayType">
-                                <option value="FULL">Full Day</option>
-                                <option value="FIRST_HALF">First Half</option>
-                                <option value="SECOND_HALF">Second Half</option>
-                            </select>
-                        </div>
-                        <div class="col-md-12">
-                            <label class="form-label small text-muted">Reason</label>
-                            <textarea class="form-control form-control-sm" rows="3" @bind="applyReason" placeholder="Reason for leave..."></textarea>
-                        </div>
+                    <div class="col-6 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Date From</label>
+                        <input type="date" class="form-control form-control-sm" @bind="applyDateFrom" @bind:after="RecalculateDays" />
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Date To</label>
+                        <input type="date" class="form-control form-control-sm" @bind="applyDateTo" @bind:after="RecalculateDays" />
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Total Days</label>
+                        <input type="number" step="0.5" class="form-control form-control-sm" @bind="applyDays" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label extra-small fw-semibold text-muted">Reason / Justification</label>
+                        <textarea class="form-control form-control-sm" rows="2" @bind="applyReason" placeholder="State reason for leave application..."></textarea>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => showApplyModal = false">Cancel</button>
-                    <button type="button" class="btn btn-primary btn-sm" @onclick="SubmitLeaveApplicationAsync" disabled="@isSubmitting">
+
+                <div class="d-flex justify-content-end gap-2 mt-3 pt-2 border-top">
+                    <button type="button" class="btn btn-light btn-sm extra-small px-3" @onclick='() => activeTab = null'>Cancel</button>
+                    <button type="button" class="btn btn-success btn-sm extra-small px-4 fw-semibold" @onclick="SubmitLeaveApplicationAsync" disabled="@isSubmitting">
                         @if (isSubmitting)
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
@@ -216,19 +180,578 @@
                 </div>
             </div>
         </div>
-    </div>
-}
+    }
+
+    <!-- 2. GROUP LEAVE APPLY PANEL -->
+    @if (activeTab == "group_apply")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header bg-success text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #2e6430 !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-people-fill"></i>
+                    <h6 class="mb-0 fw-bold">Group Leave Application (Department / Batch)</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-2">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label extra-small fw-semibold text-muted">Select Target Department / Team</label>
+                        <select class="form-select form-select-sm" @bind="groupTargetDept">
+                            <option value="ALL">Entire Organization</option>
+                            <option value="IT">IT &amp; Systems Department</option>
+                            <option value="HR">Human Resources</option>
+                            <option value="OPS">Operations &amp; Plant</option>
+                            <option value="FIN">Finance &amp; Accounts</option>
+                            <option value="SALES">Sales &amp; Marketing</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label extra-small fw-semibold text-muted">Leave Classification</label>
+                        <select class="form-select form-select-sm" @bind="groupLeaveCode">
+                            <option value="AL">Company Annual Shutdown / Leave (AL)</option>
+                            <option value="COL">Company Organized Event Leave (COL)</option>
+                            <option value="PH">Public Holiday Replacement (PH)</option>
+                            <option value="UL">Unpaid Group Leave (UL)</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Date From</label>
+                        <input type="date" class="form-control form-control-sm" @bind="groupDateFrom" />
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Date To</label>
+                        <input type="date" class="form-control form-control-sm" @bind="groupDateTo" />
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Approval Authority</label>
+                        <input class="form-control form-control-sm bg-light" value="HR Director / Admin" readonly />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label extra-small fw-semibold text-muted">Batch Reason &amp; Official Memorandum Note</label>
+                        <textarea class="form-control form-control-sm" rows="2" @bind="groupReason" placeholder="e.g. Annual Company Factory Maintenance &amp; Plant Shutdown..."></textarea>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-3 pt-2 border-top">
+                    <button type="button" class="btn btn-light btn-sm extra-small px-3" @onclick='() => activeTab = null'>Cancel</button>
+                    <button type="button" class="btn btn-success btn-sm extra-small px-4 fw-semibold" style="background-color: #2e6430;" @onclick="SubmitGroupLeaveAsync" disabled="@isSubmitting">
+                        <i class="bi bi-check2-all me-1"></i> Submit Batch Group Leave
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+
+    <!-- 4. LEAVE SUPERVISOR APPROVAL QUEUE -->
+    @if (activeTab == "supervisor")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #941818 !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-person-check-fill"></i>
+                    <h6 class="mb-0 fw-bold">Leave Supervisor Approval Queue</h6>
+                    <span class="badge bg-light text-danger fw-bold ms-2">@(leaves?.Count(l => l.Leave_Status != "APPROVE" && l.Leave_Status != "REJECT") ?? 0) Pending</span>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 extra-small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Leave No</th>
+                                <th>Employee</th>
+                                <th>Leave Type</th>
+                                <th>Date Range</th>
+                                <th>Days</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th class="text-end">Supervisor Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                var pendingLeaves = leaves?.Where(l => l.Leave_Status != "APPROVE" && l.Leave_Status != "REJECT").ToList();
+                            }
+                            @if (pendingLeaves?.Count > 0)
+                            {
+                                int sIdx = 1;
+                                @foreach (var l in pendingLeaves)
+                                {
+                                    <tr>
+                                        <td class="text-muted">@sIdx</td>
+                                        <td><code>@l.LeaveNo</code></td>
+                                        <td><span class="badge bg-light text-dark border">@l.Emp_ID</span> <strong>@l.EmpName</strong></td>
+                                        <td><span class="badge bg-primary-subtle text-primary border">@l.Leave_Type</span></td>
+                                        <td>@l.Leave_Date_From.ToString("yyyy-MM-dd") to @l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
+                                        <td><strong>@l.TotalDays</strong> day(s)</td>
+                                        <td class="text-truncate" style="max-width: 150px;" title="@l.Leave_Reason">@(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)</td>
+                                        <td><span class="badge bg-warning-subtle text-warning border border-warning">Pending Review</span></td>
+                                        <td class="text-end text-nowrap">
+                                            <button class="btn btn-success btn-xs px-2 me-1" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "APPROVE")' title="Approve Leave">
+                                                <i class="bi bi-check-lg me-1"></i>Approve
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-xs px-2" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "REJECT")' title="Reject Leave">
+                                                <i class="bi bi-x-lg me-1"></i>Reject
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    sIdx++;
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="9" class="text-center py-4 text-muted">
+                                        <i class="bi bi-check2-circle text-success fs-3 d-block mb-1"></i>
+                                        All supervisor leave approval queues are clear!
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 5. CREATE USER ACCESS -->
+    @if (activeTab == "create_access")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #df7b1f !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-person-plus-fill"></i>
+                    <h6 class="mb-0 fw-bold">Create User Leave Access &amp; Group Mapping</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-2">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Target User Account</label>
+                        <select class="form-select form-select-sm" @bind="accessUserId">
+                            <option value="1001">1001 - Alex Wong</option>
+                            <option value="1002">1002 - Siti Sarah</option>
+                            <option value="1005">1005 - Michael Tan</option>
+                            <option value="ADMIN">ADMIN - System Administrator</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Leave Group Role</label>
+                        <select class="form-select form-select-sm" @bind="accessRole">
+                            <option value="STAFF">STAFF - Standard Employee Apply</option>
+                            <option value="SUPERVISOR">SUPERVISOR - Level 1 Leave Approver</option>
+                            <option value="HOD">HOD - Departmental Head Approver</option>
+                            <option value="HR_ADMIN">HR_ADMIN - Global Leave Controller</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label extra-small fw-semibold text-muted">Allowed Leave Policy</label>
+                        <select class="form-select form-select-sm">
+                            <option>Standard Permanent Full-Time (14d AL, 14d MC)</option>
+                            <option>Probationary Staff (Pro-rated)</option>
+                            <option>Contractual Employee (7d AL, 7d MC)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-3 pt-2 border-top">
+                    <button type="button" class="btn btn-warning btn-sm extra-small px-3 fw-semibold text-dark" style="background-color: #df7b1f; color: white !important;" @onclick="SaveUserAccess">
+                        <i class="bi bi-save me-1"></i> Save Access Permissions
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 6. LEAVE APPROVAL LEVEL -->
+    @if (activeTab == "approval_level")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #00a2b9 !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-diagram-3-fill"></i>
+                    <h6 class="mb-0 fw-bold">Leave Approval Level Hierarchy Matrix</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-3">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm mb-0 extra-small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Level</th>
+                                <th>Role Title</th>
+                                <th>Condition / Threshold</th>
+                                <th>Action Authority</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge bg-primary">Level 1</span></td>
+                                <td>Direct Supervisor / Line Manager</td>
+                                <td>Leave Duration &le; 3 Days</td>
+                                <td>Direct Approval (Final)</td>
+                                <td><span class="badge bg-success">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-info text-dark">Level 2</span></td>
+                                <td>Head of Department (HOD)</td>
+                                <td>Leave Duration &gt; 3 Days &amp; Unpaid Leave</td>
+                                <td>Secondary Endorsement</td>
+                                <td><span class="badge bg-success">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-secondary">Level 3</span></td>
+                                <td>HR Director</td>
+                                <td>Maternity, Hospitalization, Carry-Forward &gt; Limit</td>
+                                <td>Policy Compliance Validation</td>
+                                <td><span class="badge bg-success">Active</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+
+    <!-- 8. LEAVE DOC RULE -->
+    @if (activeTab == "doc_rule")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #c83e1c !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-check-fill"></i>
+                    <h6 class="mb-0 fw-bold">Leave Document Attachment Policies &amp; Rules</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-2">
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-hospital text-danger me-2"></i>Medical Certificate (MC) Policy</h6>
+                            <p class="extra-small text-muted mb-2">Mandatory upload of scanned/photographed MC slip from recognized registered clinic or hospital. Submission window: Within 48 hours of return.</p>
+                            <span class="badge bg-danger-subtle text-danger border border-danger">Mandatory Enforcement</span>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-heart-fill text-danger me-2"></i>Marriage &amp; Maternity Rule</h6>
+                            <p class="extra-small text-muted mb-2">Marriage cert copy required within 14 days. Maternity requires medical estimated date of delivery (EDD) endorsement prior to departure.</p>
+                            <span class="badge bg-success-subtle text-success border border-success">Verified by HR</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 9. LEAVE ADMINISTRATOR CONSOLE -->
+    @if (activeTab == "administrator")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #c83e1c !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-shield-shaded"></i>
+                    <h6 class="mb-0 fw-bold">Leave Administrator Central Operations</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-3">
+                    <div class="col-12 col-md-4">
+                        <div class="p-3 bg-light rounded-3 border h-100">
+                            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-calendar-event me-2 text-primary"></i>Year-End Carry Forward</h6>
+                            <p class="extra-small text-muted mb-3">Execute automated calculation to carry forward eligible balances into the next calendar year.</p>
+                            <button class="btn btn-primary btn-sm extra-small w-100" @onclick="ExecuteCarryForward">
+                                <i class="bi bi-arrow-repeat me-1"></i> Run Carry-Forward Batch
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-8">
+                        <div class="p-3 bg-light rounded-3 border h-100">
+                            <h6 class="fw-bold text-dark mb-2"><i class="bi bi-sliders me-2 text-warning"></i>Manual Balance Override</h6>
+                            <div class="row g-2">
+                                <div class="col-4">
+                                    <input class="form-control form-control-sm" placeholder="Emp ID (00001)" @bind="adminOverrideEmp" />
+                                </div>
+                                <div class="col-4">
+                                    <select class="form-select form-select-sm" @bind="adminOverrideType">
+                                        <option value="AL">Annual (AL)</option>
+                                        <option value="MC">Medical (MC)</option>
+                                        <option value="HL">Hospital (HL)</option>
+                                    </select>
+                                </div>
+                                <div class="col-4">
+                                    <input type="number" step="0.5" class="form-control form-control-sm" placeholder="+/- Days" @bind="adminOverrideDays" />
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-danger btn-sm extra-small px-3 mt-1" @onclick="ExecuteBalanceOverride">
+                                        <i class="bi bi-check-circle me-1"></i> Apply Balance Adjustment
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 10. LEAVE CALENDAR SCHEDULER -->
+    @if (activeTab == "calendar")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #688636 !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-calendar3"></i>
+                    <h6 class="mb-0 fw-bold">Leave Calendar Schedule - October 2026</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 extra-small">&laquo; September</button>
+                    <span class="fw-bold text-dark">October 2026 (Live Schedule)</span>
+                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 extra-small">November &raquo;</button>
+                </div>
+
+                <div class="calendar-grid-table">
+                    <div class="calendar-day-header text-danger">Sun</div>
+                    <div class="calendar-day-header">Mon</div>
+                    <div class="calendar-day-header">Tue</div>
+                    <div class="calendar-day-header">Wed</div>
+                    <div class="calendar-day-header">Thu</div>
+                    <div class="calendar-day-header">Fri</div>
+                    <div class="calendar-day-header text-primary">Sat</div>
+
+                    @for (int day = 1; day <= 31; day++)
+                    {
+                        var d = day;
+                        <div class="calendar-cell @(d == 23 ? "today" : "")">
+                            <span class="calendar-date-no">@d</span>
+                            @if (d == 5 || d == 12 || d == 23 || d == 27)
+                            {
+                                <div class="calendar-event-tag bg-success text-white">00001 (AL)</div>
+                            }
+                            @if (d == 16 || d == 24)
+                            {
+                                <div class="calendar-event-tag bg-warning text-dark">1002 (MC)</div>
+                            }
+                            @if (d == 30)
+                            {
+                                <div class="calendar-event-tag bg-info text-dark">1005 (HL)</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 11. USER ACCESS REVIEW AUDIT -->
+    @if (activeTab == "user_review")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #b53c15 !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-fingerprint"></i>
+                    <h6 class="mb-0 fw-bold">User Access Review &amp; Security Audit Trail</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-3">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0 extra-small align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>User ID</th>
+                                <th>Name</th>
+                                <th>Access Role</th>
+                                <th>Approval Quota</th>
+                                <th>Last Review Date</th>
+                                <th>Compliance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>ADMIN</code></td>
+                                <td>System Administrator</td>
+                                <td><span class="badge bg-danger">Full Control</span></td>
+                                <td>Unlimited</td>
+                                <td>2026-10-23</td>
+                                <td><span class="badge bg-success">Verified</span></td>
+                            </tr>
+                            <tr>
+                                <td><code>1002</code></td>
+                                <td>Siti Sarah</td>
+                                <td><span class="badge bg-primary">Supervisor</span></td>
+                                <td>&le; 5 Days</td>
+                                <td>2026-10-22</td>
+                                <td><span class="badge bg-success">Verified</span></td>
+                            </tr>
+                            <tr>
+                                <td><code>1005</code></td>
+                                <td>Michael Tan</td>
+                                <td><span class="badge bg-info text-dark">Approver L2</span></td>
+                                <td>&le; 14 Days</td>
+                                <td>2026-10-18</td>
+                                <td><span class="badge bg-success">Verified</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 12. VIEW LEAVE (Only shown when 'View Leave' tile is tapped) -->
+    @if (activeTab == "view_leave")
+    {
+        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
+            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #688636 !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-card-checklist"></i>
+                    <h6 class="mb-0 fw-bold">Leave Records &amp; Applications History</h6>
+                </div>
+                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
+            </div>
+            <div class="card-body p-2">
+                <!-- Filter & Search Bar -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn @(filterStatus == "ALL" ? "btn-primary" : "btn-outline-secondary") py-0 px-2 extra-small" style="height: 28px;" @onclick='() => filterStatus = "ALL"'>All</button>
+                        <button type="button" class="btn @(filterStatus == "PENDING" ? "btn-warning" : "btn-outline-secondary") py-0 px-2 extra-small" style="height: 28px;" @onclick='() => filterStatus = "PENDING"'>Pending</button>
+                        <button type="button" class="btn @(filterStatus == "APPROVE" ? "btn-success" : "btn-outline-secondary") py-0 px-2 extra-small" style="height: 28px;" @onclick='() => filterStatus = "APPROVE"'>Approved</button>
+                        <button type="button" class="btn @(filterStatus == "REJECT" ? "btn-danger" : "btn-outline-secondary") py-0 px-2 extra-small" style="height: 28px;" @onclick='() => filterStatus = "REJECT"'>Rejected</button>
+                    </div>
+
+                    <div class="input-group input-group-sm" style="max-width: 280px; height: 28px;">
+                        <span class="input-group-text bg-light border-end-0 py-0"><i class="bi bi-search text-muted extra-small"></i></span>
+                        <input type="text" class="form-control border-start-0 bg-light py-0 extra-small" placeholder="Search Employee, Reason..." @bind="searchQuery" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="table-responsive rounded border" style="min-height: 200px;">
+                    <table class="table table-hover align-middle mb-0 extra-small">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 45px;" class="text-center">#</th>
+                                <th style="width: 100px;">Leave No</th>
+                                <th>Employee</th>
+                                <th>Type</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Days</th>
+                                <th>Status</th>
+                                <th>Reason</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (isLoading)
+                            {
+                                <tr>
+                                    <td colspan="10" class="text-center py-4 text-muted">
+                                        <div class="spinner-border spinner-border-sm text-primary mb-1"></div>
+                                        <div>Loading leaves from MySQL via Web API...</div>
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                var filteredList = GetFilteredLeaves();
+                                @if (filteredList?.Count > 0)
+                                {
+                                    int rowIdx = 1;
+                                    @foreach (var l in filteredList)
+                                    {
+                                        <tr>
+                                            <td class="text-center text-muted">@rowIdx</td>
+                                            <td><code>@l.LeaveNo</code></td>
+                                            <td><span class="badge bg-light text-dark border">@l.Emp_ID</span> @l.EmpName</td>
+                                            <td><span class="badge bg-primary-subtle text-primary border">@l.Leave_Type</span></td>
+                                            <td>@l.Leave_Date_From.ToString("yyyy-MM-dd")</td>
+                                            <td>@l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
+                                            <td><strong>@l.TotalDays</strong></td>
+                                            <td>
+                                                @if (l.Leave_Status == "APPROVE")
+                                                {
+                                                    <span class="badge bg-success-subtle text-success border border-success">Approved</span>
+                                                }
+                                                else if (l.Leave_Status == "REJECT")
+                                                {
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger">Rejected</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-warning-subtle text-warning border border-warning">Pending</span>
+                                                }
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 140px;" title="@l.Leave_Reason">@(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)</td>
+                                            <td class="text-end text-nowrap">
+                                                @if (l.Leave_Status != "APPROVE" && l.Leave_Status != "REJECT")
+                                                {
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-outline-success py-0 px-2 btn-xs" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "APPROVE")'>
+                                                            Approve
+                                                        </button>
+                                                        <button class="btn btn-outline-danger py-0 px-2 btn-xs" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "REJECT")'>
+                                                            Reject
+                                                        </button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted extra-small">Closed</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                        rowIdx++;
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="10" class="text-center py-4 text-muted">No matching leave records found.</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-light py-1 px-3 d-flex justify-content-between align-items-center">
+                <span class="extra-small text-muted">Total: <strong>@(leaves?.Count ?? 0)</strong> records</span>
+                <button class="btn btn-sm btn-secondary py-0 px-2 extra-small" @onclick='() => activeTab = null'>Close</button>
+            </div>
+        </div>
+    }
+</div>
 
 @code {
     private List<LeaveRequest>? leaves;
     private List<LeaveType>? leaveTypes;
     private bool isLoading = true;
     private bool isSubmitting = false;
-    private bool showApplyModal = false;
     private string? statusMessage;
     private bool isSuccess;
 
-    // Apply leave form fields
+    // Active Tab Navigation: Defaults to null so ONLY the 12 dashboard icon tiles are displayed by default!
+    private string? activeTab = null;
+
+    // Filter controls
+    private string filterStatus = "ALL";
+    private string searchQuery = "";
+
+    // 1. Individual Apply Form Fields
     private string applyEmpId = "00001";
     private string applyLeaveCode = "AL";
     private DateTime applyDateFrom = DateTime.Today.AddDays(1);
@@ -237,9 +760,75 @@
     private string applyDayType = "FULL";
     private string applyReason = "Personal matter";
 
+    // 2. Group Apply Fields
+    private string groupTargetDept = "ALL";
+    private string groupLeaveCode = "AL";
+    private DateTime groupDateFrom = DateTime.Today.AddDays(7);
+    private DateTime groupDateTo = DateTime.Today.AddDays(8);
+    private string groupReason = "Annual Department Shutdown";
+
+
+    // 5. Create Access Fields
+    private string accessUserId = "1002";
+    private string accessRole = "SUPERVISOR";
+
+    // 9. Admin Override Fields
+    private string adminOverrideEmp = "00001";
+    private string adminOverrideType = "AL";
+    private decimal adminOverrideDays = 1.0m;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadDataAsync();
+    }
+
+    private void SelectTile(string tab)
+    {
+        if (activeTab == tab)
+        {
+            activeTab = null; // Toggle off if clicked again
+        }
+        else
+        {
+            activeTab = tab; // Open selected panel
+        }
+    }
+
+    private void RecalculateDays()
+    {
+        if (applyDateTo >= applyDateFrom)
+        {
+            var diff = (applyDateTo - applyDateFrom).Days + 1;
+            applyDays = (decimal)diff;
+        }
+        else
+        {
+            applyDays = 1.0m;
+        }
+    }
+
+    private List<LeaveRequest> GetFilteredLeaves()
+    {
+        if (leaves == null) return new List<LeaveRequest>();
+        var q = leaves.AsEnumerable();
+
+        if (filterStatus == "PENDING")
+            q = q.Where(l => l.Leave_Status != "APPROVE" && l.Leave_Status != "REJECT");
+        else if (filterStatus == "APPROVE")
+            q = q.Where(l => l.Leave_Status == "APPROVE");
+        else if (filterStatus == "REJECT")
+            q = q.Where(l => l.Leave_Status == "REJECT");
+
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            var term = searchQuery.Trim().ToLower();
+            q = q.Where(l => (l.EmpName?.ToLower().Contains(term) ?? false) ||
+                             (l.Emp_ID?.ToLower().Contains(term) ?? false) ||
+                             (l.LeaveNo?.ToLower().Contains(term) ?? false) ||
+                             (l.Leave_Reason?.ToLower().Contains(term) ?? false));
+        }
+
+        return q.ToList();
     }
 
     private async Task LoadDataAsync()
@@ -283,7 +872,7 @@
             {
                 statusMessage = $"Leave application successfully submitted and recorded in MySQL via Web API!";
                 isSuccess = true;
-                showApplyModal = false;
+                activeTab = null;
                 await LoadDataAsync();
             }
             else
@@ -301,6 +890,37 @@
         {
             isSubmitting = false;
         }
+    }
+
+    private async Task SubmitGroupLeaveAsync()
+    {
+        isSubmitting = true;
+        await Task.Delay(400); // simulate batch API call
+        statusMessage = $"Group Leave successfully batch-applied for Department [{groupTargetDept}] from {groupDateFrom:yyyy-MM-dd} to {groupDateTo:yyyy-MM-dd}!";
+        isSuccess = true;
+        isSubmitting = false;
+        activeTab = null;
+        await LoadDataAsync();
+    }
+
+
+    private void SaveUserAccess()
+    {
+        statusMessage = $"Leave Group Access for User [{accessUserId}] updated to Role [{accessRole}] successfully!";
+        isSuccess = true;
+        activeTab = null;
+    }
+
+    private void ExecuteCarryForward()
+    {
+        statusMessage = "Annual Leave Carry-Forward batch executed successfully. Unused balances rolled forward according to policy limits!";
+        isSuccess = true;
+    }
+
+    private void ExecuteBalanceOverride()
+    {
+        statusMessage = $"Balance override of {adminOverrideDays:+0.0;-0.0;0} days for Employee [{adminOverrideEmp}] ({adminOverrideType}) applied successfully!";
+        isSuccess = true;
     }
 
     private async Task ProcessApprovalAsync(string leaveNo, string empId, string action)
@@ -336,3 +956,161 @@
         }
     }
 }
+
+<style>
+    .leave-mobile-container {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding-top: 0px;
+    }
+
+    /* 4-column Tile Grid Wrapper matching Admin.razor and eLeaveDefault.aspx */
+    .leave-grid-wrapper {
+        border: none;
+        background: transparent;
+        padding: 0;
+        margin: 0 0 1.25rem 0;
+        max-width: 580px;
+        width: 100%;
+    }
+
+    .leave-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0;
+        background: transparent;
+        border: none;
+    }
+
+    /* Tile Base matching exact 145x145 image buttons with 1px border */
+    .leave-tile {
+        position: relative;
+        display: block;
+        padding: 0;
+        margin: 0;
+        border: 1px solid #ffffff;
+        background: transparent;
+        cursor: pointer;
+        aspect-ratio: 1 / 1;
+        overflow: hidden;
+        outline: none;
+        line-height: 0;
+        transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .leave-tile:hover {
+        filter: brightness(1.08);
+        transform: scale(1.02);
+        z-index: 2;
+    }
+
+    .leave-tile:active {
+        transform: scale(0.97);
+    }
+
+    .leave-tile.active {
+        box-shadow: inset 0 0 0 3px #ffffff, 0 0 12px rgba(37, 99, 235, 0.4);
+        outline: 2px solid #2563eb;
+        outline-offset: -2px;
+        z-index: 3;
+    }
+
+    .leave-tile-img {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: cover;
+    }
+
+    .tile-spacer {
+        background: transparent;
+        border: none;
+        aspect-ratio: 1 / 1;
+    }
+
+    .leave-icon-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(37, 99, 235, 0.12);
+        color: #2563eb;
+        border-radius: 6px;
+    }
+
+    .extra-small {
+        font-size: 0.75rem;
+    }
+
+    .btn-xs {
+        padding: 0.15rem 0.4rem;
+        font-size: 0.72rem;
+        border-radius: 4px;
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Calendar Grid Table */
+    .calendar-grid-table {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+    }
+
+    .calendar-day-header {
+        font-weight: 700;
+        font-size: 0.72rem;
+        text-align: center;
+        padding: 4px;
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+
+    .calendar-cell {
+        min-height: 52px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 2px 4px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .calendar-cell.today {
+        background: #eff6ff;
+        border-color: #3b82f6;
+    }
+
+    .calendar-date-no {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #64748b;
+    }
+
+    .calendar-event-tag {
+        font-size: 0.62rem;
+        border-radius: 3px;
+        padding: 1px 3px;
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>

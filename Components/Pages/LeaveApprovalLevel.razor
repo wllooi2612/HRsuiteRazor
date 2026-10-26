@@ -1,0 +1,768 @@
+@page "/leaves/approval-level"
+@page "/leaves/leave-approval-level"
+@page "/eleaveapprovallevel"
+@page "/eLeave/eLeaveApprovalLevel.aspx"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>Leave Approval Level - HRsuite</PageTitle>
+
+<div class="approval-level-container pb-5">
+    <!-- Top Header Bar -->
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" 
+                    @onclick='() => NavManager.NavigateTo("leaves")' title="Back to Leave Portal">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <h5 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="approval-icon-badge" style="width: 32px; height: 32px; font-size: 1.1rem;">
+                    <i class="bi bi-bar-chart-steps"></i>
+                </span>
+                <span>Leave Approval Level Configuration</span>
+            </h5>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-secondary py-1 px-3 extra-small d-flex align-items-center gap-1" 
+                    @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh List">
+                <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                <span>Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Alert Notification -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3 rounded-3" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-5"></i>
+            <div class="flex-grow-1 extra-small">@statusMessage</div>
+            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Search & Filter Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+        <div class="card-body p-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold extra-small text-secondary text-uppercase tracking-wider">
+                    <i class="bi bi-shield-check text-info me-1"></i> User Approval Matrix
+                </span>
+                <span class="badge bg-light text-muted border extra-small">
+                    Total: @FilteredRows.Count() User(s)
+                </span>
+            </div>
+
+            <!-- In-page Search Box -->
+            <div class="input-group input-group-sm" style="max-width: 300px;">
+                <span class="input-group-text bg-white border-end-0 py-0"><i class="bi bi-search text-muted extra-small"></i></span>
+                <input type="text" class="form-control form-control-sm border-start-0 py-1 extra-small" 
+                       placeholder="Search User ID, Name, Approver..." @bind="searchText" @bind:event="oninput" />
+                @if (!string.IsNullOrEmpty(searchText))
+                {
+                    <button class="btn btn-sm btn-outline-secondary border-start-0 bg-white py-0" @onclick='() => searchText = ""'>✕</button>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white">
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-info" role="status"></div>
+                    <div class="extra-small text-muted mt-2">Loading Leave approval matrix...</div>
+                </div>
+            }
+            else if (!FilteredRows.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-2 d-block mb-1 opacity-50"></i>
+                    <span class="extra-small">No users found matching current filter.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive" style="max-height: 540px; overflow-y: auto;">
+                    <table class="table table-hover table-sm align-middle mb-0 custom-approval-table">
+                        <thead class="table-light sticky-top shadow-xs">
+                            <tr>
+                                <th class="text-center" style="width: 70px;">Action</th>
+                                <th style="width: 100px;">User ID</th>
+                                <th style="width: 160px;">Name</th>
+                                <th class="text-center bg-info-subtle text-info-emphasis border-start border-end" colspan="5">
+                                    Group Approval Level
+                                </th>
+                                <th class="text-center" style="width: 80px;">Super Admin</th>
+                                <th class="text-center" style="width: 60px;">Ind</th>
+                                <th class="text-center" style="width: 90px;">Email Remind</th>
+                                <th class="text-center bg-warning-subtle text-warning-emphasis border-start border-end" colspan="5">
+                                    Individual Approval Level
+                                </th>
+                            </tr>
+                            <tr class="sub-header-row">
+                                <th></th>
+                                <th></th>
+                                <th></th>
+                                <!-- Group level headers -->
+                                <th class="extra-small text-muted border-start">App 1</th>
+                                <th class="extra-small text-muted">App 2</th>
+                                <th class="extra-small text-muted">App 3</th>
+                                <th class="extra-small text-muted">App 4</th>
+                                <th class="extra-small text-muted border-end">Level Type</th>
+                                <!-- Flags -->
+                                <th></th>
+                                <th></th>
+                                <th></th>
+                                <!-- Individual level headers -->
+                                <th class="extra-small text-muted border-start">App 1 (Inv)</th>
+                                <th class="extra-small text-muted">App 2 (Inv)</th>
+                                <th class="extra-small text-muted">App 3 (Inv)</th>
+                                <th class="extra-small text-muted">App 4 (Inv)</th>
+                                <th class="extra-small text-muted border-end">Level (Inv)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in FilteredRows)
+                            {
+                                <tr>
+                                    <td class="text-center">
+                                        <button class="btn btn-xs btn-outline-primary py-0 px-2 extra-small" 
+                                                @onclick="() => OpenEditModal(row)" title="Edit Approval Level">
+                                            <i class="bi bi-pencil-square me-1"></i>Edit
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <span class="font-monospace fw-bold extra-small text-primary">@row.ID</span>
+                                    </td>
+                                    <td>
+                                        <span class="extra-small fw-semibold text-dark">@row.Name</span>
+                                    </td>
+
+                                    <!-- Group Level Approvers -->
+                                    <td class="border-start extra-small">
+                                        @if (!string.IsNullOrEmpty(row.App1))
+                                        {
+                                            <span class="badge bg-light text-dark border extra-small" title="@row.AppName1">@row.App1</span>
+                                        }
+                                        else { <span class="text-muted opacity-50">-</span> }
+                                    </td>
+                                    <td class="extra-small">
+                                        @if (!string.IsNullOrEmpty(row.App2))
+                                        {
+                                            <span class="badge bg-light text-dark border extra-small" title="@row.AppName2">@row.App2</span>
+                                        }
+                                        else { <span class="text-muted opacity-50">-</span> }
+                                    </td>
+                                    <td class="extra-small">
+                                        @if (!string.IsNullOrEmpty(row.App3))
+                                        {
+                                            <span class="badge bg-light text-dark border extra-small" title="@row.AppName3">@row.App3</span>
+                                        }
+                                        else { <span class="text-muted opacity-50">-</span> }
+                                    </td>
+                                    <td class="extra-small">
+                                        @if (!string.IsNullOrEmpty(row.App4))
+                                        {
+                                            <span class="badge bg-light text-dark border extra-small" title="@row.AppName4">@row.App4</span>
+                                        }
+                                        else { <span class="text-muted opacity-50">-</span> }
+                                    </td>
+                                    <td class="border-end extra-small">
+                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle extra-small">@row.AppLevelName</span>
+                                    </td>
+
+                                    <!-- Super Admin -->
+                                    <td class="text-center extra-small">
+                                        @if (row.SuperAdminLeave == "Y")
+                                        {
+                                            <span class="badge bg-danger rounded-pill">YES</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted opacity-50">NO</span>
+                                        }
+                                    </td>
+
+                                    <!-- Use Individual -->
+                                    <td class="text-center extra-small">
+                                        @if (row.UseIndividual == "Y")
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill">YES</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted opacity-50">NO</span>
+                                        }
+                                    </td>
+
+                                    <!-- Email Remind Info -->
+                                    <td class="text-center extra-small">
+                                        @if (row.LeaveRemindFollowGeneral == "Y")
+                                        {
+                                            <span class="badge bg-light text-secondary border extra-small" title="Follow General Setting">General</span>
+                                        }
+                                        else if (row.LeaveEmailRemind == "Y")
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle extra-small" title="Remind at @row.LeaveRemindTimeIndividual">
+                                                @row.LeaveRemindTimeIndividual
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted opacity-50">Off</span>
+                                        }
+                                    </td>
+
+                                    <!-- Individual Level Approvers -->
+                                    <td class="border-start extra-small">
+                                        @if (!string.IsNullOrEmpty(row.App1_Individual))
+                                        {
+                                            <span class="badge bg-light text-dark border extra-small" title="@row.AppName1_Individual">@row.App1_Individual</span>
+                                        }
+                                        else { <span class="text-muted opacity-50">-</span> }
+                                    </td>
+                                    <td class="extra-small">
+                                        @if (!string.IsNullOrEmpty(row.App2_Individual))
+                                        {
+                                            <span class="badge bg-light text-dark border extra-small" title="@row.AppName2_Individual">@row.App2_Individual</span>
+                                        }
+                                        else { <span class="text-muted opacity-50">-</span> }
+                                    </td>
+                                    <td class="extra-small">
+                                        @if (!string.IsNullOrEmpty(row.App3_Individual))
+                                        {
+                                            <span class="badge bg-light text-dark border extra-small" title="@row.AppName3_Individual">@row.App3_Individual</span>
+                                        }
+                                        else { <span class="text-muted opacity-50">-</span> }
+                                    </td>
+                                    <td class="extra-small">
+                                        @if (!string.IsNullOrEmpty(row.App4_Individual))
+                                        {
+                                            <span class="badge bg-light text-dark border extra-small" title="@row.AppName4_Individual">@row.App4_Individual</span>
+                                        }
+                                        else { <span class="text-muted opacity-50">-</span> }
+                                    </td>
+                                    <td class="border-end extra-small">
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle extra-small">@row.AppLevelName_Individual</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+        <div class="card-footer bg-light py-2 px-3 border-top d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span class="extra-small text-muted">
+                Tip: Click <strong>Edit</strong> on any user row to configure Group/Individual approval tiers and email reminder schedules.
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- EDIT APPROVAL LEVEL MODAL (Exact match to eLeaveApprovalLevel.aspx) -->
+<!-- ============================================================== -->
+@if (isEditModalOpen && editModel != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content shadow-lg border-0 rounded-3">
+                <div class="modal-header bg-light py-2 px-3 border-bottom">
+                    <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+                        <i class="bi bi-pencil-square text-primary"></i>
+                        <span>Edit Leave Level Approval: <span class="text-primary font-monospace">@editModel.ID - @editingUserName</span></span>
+                    </h6>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+
+                <div class="modal-body p-3">
+                    @if (!string.IsNullOrEmpty(modalErrorMessage))
+                    {
+                        <div class="alert alert-danger py-2 px-3 extra-small rounded-2 mb-3 d-flex align-items-center gap-2">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <div>@modalErrorMessage</div>
+                        </div>
+                    }
+
+                    <!-- 1. Super Admin & Reminder Settings -->
+                    <div class="card border border-light-subtle rounded-3 mb-3 bg-light-subtle">
+                        <div class="card-header bg-light py-1 px-3 border-bottom extra-small fw-bold text-secondary text-uppercase">
+                            <i class="bi bi-shield-lock me-1 text-danger"></i> Set User as Super Admin & Email Reminders
+                        </div>
+                        <div class="card-body p-3">
+                            <div class="row g-2 align-items-center mb-2">
+                                <div class="col-12 col-md-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="chkSuperAdmin" 
+                                               checked="@(editModel.SuperAdminLeave == "Y")" 
+                                               @onchange='e => editModel.SuperAdminLeave = (bool)e.Value! ? "Y" : "N"' />
+                                        <label class="form-check-label extra-small fw-semibold" for="chkSuperAdmin">Super Admin (Leave)</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-8">
+                                    <span class="extra-small text-muted">Grants unrestricted override permission for all leave applications.</span>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 align-items-center mb-2">
+                                <div class="col-12 col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="chkRemindGen" 
+                                               checked="@(editModel.LeaveRemindFollowGeneral == "Y")" 
+                                               @onchange="OnRemindGeneralToggled" />
+                                        <label class="form-check-label extra-small" for="chkRemindGen">Follow General Reminder Time</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="chkRemindUser" 
+                                               checked="@(editModel.LeaveEmailRemind == "Y")" 
+                                               @onchange="OnRemindUserToggled" />
+                                        <label class="form-check-label extra-small" for="chkRemindUser">Follow Individual Reminder Time</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 align-items-center">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-0">Individual Remind Time</label>
+                                </div>
+                                <div class="col-12 col-md-5">
+                                    <input type="text" class="form-control form-control-sm font-monospace" 
+                                           placeholder="hh:mm:ss (e.g. 08:00:00)" 
+                                           disabled="@(editModel.LeaveEmailRemind != "Y")"
+                                           @bind="editModel.LeaveRemindTimeIndividual" />
+                                </div>
+                                <div class="col-12 col-md-3">
+                                    <span class="extra-small text-muted">Format: 24h (hh:mm:ss)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Group Level Approval Detail -->
+                    <div class="card border border-info-subtle rounded-3 mb-3">
+                        <div class="card-header bg-info-subtle text-info-emphasis py-1 px-3 border-bottom extra-small fw-bold text-uppercase">
+                            <i class="bi bi-people-fill me-1"></i> Leave Level Approval Detail for Group
+                        </div>
+                        <div class="card-body p-3">
+                            <div class="row g-2 mb-2">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 1</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.App1">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.EmpId">@u.EmpId - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 2</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.App2">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.EmpId">@u.EmpId - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 mb-2">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 3</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.App3">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.EmpId">@u.EmpId - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 4</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.App4">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.EmpId">@u.EmpId - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row g-2">
+                                <div class="col-12 col-md-12">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Group Level Type</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.AppLevel">
+                                        <option value="1">1 - ALL (All approvers must approve)</option>
+                                        <option value="2">2 - One Of Them (Any single approver)</option>
+                                        <option value="3">3 - 1st or 2nd with 3rd compulsory approval</option>
+                                        <option value="4">4 - 1st or 2nd approve, and 3rd or 4th the next approve</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Individual Level Approval Detail -->
+                    <div class="card border border-warning-subtle rounded-3">
+                        <div class="card-header bg-warning-subtle text-warning-emphasis py-1 px-3 border-bottom extra-small fw-bold text-uppercase d-flex align-items-center justify-content-between">
+                            <span><i class="bi bi-person-fill me-1"></i> Leave Level Approval Detail for Individual</span>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="chkUseInd" 
+                                       checked="@(editModel.UseIndividual == "Y")" 
+                                       @onchange='e => editModel.UseIndividual = (bool)e.Value! ? "Y" : "N"' />
+                                <label class="form-check-label extra-small fw-bold text-dark" for="chkUseInd">Enable Individual Override</label>
+                            </div>
+                        </div>
+                        <div class="card-body p-3 @(editModel.UseIndividual != "Y" ? "opacity-75" : "")">
+                            <div class="row g-2 mb-2">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 1 (Individual)</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.App1_Individual" disabled="@(editModel.UseIndividual != "Y")">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.EmpId">@u.EmpId - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 2 (Individual)</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.App2_Individual" disabled="@(editModel.UseIndividual != "Y")">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.EmpId">@u.EmpId - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 mb-2">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 3 (Individual)</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.App3_Individual" disabled="@(editModel.UseIndividual != "Y")">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.EmpId">@u.EmpId - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 4 (Individual)</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.App4_Individual" disabled="@(editModel.UseIndividual != "Y")">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.EmpId">@u.EmpId - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row g-2">
+                                <div class="col-12 col-md-12">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Individual Level Type</label>
+                                    <select class="form-select form-select-sm" @bind="editModel.AppLevel_Individual" disabled="@(editModel.UseIndividual != "Y")">
+                                        <option value="1">1 - ALL (All approvers must approve)</option>
+                                        <option value="2">2 - One Of Them (Any single approver)</option>
+                                        <option value="3">3 - Two Of Them with one compulsory approval</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-2 px-3 border-top d-flex align-items-center justify-content-between">
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3 extra-small" @onclick="CloseEditModal">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary py-1 px-4 extra-small d-flex align-items-center gap-1 shadow-sm" 
+                            @onclick="SaveEditModalAsync" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-floppy-fill me-1"></i>
+                            <span>Update</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .approval-level-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .approval-icon-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #06b6d4, #0891b2);
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(8, 145, 178, 0.25);
+    }
+
+    .extra-small {
+        font-size: 0.8125rem;
+    }
+
+    .tracking-wider {
+        letter-spacing: 0.05em;
+    }
+
+    .custom-approval-table thead th {
+        font-size: 0.73rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #4b5563;
+        font-weight: 700;
+        padding: 0.45rem 0.6rem;
+        border-top: none;
+        vertical-align: middle;
+    }
+
+    .sub-header-row th {
+        background-color: #f8fafc !important;
+        font-size: 0.7rem !important;
+        font-weight: 600 !important;
+        padding-top: 0.25rem !important;
+        padding-bottom: 0.25rem !important;
+    }
+
+    .custom-approval-table tbody td {
+        padding: 0.4rem 0.6rem;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    private List<LeaveApprovalLevelRow> rowsList = new();
+    private List<EmployeeLookupModel> usersList = new();
+    private string searchText = string.Empty;
+    private bool isLoading = false;
+    private bool isSaving = false;
+    private string? statusMessage;
+    private bool isSuccess = true;
+
+    // Modal Edit State
+    private bool isEditModalOpen = false;
+    private UpdateLeaveApprovalLevelRequest? editModel;
+    private string editingUserName = string.Empty;
+    private string? modalErrorMessage;
+
+    private IEnumerable<LeaveApprovalLevelRow> FilteredRows
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                return rowsList;
+            }
+
+            var q = searchText.Trim();
+            return rowsList.Where(x =>
+                (x.ID?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.Name?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.App1?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.AppName1?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.App2?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.AppName2?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.App1_Individual?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.AppName1_Individual?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.App2_Individual?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.AppName2_Individual?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+        await LoadDataAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        try
+        {
+            usersList = await ApiClient.GetLeaveAccessUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Failed to load user list: " + ex.Message;
+            isSuccess = false;
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            rowsList = await ApiClient.GetLeaveApprovalLevelsAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error loading leave approval level records: " + ex.Message;
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenEditModal(LeaveApprovalLevelRow row)
+    {
+        editingUserName = row.Name;
+        modalErrorMessage = null;
+        editModel = new UpdateLeaveApprovalLevelRequest
+        {
+            ID = row.ID,
+            App1 = row.App1,
+            App2 = row.App2,
+            App3 = row.App3,
+            App4 = row.App4,
+            AppLevel = row.AppLevel,
+
+            SuperAdminLeave = row.SuperAdminLeave,
+            LeaveRemindFollowGeneral = row.LeaveRemindFollowGeneral,
+            LeaveEmailRemind = row.LeaveEmailRemind,
+            LeaveRemindTimeIndividual = string.IsNullOrWhiteSpace(row.LeaveRemindTimeIndividual) ? "00:00:00" : row.LeaveRemindTimeIndividual,
+
+            UseIndividual = row.UseIndividual,
+            App1_Individual = row.App1_Individual,
+            App2_Individual = row.App2_Individual,
+            App3_Individual = row.App3_Individual,
+            App4_Individual = row.App4_Individual,
+            AppLevel_Individual = row.AppLevel_Individual
+        };
+        isEditModalOpen = true;
+    }
+
+    private void CloseEditModal()
+    {
+        isEditModalOpen = false;
+        editModel = null;
+        modalErrorMessage = null;
+    }
+
+    private void OnRemindGeneralToggled(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value!;
+        if (editModel != null)
+        {
+            editModel.LeaveRemindFollowGeneral = isChecked ? "Y" : "N";
+            if (isChecked)
+            {
+                editModel.LeaveEmailRemind = "N";
+            }
+        }
+    }
+
+    private void OnRemindUserToggled(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)e.Value!;
+        if (editModel != null)
+        {
+            editModel.LeaveEmailRemind = isChecked ? "Y" : "N";
+            if (isChecked)
+            {
+                editModel.LeaveRemindFollowGeneral = "N";
+            }
+        }
+    }
+
+    private async Task SaveEditModalAsync()
+    {
+        if (editModel == null) return;
+
+        // Validation matching eLeaveApprovalLevel.aspx.vb
+        modalErrorMessage = null;
+
+        // 1. Group level duplicate checks
+        var groupApps = new[] { editModel.App1, editModel.App2, editModel.App3, editModel.App4 }
+            .Where(x => !string.IsNullOrEmpty(x)).ToList();
+        if (groupApps.Count != groupApps.Distinct().Count())
+        {
+            modalErrorMessage = "Validation Error: Group Approvers must not contain the same person multiple times.";
+            return;
+        }
+
+        // 2. Individual level duplicate checks
+        if (editModel.UseIndividual == "Y")
+        {
+            var indApps = new[] { editModel.App1_Individual, editModel.App2_Individual, editModel.App3_Individual, editModel.App4_Individual }
+                .Where(x => !string.IsNullOrEmpty(x)).ToList();
+            if (indApps.Count != indApps.Distinct().Count())
+            {
+                modalErrorMessage = "Validation Error: Individual Approvers must not contain the same person multiple times.";
+                return;
+            }
+        }
+
+        // 3. Email Remind conflict check
+        if (editModel.LeaveRemindFollowGeneral == "Y" && editModel.LeaveEmailRemind == "Y")
+        {
+            modalErrorMessage = "Validation Error: Only choose either 'Follow General Setting' or 'Follow Individual Setting'.";
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var (ok, msg) = await ApiClient.SaveLeaveApprovalLevelAsync(editModel);
+            if (ok)
+            {
+                isSuccess = true;
+                statusMessage = $"Approval level configuration for user '{editModel.ID}' saved successfully.";
+                CloseEditModal();
+                await LoadDataAsync();
+            }
+            else
+            {
+                modalErrorMessage = msg;
+            }
+        }
+        catch (Exception ex)
+        {
+            modalErrorMessage = "Save failed: " + ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

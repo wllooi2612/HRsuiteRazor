@@ -1,0 +1,21 @@
+# Build Stage
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Copy project files and restore dependencies
+COPY ["HRsuiteRazor.csproj", "./"]
+COPY ["HRsuiteRazor.Shared/HRsuiteRazor.Shared.csproj", "HRsuiteRazor.Shared/"]
+RUN dotnet restore "HRsuiteRazor.csproj"
+
+# Copy full source and publish
+COPY . .
+RUN dotnet publish "HRsuiteRazor.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime Stage
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+EXPOSE 8080
+ENV ASPNETCORE_HTTP_PORTS=8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "HRsuiteRazor.dll"]

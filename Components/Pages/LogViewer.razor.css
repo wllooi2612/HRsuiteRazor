@@ -5,12 +5,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 26px;
+    height: 26px;
     background: rgba(245, 158, 11, 0.15);
     color: #d97706;
-    border-radius: 8px;
-    font-size: 1.25rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
 }
 .metric-icon {
     width: 38px;

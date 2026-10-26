@@ -1,0 +1,23 @@
+# Build Stage
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Copy project files and restore dependencies
+COPY ["HRsuiteRazor.WebApi/HRsuiteRazor.WebApi.csproj", "HRsuiteRazor.WebApi/"]
+COPY ["HRsuiteRazor.Shared/HRsuiteRazor.Shared.csproj", "HRsuiteRazor.Shared/"]
+RUN dotnet restore "HRsuiteRazor.WebApi/HRsuiteRazor.WebApi.csproj"
+
+# Copy full source and publish
+COPY HRsuiteRazor.WebApi/ HRsuiteRazor.WebApi/
+COPY HRsuiteRazor.Shared/ HRsuiteRazor.Shared/
+WORKDIR "/src/HRsuiteRazor.WebApi"
+RUN dotnet publish "HRsuiteRazor.WebApi.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime Stage
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+EXPOSE 8080
+ENV ASPNETCORE_HTTP_PORTS=8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "HRsuiteRazor.WebApi.dll"]

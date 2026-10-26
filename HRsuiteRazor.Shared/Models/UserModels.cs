@@ -71,6 +71,7 @@ public class CompanyModel
 public class EmployeeLookupModel
 {
     public string EmpId { get; set; } = string.Empty;
+    public string ID { get => EmpId; set => EmpId = value; }
     public string Name { get; set; } = string.Empty;
 }
 
@@ -119,5 +120,42 @@ public class BatchCreateUsersResult
     public List<string> CreatedIds { get; set; } = new();
     public List<string> SkippedIds { get; set; } = new();
     public List<string> Messages { get; set; } = new();
+}
+
+public class LeaveUserAccessItem
+{
+    public string FormId { get; set; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Remark { get; set; } = string.Empty;
+    public string Extra { get; set; } = string.Empty;
+    public bool IsSelected { get; set; }
+}
+
+public class LeaveUserAccessData
+{
+    public string UserId { get; set; } = string.Empty;
+    public List<LeaveUserAccessItem> Departments { get; set; } = new();
+    public List<LeaveUserAccessItem> Sections { get; set; } = new();
+    public List<LeaveUserAccessItem> Categories { get; set; } = new();
+    public List<LeaveUserAccessItem> Grades { get; set; } = new();
+    public List<LeaveUserAccessItem> Supervisors { get; set; } = new();
+    public List<LeaveUserAccessItem> JobTitles { get; set; } = new();
+    public List<LeaveUserAccessItem> Factories { get; set; } = new();
+    public List<LeaveUserAccessItem> Groups { get; set; } = new();
+    public List<LeaveUserAccessItem> Emails { get; set; } = new();
+}
+
+public class SaveLeaveUserAccessRequest
+{
+    public string UserId { get; set; } = string.Empty;
+    public List<SelectedAccessItem> SelectedItems { get; set; } = new();
+}
+
+public class SelectedAccessItem
+{
+    public string FormId { get; set; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
+    public string Remarks { get; set; } = string.Empty;
 }
 

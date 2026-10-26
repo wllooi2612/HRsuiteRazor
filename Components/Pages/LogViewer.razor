@@ -10,41 +10,59 @@
 
 <div class="log-viewer-page pb-5">
     <!-- Top Header Bar -->
-    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-3">
-            <button class="btn btn-link text-dark p-0 text-decoration-none fs-4 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
                 <i class="bi bi-arrow-left"></i>
             </button>
-            <div>
-                <h4 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
-                    <span class="log-icon-badge"><i class="bi bi-journal-text"></i></span>
-                    <span>Log File Report &amp; System Audit</span>
-                </h4>
-                <div class="text-muted small">High-performance audit trail &amp; system diagnostic logs</div>
-            </div>
+            <h6 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="log-icon-badge" style="width: 26px; height: 26px; font-size: 0.9rem;"><i class="bi bi-journal-text"></i></span>
+                <span>Log File Report &amp; System Audit</span>
+            </h6>
         </div>
 
         <!-- Right Quick Action Controls -->
-        <div class="d-flex align-items-center gap-2">
-            @if (queryResult.TotalCount == 0 && !isLoading)
-            {
-                <button class="btn btn-sm btn-outline-warning shadow-sm px-3" @onclick="SeedSampleLogsAsync" disabled="@isSeeding" title="Generate Sample Diagnostic Logs">
+        <div class="d-flex align-items-center gap-1 flex-wrap">
+            <div class="btn-group btn-group-sm shadow-sm" role="group">
+                <button class="btn btn-outline-warning py-0 px-2 extra-small d-inline-flex align-items-center" style="height: 28px;" @onclick="() => SeedLogsAsync(100)" disabled="@isSeeding" title="Generate Sample Diagnostic Logs">
                     <i class="bi bi-magic me-1"></i>
-                    <span>@(isSeeding ? "Generating..." : "Seed Sample Logs")</span>
+                    <span>@(isSeeding ? "..." : "Seed")</span>
                 </button>
-            }
+                <button class="btn btn-outline-warning dropdown-toggle dropdown-toggle-split py-0 px-1 extra-small" style="height: 28px;" data-bs-toggle="dropdown" aria-expanded="false" disabled="@isSeeding">
+                    <span class="visually-hidden">Toggle Dropdown</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><button class="dropdown-item small" @onclick="() => SeedLogsAsync(100)"><i class="bi bi-magic me-2 text-warning"></i>Seed 100 Logs</button></li>
+                    <li><button class="dropdown-item small" @onclick="() => SeedLogsAsync(500)"><i class="bi bi-database-add me-2 text-warning"></i>Seed 500 Logs</button></li>
+                    <li><button class="dropdown-item small" @onclick="() => SeedLogsAsync(2000)"><i class="bi bi-lightning-charge-fill me-2 text-danger"></i>Seed 2,000 Logs</button></li>
+                </ul>
+            </div>
 
-            <button class="btn btn-sm btn-outline-secondary shadow-sm px-3" @onclick="ExportToCsv" disabled="@(queryResult.Items.Count == 0)" title="Export Current Page to CSV">
-                <i class="bi bi-file-earmark-spreadsheet me-1 text-success"></i>
-                <span class="d-none d-sm-inline">Export CSV</span>
+            <button class="btn btn-sm btn-outline-info shadow-sm py-0 px-2 extra-small d-inline-flex align-items-center" style="height: 28px;" @onclick="OpenStreamModal" title="Stream Logs via IAsyncEnumerable (Real-time pipeline)">
+                <i class="bi bi-broadcast me-1"></i>
+                <span>Stream</span>
             </button>
 
-            <button class="btn btn-sm btn-outline-primary shadow-sm px-3" @onclick="PrintTable" title="Print Log Report">
+            <div class="btn-group btn-group-sm shadow-sm" role="group">
+                <button class="btn btn-outline-secondary py-0 px-2 extra-small d-inline-flex align-items-center" style="height: 28px;" @onclick="ExportToCsv" disabled="@(queryResult.Items.Count == 0)" title="Export Current Page to CSV">
+                    <i class="bi bi-file-earmark-spreadsheet me-1 text-success"></i>
+                    <span>Export</span>
+                </button>
+                <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split py-0 px-1 extra-small" style="height: 28px;" data-bs-toggle="dropdown" aria-expanded="false" title="Export Options">
+                    <span class="visually-hidden">Toggle Dropdown</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><button class="dropdown-item small" @onclick="ExportToCsv"><i class="bi bi-file-earmark-spreadsheet me-2 text-success"></i>Export Current Page (CSV)</button></li>
+                    <li><button class="dropdown-item small" @onclick="StreamExportAllFiltered"><i class="bi bi-cloud-arrow-down-fill me-2 text-primary"></i>Stream Export All Filtered Logs</button></li>
+                </ul>
+            </div>
+
+            <button class="btn btn-sm btn-outline-primary shadow-sm py-0 px-2 extra-small d-inline-flex align-items-center" style="height: 28px;" @onclick="PrintTable" title="Print Log Report">
                 <i class="bi bi-printer-fill me-1"></i>
-                <span class="d-none d-sm-inline">Print</span>
+                <span>Print</span>
             </button>
 
-            <button class="btn btn-sm btn-success shadow-sm px-3 fw-semibold" @onclick="ExecuteSearchAsync" disabled="@isLoading" title="Refresh Logs">
+            <button class="btn btn-sm btn-success shadow-sm py-0 px-2 fw-semibold extra-small d-inline-flex align-items-center" style="height: 28px;" @onclick="ExecuteSearchAsync" disabled="@isLoading" title="Refresh Logs">
                 <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "") me-1"></i>
                 <span>Refresh</span>
             </button>
@@ -54,114 +72,75 @@
     <!-- Status Alert Banner -->
     @if (!string.IsNullOrEmpty(statusMessage))
     {
-        <div class="alert @(statusSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm" role="alert">
-            <i class="bi @(statusSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") fs-5"></i>
-            <div class="flex-grow-1 small">@statusMessage</div>
+        <div class="alert @(statusSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-2 py-1 px-2 shadow-sm" role="alert">
+            <i class="bi @(statusSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") fs-6"></i>
+            <div class="flex-grow-1 extra-small">@statusMessage</div>
             <button type="button" class="btn-close btn-close-sm" @onclick="() => statusMessage = null"></button>
         </div>
     }
 
+    <!-- Compact Filter Bar (Tight 2-Row Layout) -->
+    <div class="card border-0 shadow-sm rounded-3 mb-2 bg-white">
+        <div class="card-body p-2">
+            <!-- Row 1: Search & Filter Button -->
+            <div class="d-flex align-items-center gap-1 mb-1">
+                <div class="input-group input-group-sm flex-grow-1">
+                    <span class="input-group-text bg-light border-end-0 py-0"><i class="bi bi-search text-muted extra-small"></i></span>
+                    <input type="text" class="form-control border-start-0 bg-light py-0" style="font-size: 12px; height: 30px;" placeholder="Search Message, UserID, IP, Page, Exception..." @bind="queryRequest.SearchText" @bind:event="oninput" @onkeydown="OnSearchKeyDown" />
+                    @if (!string.IsNullOrEmpty(queryRequest.SearchText))
+                    {
+                        <button class="btn btn-outline-secondary bg-light border-start-0 py-0" style="height: 30px;" @onclick="ClearSearch" title="Clear search">✕</button>
+                    }
+                    <button class="btn btn-primary py-0 px-3 fw-semibold extra-small" style="height: 30px;" @onclick="ExecuteSearchAsync" title="Run Search">Filter</button>
+                </div>
+            </div>
 
-    <!-- Filter & Control Panel -->
-    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
-        <div class="card-body p-3">
-            <div class="row g-2 align-items-center">
-                <!-- Date Range Pickers -->
-                <div class="col-12 col-md-auto d-flex align-items-center gap-1 flex-wrap">
-                    <span class="small text-muted fw-semibold me-1">Date:</span>
-                    <input type="date" class="form-control form-control-sm" style="width: 140px;" value="@(queryRequest.DateFrom?.ToString("yyyy-MM-dd"))" @onchange="OnDateFromChanged" title="From Date" />
-                    <span class="text-muted small">to</span>
-                    <input type="date" class="form-control form-control-sm" style="width: 140px;" value="@(queryRequest.DateTo?.ToString("yyyy-MM-dd"))" @onchange="OnDateToChanged" title="To Date" />
+            <!-- Row 2: Dates, Quick Presets, Level & Rows -->
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-1 border-top">
+                <!-- Left: Dates & Presets -->
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                    <span class="extra-small text-muted fw-bold text-uppercase">Date:</span>
+                    <input type="date" class="form-control form-control-sm py-0 px-1" style="width: 120px; font-size: 11px; height: 28px;" value="@(queryRequest.DateFrom?.ToString("yyyy-MM-dd"))" @onchange="OnDateFromChanged" title="From Date" />
+                    <span class="text-muted extra-small">to</span>
+                    <input type="date" class="form-control form-control-sm py-0 px-1" style="width: 120px; font-size: 11px; height: 28px;" value="@(queryRequest.DateTo?.ToString("yyyy-MM-dd"))" @onchange="OnDateToChanged" title="To Date" />
 
-                    <!-- Quick Date Presets -->
                     <div class="btn-group btn-group-sm ms-1" role="group">
-                        <button type="button" class="btn btn-outline-secondary py-0 px-2" @onclick="SetDateToday" title="Today">Today</button>
-                        <button type="button" class="btn btn-outline-secondary py-0 px-2" @onclick="SetDateYesterday" title="Yesterday">Yesterday</button>
-                        <button type="button" class="btn btn-outline-secondary py-0 px-2" @onclick="SetDate7Days" title="Last 7 Days">7D</button>
-                        <button type="button" class="btn btn-outline-secondary py-0 px-2" @onclick="ClearDates" title="Clear Date Range">All</button>
+                        <button type="button" class="btn btn-outline-secondary py-0 px-2 extra-small" style="height: 28px;" @onclick="SetDateToday" title="Today">Today</button>
+                        <button type="button" class="btn btn-outline-secondary py-0 px-2 extra-small" style="height: 28px;" @onclick="SetDate7Days" title="Last 7 Days">7D</button>
+                        <button type="button" class="btn btn-outline-secondary py-0 px-2 extra-small" style="height: 28px;" @onclick="ClearDates" title="Clear Date Range">All</button>
                     </div>
                 </div>
 
-                <div class="col-auto d-none d-lg-block">
-                    <div class="vr mx-1 opacity-25" style="height: 24px;"></div>
-                </div>
-
-                <!-- Level Dropdown / Filter -->
-                <div class="col-auto d-flex align-items-center gap-1">
-                    <span class="small text-muted fw-semibold me-1">Level:</span>
-                    <select class="form-select form-select-sm" style="width: 110px;" value="@queryRequest.Level" @onchange="OnLevelChanged">
-                        <option value="ALL">ALL</option>
-                        <option value="INFO">INFO</option>
-                        <option value="WARN">WARN</option>
-                        <option value="ERROR">ERROR</option>
-                    </select>
-                </div>
-
-                <!-- Search Input -->
-                <div class="col-12 col-md flex-grow-1">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-light border-end-0 py-1"><i class="bi bi-search text-muted small"></i></span>
-                        <input type="text" class="form-control border-start-0 bg-light py-1" placeholder="Search Message, UserID, IP, Page, Exception..." @bind="queryRequest.SearchText" @bind:event="oninput" @onkeydown="OnSearchKeyDown" />
-                        @if (!string.IsNullOrEmpty(queryRequest.SearchText))
-                        {
-                            <button class="btn btn-sm btn-outline-secondary bg-light border-start-0 py-1" @onclick="ClearSearch" title="Clear search">✕</button>
-                        }
-                        <button class="btn btn-sm btn-primary py-1 px-3" @onclick="ExecuteSearchAsync" title="Run Search">Filter</button>
+                <!-- Right: Level & Rows -->
+                <div class="d-flex align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="extra-small text-muted fw-bold text-uppercase">Level:</span>
+                        <select class="form-select form-select-sm py-0 px-1" style="width: 82px; height: 28px; font-size: 11px;" value="@queryRequest.Level" @onchange="OnLevelChanged">
+                            <option value="ALL">ALL</option>
+                            <option value="INFO">INFO</option>
+                            <option value="WARN">WARN</option>
+                            <option value="ERROR">ERROR</option>
+                        </select>
                     </div>
-                </div>
 
-                <!-- Page Size Dropdown -->
-                <div class="col-auto d-flex align-items-center gap-1 ms-auto">
-                    <span class="small text-muted fw-semibold">Rows:</span>
-                    <select class="form-select form-select-sm" style="width: 80px;" value="@queryRequest.PageSize" @onchange="OnPageSizeChanged">
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="250">250</option>
-                        <option value="500">500</option>
-                    </select>
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="extra-small text-muted fw-bold text-uppercase">Rows:</span>
+                        <select class="form-select form-select-sm py-0 px-1" style="width: 68px; height: 28px; font-size: 11px;" value="@queryRequest.PageSize" @onchange="OnPageSizeChanged">
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="250">250</option>
+                            <option value="500">500</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Data Grid Container (Engineered for Huge Data with Server-Side Paging) -->
+    <!-- Data Grid Container (Starts immediately below filters) -->
     <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
-        <!-- Top Pagination Info Bar -->
-        <div class="card-header bg-light bg-opacity-50 py-2 px-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <div class="small text-muted">
-                @if (queryResult.TotalCount > 0)
-                {
-                    var startRow = ((queryRequest.PageIndex - 1) * queryRequest.PageSize) + 1;
-                    var endRow = Math.Min(queryRequest.PageIndex * queryRequest.PageSize, queryResult.TotalCount);
-                    <span>Showing <strong>@startRow.ToString("N0")</strong> to <strong>@endRow.ToString("N0")</strong> of <strong>@queryResult.TotalCount.ToString("N0")</strong> logs</span>
-                }
-                else
-                {
-                    <span>No log records found</span>
-                }
-            </div>
 
-            <!-- Compact Pagination Controls -->
-            @if (queryResult.TotalPages > 1)
-            {
-                <div class="d-flex align-items-center gap-1">
-                    <button class="btn btn-xs btn-outline-secondary" @onclick="() => GoToPage(1)" disabled="@(queryRequest.PageIndex <= 1 || isLoading)" title="First Page">
-                        <i class="bi bi-chevron-double-left"></i>
-                    </button>
-                    <button class="btn btn-xs btn-outline-secondary" @onclick="() => GoToPage(queryRequest.PageIndex - 1)" disabled="@(queryRequest.PageIndex <= 1 || isLoading)" title="Previous Page">
-                        <i class="bi bi-chevron-left"></i>
-                    </button>
-                    <span class="small text-dark fw-bold px-2">Page @queryRequest.PageIndex of @queryResult.TotalPages</span>
-                    <button class="btn btn-xs btn-outline-secondary" @onclick="() => GoToPage(queryRequest.PageIndex + 1)" disabled="@(queryRequest.PageIndex >= queryResult.TotalPages || isLoading)" title="Next Page">
-                        <i class="bi bi-chevron-right"></i>
-                    </button>
-                    <button class="btn btn-xs btn-outline-secondary" @onclick="() => GoToPage(queryResult.TotalPages)" disabled="@(queryRequest.PageIndex >= queryResult.TotalPages || isLoading)" title="Last Page">
-                        <i class="bi bi-chevron-double-right"></i>
-                    </button>
-                </div>
-            }
-        </div>
 
         <!-- Table View -->
         <div class="table-responsive log-table-wrapper" style="min-height: 380px; max-height: 65vh;">
@@ -284,39 +263,40 @@
             </table>
         </div>
 
-        <!-- Bottom Pagination Bar -->
-        @if (queryResult.TotalPages > 1)
-        {
-            <div class="card-footer bg-white py-2 px-3 border-top d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <div class="small text-muted">
-                    Page <strong>@queryRequest.PageIndex</strong> of <strong>@queryResult.TotalPages</strong> (Total: @queryResult.TotalCount.ToString("N0") records)
-                </div>
-
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item @(queryRequest.PageIndex <= 1 ? "disabled" : "")">
-                        <button class="page-link" @onclick="() => GoToPage(1)">First</button>
-                    </li>
-                    <li class="page-item @(queryRequest.PageIndex <= 1 ? "disabled" : "")">
-                        <button class="page-link" @onclick="() => GoToPage(queryRequest.PageIndex - 1)">Prev</button>
-                    </li>
-
-                    @foreach (var p in GetPageNumbers())
-                    {
-                        var pageNo = p;
-                        <li class="page-item @(pageNo == queryRequest.PageIndex ? "active" : "")">
-                            <button class="page-link" @onclick="() => GoToPage(pageNo)">@pageNo</button>
-                        </li>
-                    }
-
-                    <li class="page-item @(queryRequest.PageIndex >= queryResult.TotalPages ? "disabled" : "")">
-                        <button class="page-link" @onclick="() => GoToPage(queryRequest.PageIndex + 1)">Next</button>
-                    </li>
-                    <li class="page-item @(queryRequest.PageIndex >= queryResult.TotalPages ? "disabled" : "")">
-                        <button class="page-link" @onclick="() => GoToPage(queryResult.TotalPages)">Last</button>
-                    </li>
-                </ul>
+        <!-- Bottom Pagination Bar (Consolidated & moved below grid) -->
+        <div class="card-footer bg-white py-2 px-3 border-top d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="small text-muted">
+                @if (queryResult.TotalCount > 0)
+                {
+                    var startRow = ((queryRequest.PageIndex - 1) * queryRequest.PageSize) + 1;
+                    var endRow = Math.Min(queryRequest.PageIndex * queryRequest.PageSize, queryResult.TotalCount);
+                    <span>Showing <strong>@startRow.ToString("N0")</strong> to <strong>@endRow.ToString("N0")</strong> of <strong>@queryResult.TotalCount.ToString("N0")</strong> logs</span>
+                }
+                else
+                {
+                    <span>No log records found</span>
+                }
             </div>
-        }
+
+            @if (queryResult.TotalPages > 0)
+            {
+                <div class="d-flex align-items-center gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 extra-small" style="height: 28px;" @onclick="() => GoToPage(1)" disabled="@(queryRequest.PageIndex <= 1)" title="First Page">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 extra-small" style="height: 28px;" @onclick="() => GoToPage(queryRequest.PageIndex - 1)" disabled="@(queryRequest.PageIndex <= 1)" title="Previous Page">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="px-2 small fw-bold text-dark">Page @queryRequest.PageIndex of @Math.Max(1, queryResult.TotalPages)</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 extra-small" style="height: 28px;" @onclick="() => GoToPage(queryRequest.PageIndex + 1)" disabled="@(queryRequest.PageIndex >= queryResult.TotalPages)" title="Next Page">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 extra-small" style="height: 28px;" @onclick="() => GoToPage(queryResult.TotalPages)" disabled="@(queryRequest.PageIndex >= queryResult.TotalPages)" title="Last Page">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </button>
+                </div>
+            }
+        </div>
     </div>
 
     <!-- ========================================== -->
@@ -388,6 +368,121 @@
                     <div class="modal-footer bg-light px-4 py-2 rounded-bottom-4 d-flex justify-content-between">
                         <div class="extra-small text-muted font-monospace">Log ID: @selectedLog.Id &bull; Logger: @selectedLog.Logger</div>
                         <button type="button" class="btn btn-sm btn-secondary px-4" @onclick="() => selectedLog = null">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ========================================== -->
+    <!-- MODAL: REAL-TIME STREAMING FEED (IAsyncEnumerable) -->
+    <!-- ========================================== -->
+    @if (isStreamModalOpen)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.6);" role="dialog">
+            <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+                <div class="modal-content shadow-lg rounded-4 border-0">
+                    <div class="modal-header bg-dark text-white py-3 px-4 rounded-top-4 d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-info text-dark fs-6"><i class="bi bi-broadcast me-1"></i>IAsyncEnumerable Stream</span>
+                            <h6 class="modal-title mb-0 fw-bold">Live MySQL Streaming Pipeline (.NET 9)</h6>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CloseStreamModal"></button>
+                    </div>
+                    <div class="modal-body p-3 bg-light">
+                        <div class="d-flex align-items-center justify-content-between p-2 mb-2 bg-white rounded-3 shadow-sm border">
+                            <div class="d-flex align-items-center gap-3">
+                                <div>
+                                    <span class="small text-muted fw-semibold">Status:</span>
+                                    @if (isStreamingActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success ms-1">
+                                            <span class="spinner-grow spinner-grow-sm me-1" role="status"></span>
+                                            Streaming Active
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary border ms-1">Idle / Completed</span>
+                                    }
+                                </div>
+                                <div>
+                                    <span class="small text-muted fw-semibold">Streamed Count:</span>
+                                    <span class="badge bg-primary fs-6 ms-1">@streamedCount</span>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                @if (isStreamingActive)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="StopStreamFeed">
+                                        <i class="bi bi-stop-circle me-1"></i>Stop Stream
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick="StartStreamFeed">
+                                        <i class="bi bi-play-circle me-1"></i>Restart Stream
+                                    </button>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="table-responsive rounded-3 border bg-white" style="max-height: 55vh; overflow-y: auto;">
+                            <table class="table table-sm table-hover align-middle mb-0 font-monospace extra-small">
+                                <thead class="table-dark sticky-top">
+                                    <tr>
+                                        <th style="width: 50px;">#</th>
+                                        <th style="width: 150px;">Timestamp</th>
+                                        <th style="width: 80px;">Level</th>
+                                        <th style="width: 90px;">User</th>
+                                        <th style="width: 120px;">Page</th>
+                                        <th style="width: 110px;">IP</th>
+                                        <th>Message</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (streamedLogs.Count == 0)
+                                    {
+                                        <tr>
+                                            <td colspan="7" class="text-center py-4 text-muted">
+                                                @if (isStreamingActive)
+                                                {
+                                                    <div class="spinner-border spinner-border-sm text-primary mb-1"></div>
+                                                    <div>Connecting to MySQL stream socket...</div>
+                                                }
+                                                else
+                                                {
+                                                    <div>No streamed records. Click 'Restart Stream' to begin.</div>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        var idx = 1;
+                                        @foreach (var log in streamedLogs)
+                                        {
+                                            <tr>
+                                                <td class="text-muted">@idx</td>
+                                                <td>@(log.Date?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                                                <td><span class="badge @GetLevelBadgeClass(log.Level) extra-small">@log.Level</span></td>
+                                                <td class="text-primary fw-bold">@log.UserID</td>
+                                                <td class="text-truncate" style="max-width: 120px;" title="@log.PageName">@log.PageName</td>
+                                                <td>@log.IP</td>
+                                                <td class="text-truncate" style="max-width: 350px;" title="@log.Message">@log.Message</td>
+                                            </tr>
+                                            idx++;
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-white px-4 py-2 rounded-bottom-4 d-flex justify-content-between">
+                        <div class="extra-small text-muted">
+                            Powered by <code>IAsyncEnumerable&lt;LogEntryModel&gt;</code> &bull; Chunked HTTP/1.1 Transfer &bull; O(1) Memory Footprint
+                        </div>
+                        <button type="button" class="btn btn-sm btn-secondary px-4" @onclick="CloseStreamModal">Close</button>
                     </div>
                 </div>
             </div>
@@ -587,12 +682,78 @@
         }
     }
 
-    private async Task SeedSampleLogsAsync()
+    private bool isStreamModalOpen = false;
+    private bool isStreamingActive = false;
+    private int streamedCount = 0;
+    private List<LogEntryModel> streamedLogs = new();
+    private CancellationTokenSource? streamCts;
+
+    private async Task OpenStreamModal()
+    {
+        isStreamModalOpen = true;
+        await StartStreamFeed();
+    }
+
+    private void CloseStreamModal()
+    {
+        StopStreamFeed();
+        isStreamModalOpen = false;
+    }
+
+    private void StopStreamFeed()
+    {
+        streamCts?.Cancel();
+        isStreamingActive = false;
+    }
+
+    private async Task StartStreamFeed()
+    {
+        streamCts?.Cancel();
+        streamCts = new CancellationTokenSource();
+        streamedLogs.Clear();
+        streamedCount = 0;
+        isStreamingActive = true;
+        StateHasChanged();
+
+        try
+        {
+            await foreach (var log in ApiClient.StreamLogsAsync(queryRequest, streamCts.Token))
+            {
+                streamedLogs.Insert(0, log);
+                if (streamedLogs.Count > 300)
+                {
+                    streamedLogs.RemoveAt(streamedLogs.Count - 1);
+                }
+                streamedCount++;
+                if (streamedCount % 5 == 0 || streamedCount < 10)
+                {
+                    StateHasChanged();
+                }
+                await Task.Yield();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Clean exit
+        }
+        catch (Exception ex)
+        {
+            statusSuccess = false;
+            statusMessage = $"Streaming error: {ex.Message}";
+        }
+        finally
+        {
+            isStreamingActive = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SeedLogsAsync(int count)
     {
         isSeeding = true;
         try
         {
-            var (success, msg) = await ApiClient.SeedSampleLogsAsync(60);
+            var (success, msg) = await ApiClient.SeedSampleLogsAsync(count);
             statusSuccess = success;
             statusMessage = msg;
             if (success)
@@ -611,6 +772,8 @@
             isSeeding = false;
         }
     }
+
+    private async Task SeedSampleLogsAsync() => await SeedLogsAsync(100);
 
     private static string EscapeCsv(string? val)
     {
@@ -634,6 +797,12 @@
         var filename = "LogReport_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".csv";
         var script = "let a = document.createElement('a'); a.href = 'data:text/csv;base64," + base64 + "'; a.download = '" + filename + "'; a.click();";
         await JS.InvokeVoidAsync("eval", script);
+    }
+
+    private async Task StreamExportAllFiltered()
+    {
+        var url = ApiClient.GetExportCsvStreamUrl(queryRequest);
+        await JS.InvokeVoidAsync("open", url, "_blank");
     }
 
     private async Task PrintTable()

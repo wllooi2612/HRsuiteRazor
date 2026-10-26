@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using HRsuiteRazor.Shared.Models;
 
@@ -774,6 +776,207 @@ public class HrApiClient
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calling api/Admin/logs/seed-sample");
+            return (false, ex.Message);
+        }
+    }
+
+    public string GetExportCsvStreamUrl(LogQueryRequest request)
+    {
+        var baseUrl = _http.BaseAddress?.ToString().TrimEnd('/') ?? "http://localhost:5145";
+        var q = new StringBuilder($"{baseUrl}/api/Admin/logs/export-stream?");
+        if (request.DateFrom.HasValue) q.Append($"dateFrom={request.DateFrom.Value:yyyy-MM-dd}&");
+        if (request.DateTo.HasValue) q.Append($"dateTo={request.DateTo.Value:yyyy-MM-dd}&");
+        if (!string.IsNullOrWhiteSpace(request.Level)) q.Append($"level={Uri.EscapeDataString(request.Level)}&");
+        if (!string.IsNullOrWhiteSpace(request.UserID)) q.Append($"userId={Uri.EscapeDataString(request.UserID)}&");
+        if (!string.IsNullOrWhiteSpace(request.SearchText)) q.Append($"searchText={Uri.EscapeDataString(request.SearchText)}&");
+        if (!string.IsNullOrWhiteSpace(request.SortBy)) q.Append($"sortBy={Uri.EscapeDataString(request.SortBy)}&");
+        q.Append($"sortDesc={request.SortDesc}&");
+        return q.ToString().TrimEnd('&', '?');
+    }
+
+    public async IAsyncEnumerable<LogEntryModel> StreamLogsAsync(
+        LogQueryRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var q = new StringBuilder("api/Admin/logs/stream?");
+        if (request.DateFrom.HasValue) q.Append($"dateFrom={request.DateFrom.Value:yyyy-MM-dd}&");
+        if (request.DateTo.HasValue) q.Append($"dateTo={request.DateTo.Value:yyyy-MM-dd}&");
+        if (!string.IsNullOrWhiteSpace(request.Level)) q.Append($"level={Uri.EscapeDataString(request.Level)}&");
+        if (!string.IsNullOrWhiteSpace(request.UserID)) q.Append($"userId={Uri.EscapeDataString(request.UserID)}&");
+        if (!string.IsNullOrWhiteSpace(request.SearchText)) q.Append($"searchText={Uri.EscapeDataString(request.SearchText)}&");
+        if (!string.IsNullOrWhiteSpace(request.SortBy)) q.Append($"sortBy={Uri.EscapeDataString(request.SortBy)}&");
+        q.Append($"sortDesc={request.SortDesc}&");
+
+        IAsyncEnumerable<LogEntryModel?>? stream = null;
+        try
+        {
+            stream = _http.GetFromJsonAsAsyncEnumerable<LogEntryModel>(q.ToString(), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initiating log stream from {Url}", q.ToString());
+            yield break;
+        }
+
+        if (stream != null)
+        {
+            await foreach (var item in stream.WithCancellation(cancellationToken))
+            {
+                if (item != null) yield return item;
+            }
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Leave User Access Management (eLeaveCreateUserAccess.aspx)
+    // -------------------------------------------------------------
+
+    public async Task<List<EmployeeLookupModel>> GetLeaveAccessUsersAsync()
+    {
+        try
+        {
+            var res = await _http.GetFromJsonAsync<List<EmployeeLookupModel>>("api/Leave/user-access/users");
+            return res ?? new List<EmployeeLookupModel>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to call api/Leave/user-access/users");
+            return new List<EmployeeLookupModel>();
+        }
+    }
+
+    public async Task<LeaveUserAccessData?> GetLeaveUserAccessAsync(string userId)
+    {
+        try
+        {
+            var res = await _http.GetFromJsonAsync<LeaveUserAccessData>($"api/Leave/user-access?userId={Uri.EscapeDataString(userId)}");
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to call api/Leave/user-access for {UserId}", userId);
+            return null;
+        }
+    }
+
+    public async Task<(bool Success, string Message)> SaveLeaveUserAccessAsync(SaveLeaveUserAccessRequest request)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Leave/user-access/save", request);
+            if (res.IsSuccessStatusCode)
+            {
+                return (true, "User access permissions saved successfully.");
+            }
+            var err = await res.Content.ReadAsStringAsync();
+            return (false, $"Error saving user access: {err}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save leave user access");
+            return (false, ex.Message);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Leave Approval Level (eLeaveApprovalLevel.aspx)
+    // -------------------------------------------------------------
+
+    public async Task<List<LeaveApprovalLevelRow>> GetLeaveApprovalLevelsAsync(string? search = null)
+    {
+        try
+        {
+            var url = string.IsNullOrWhiteSpace(search) 
+                ? "api/Leave/approval-levels" 
+                : $"api/Leave/approval-levels?search={Uri.EscapeDataString(search)}";
+            var res = await _http.GetFromJsonAsync<List<LeaveApprovalLevelRow>>(url);
+            return res ?? new List<LeaveApprovalLevelRow>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to call api/Leave/approval-levels");
+            return new List<LeaveApprovalLevelRow>();
+        }
+    }
+
+    public async Task<(bool Success, string Message)> SaveLeaveApprovalLevelAsync(UpdateLeaveApprovalLevelRequest request)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Leave/approval-levels/save", request);
+            if (res.IsSuccessStatusCode)
+            {
+                return (true, "Approval level updated successfully.");
+            }
+            var err = await res.Content.ReadAsStringAsync();
+            return (false, $"Error saving approval level: {err}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save leave approval level");
+            return (false, ex.Message);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Leave Maintenance (eLeaveMaintenance.aspx)
+    // -------------------------------------------------------------
+
+    public async Task<List<LeaveUserGroupOption>> GetLeaveMaintenanceGroupsAsync()
+    {
+        try
+        {
+            var res = await _http.GetFromJsonAsync<List<LeaveUserGroupOption>>("api/Leave/maintenance-groups");
+            return res ?? new List<LeaveUserGroupOption>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to call api/Leave/maintenance-groups");
+            return new List<LeaveUserGroupOption>();
+        }
+    }
+
+    public async Task<LeaveMaintenanceData?> GetLeaveMaintenanceDataAsync(string? userGroupId = null)
+    {
+        try
+        {
+            var url = string.IsNullOrWhiteSpace(userGroupId)
+                ? "api/Leave/maintenance"
+                : $"api/Leave/maintenance?userGroupId={Uri.EscapeDataString(userGroupId)}";
+            var res = await _http.GetFromJsonAsync<LeaveMaintenanceData>(url);
+            return res;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to call api/Leave/maintenance for {UserGroupId}", userGroupId);
+            return null;
+        }
+    }
+
+    public async Task<(bool Success, string Message)> SaveLeaveMaintenanceAsync(UpdateLeaveMaintenanceRequest request)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Leave/maintenance/save", request);
+            if (res.IsSuccessStatusCode)
+            {
+                return (true, $"Leave configuration for '{request.Leave_ID}' updated successfully.");
+            }
+            var err = await res.Content.ReadAsStringAsync();
+            try
+            {
+                var jsonDoc = JsonDocument.Parse(err);
+                if (jsonDoc.RootElement.TryGetProperty("message", out var msgProp) || jsonDoc.RootElement.TryGetProperty("Message", out msgProp))
+                {
+                    return (false, msgProp.GetString() ?? err);
+                }
+            }
+            catch { }
+            return (false, $"Error saving leave maintenance: {err}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save leave maintenance configuration");
             return (false, ex.Message);
         }
     }

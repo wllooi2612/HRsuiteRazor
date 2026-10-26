@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
+using System.Data;
+using System.Data.Common;
 using System.Data.Odbc;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Hrsuite.WebApi.Models;
 using Hrsuite.WebApi.Helpers;
@@ -1792,7 +1795,9 @@ public class AdminController : ControllerBase
                     }
                 }
 
-                // 3. Query Paginated rows
+                // 3. Query Paginated rows using Deferred Join (延迟关联)
+                // For deep offsets (e.g. page 50+), this avoids loading huge LONGTEXT columns (Message & Exception)
+                // for the skipped rows, providing up to 100x faster execution for massive tables.
                 string sortCol = request.SortBy switch
                 {
                     "Id" => "`Id`",
@@ -1805,15 +1810,34 @@ public class AdminController : ControllerBase
 
                 using (var dataCmd = conn.CreateCommand())
                 {
-                    dataCmd.CommandText = $@"
-                        SELECT `Id`, `Date`, `Thread`, `Level`, `Logger`, `IP`, `ComputerName`, `UserID`, `PageName`, `Message`, `Exception`
-                        FROM `log`
-                        {whereSql}
-                        ORDER BY {sortCol} {sortDir}
-                        LIMIT @Offset, @Limit";
+                    if (offset > 0)
+                    {
+                        // Deferred Join query pattern
+                        dataCmd.CommandText = $@"
+                            SELECT l.`Id`, l.`Date`, l.`Thread`, l.`Level`, l.`Logger`, l.`IP`, l.`ComputerName`, l.`UserID`, l.`PageName`, l.`Message`, l.`Exception`
+                            FROM (
+                                SELECT `Id`
+                                FROM `log`
+                                {whereSql}
+                                ORDER BY {sortCol} {sortDir}
+                                LIMIT @Offset, @Limit
+                            ) p
+                            JOIN `log` l ON p.`Id` = l.`Id`
+                            ORDER BY l.{sortCol} {sortDir}";
+                    }
+                    else
+                    {
+                        // Direct limit for page 1
+                        dataCmd.CommandText = $@"
+                            SELECT `Id`, `Date`, `Thread`, `Level`, `Logger`, `IP`, `ComputerName`, `UserID`, `PageName`, `Message`, `Exception`
+                            FROM `log`
+                            {whereSql}
+                            ORDER BY {sortCol} {sortDir}
+                            LIMIT @Limit";
+                    }
 
                     foreach (var p in parameters) dataCmd.Parameters.Add(new MySqlParameter(p.ParameterName, p.Value));
-                    dataCmd.Parameters.AddWithValue("@Offset", offset);
+                    if (offset > 0) dataCmd.Parameters.AddWithValue("@Offset", offset);
                     dataCmd.Parameters.AddWithValue("@Limit", pageSize);
 
                     using var reader = await dataCmd.ExecuteReaderAsync();
@@ -1845,9 +1869,216 @@ public class AdminController : ControllerBase
         }
     }
 
-    [HttpPost("logs/seed-sample")]
-    public async Task<IActionResult> SeedSampleLogs([FromQuery] int count = 60)
+    // -------------------------------------------------------------
+    // HIGH-VOLUME ASYNC STREAMING LOG PIPELINE (IAsyncEnumerable)
+    // Low latency Time-To-First-Byte (TTFB) & constant O(1) memory
+    // -------------------------------------------------------------
+    [HttpGet("logs/stream")]
+    public async IAsyncEnumerable<LogEntryModel> StreamLogs(
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
+        [FromQuery] string level = "ALL",
+        [FromQuery] string? searchText = null,
+        [FromQuery] string? userId = null,
+        [FromQuery] string sortBy = "Date",
+        [FromQuery] bool sortDesc = true,
+        [FromQuery] int maxRows = 50000,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        string connStr = GetMySqlConnectionString();
+        using var conn = new MySqlConnection(connStr);
+        await conn.OpenAsync(cancellationToken);
+
+        var whereClauses = new List<string>();
+        var parameters = new List<MySqlParameter>();
+
+        if (dateFrom.HasValue)
+        {
+            whereClauses.Add("`Date` >= @DateFrom");
+            parameters.Add(new MySqlParameter("@DateFrom", dateFrom.Value.Date));
+        }
+
+        if (dateTo.HasValue)
+        {
+            whereClauses.Add("`Date` <= @DateTo");
+            parameters.Add(new MySqlParameter("@DateTo", dateTo.Value.Date.AddDays(1).AddSeconds(-1)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(level) && !level.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            whereClauses.Add("`Level` = @Level");
+            parameters.Add(new MySqlParameter("@Level", level.Trim().ToUpperInvariant()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            whereClauses.Add("`UserID` = @UserID");
+            parameters.Add(new MySqlParameter("@UserID", userId.Trim()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            whereClauses.Add("(`Message` LIKE @Search OR `UserID` LIKE @Search OR `IP` LIKE @Search OR `PageName` LIKE @Search OR `ComputerName` LIKE @Search OR `Exception` LIKE @Search)");
+            parameters.Add(new MySqlParameter("@Search", $"%{searchText.Trim()}%"));
+        }
+
+        string whereSql = whereClauses.Count > 0 ? " WHERE " + string.Join(" AND ", whereClauses) : "";
+        string sortCol = sortBy switch
+        {
+            "Id" => "`Id`",
+            "Level" => "`Level`",
+            "UserID" => "`UserID`",
+            "PageName" => "`PageName`",
+            _ => "`Date`"
+        };
+        string sortDir = sortDesc ? "DESC" : "ASC";
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $@"
+            SELECT `Id`, `Date`, `Thread`, `Level`, `Logger`, `IP`, `ComputerName`, `UserID`, `PageName`, `Message`, `Exception`
+            FROM `log`
+            {whereSql}
+            ORDER BY {sortCol} {sortDir}
+            LIMIT @Limit";
+
+        foreach (var p in parameters) cmd.Parameters.Add(new MySqlParameter(p.ParameterName, p.Value));
+        cmd.Parameters.AddWithValue("@Limit", Math.Clamp(maxRows, 1, 200000));
+
+        using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            yield return new LogEntryModel
+            {
+                Id = reader["Id"] is DBNull or null ? 0 : Convert.ToInt32(reader["Id"]),
+                Date = reader["Date"] is DBNull or null ? null : Convert.ToDateTime(reader["Date"]),
+                Thread = reader["Thread"]?.ToString() ?? "",
+                Level = reader["Level"]?.ToString() ?? "",
+                Logger = reader["Logger"]?.ToString() ?? "",
+                IP = reader["IP"]?.ToString() ?? "",
+                ComputerName = reader["ComputerName"]?.ToString() ?? "",
+                UserID = reader["UserID"]?.ToString() ?? "",
+                PageName = reader["PageName"]?.ToString() ?? "",
+                Message = reader["Message"]?.ToString() ?? "",
+                Exception = reader["Exception"]?.ToString() ?? ""
+            };
+        }
+    }
+
+    // -------------------------------------------------------------
+    // HIGH-VOLUME ASYNC STREAMING CSV EXPORT (O(1) Constant Memory)
+    // Streams up to 200,000+ logs directly across HTTP without RAM spikes
+    // -------------------------------------------------------------
+    [HttpGet("logs/export-stream")]
+    public async Task StreamExportLogs(
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
+        [FromQuery] string level = "ALL",
+        [FromQuery] string? searchText = null,
+        [FromQuery] string? userId = null,
+        [FromQuery] string sortBy = "Date",
+        [FromQuery] bool sortDesc = true,
+        [FromQuery] int maxRows = 100000,
+        CancellationToken cancellationToken = default)
+    {
+        Response.ContentType = "text/csv; charset=utf-8";
+        Response.Headers.Append("Content-Disposition", $"attachment; filename=\"AuditLogs_{DateTime.Now:yyyyMMdd_HHmmss}.csv\"");
+
+        await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, leaveOpen: true);
+        await writer.WriteLineAsync("ID,Date,Level,UserID,PageName,IP,ComputerName,Message");
+        await writer.FlushAsync(cancellationToken);
+
+        string connStr = GetMySqlConnectionString();
+        using var conn = new MySqlConnection(connStr);
+        await conn.OpenAsync(cancellationToken);
+
+        var whereClauses = new List<string>();
+        var parameters = new List<MySqlParameter>();
+
+        if (dateFrom.HasValue)
+        {
+            whereClauses.Add("`Date` >= @DateFrom");
+            parameters.Add(new MySqlParameter("@DateFrom", dateFrom.Value.Date));
+        }
+
+        if (dateTo.HasValue)
+        {
+            whereClauses.Add("`Date` <= @DateTo");
+            parameters.Add(new MySqlParameter("@DateTo", dateTo.Value.Date.AddDays(1).AddSeconds(-1)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(level) && !level.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            whereClauses.Add("`Level` = @Level");
+            parameters.Add(new MySqlParameter("@Level", level.Trim().ToUpperInvariant()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            whereClauses.Add("`UserID` = @UserID");
+            parameters.Add(new MySqlParameter("@UserID", userId.Trim()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            whereClauses.Add("(`Message` LIKE @Search OR `UserID` LIKE @Search OR `IP` LIKE @Search OR `PageName` LIKE @Search OR `ComputerName` LIKE @Search OR `Exception` LIKE @Search)");
+            parameters.Add(new MySqlParameter("@Search", $"%{searchText.Trim()}%"));
+        }
+
+        string whereSql = whereClauses.Count > 0 ? " WHERE " + string.Join(" AND ", whereClauses) : "";
+        string sortCol = sortBy switch
+        {
+            "Id" => "`Id`",
+            "Level" => "`Level`",
+            "UserID" => "`UserID`",
+            "PageName" => "`PageName`",
+            _ => "`Date`"
+        };
+        string sortDir = sortDesc ? "DESC" : "ASC";
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $@"
+            SELECT `Id`, `Date`, `Level`, `UserID`, `PageName`, `IP`, `ComputerName`, `Message`
+            FROM `log`
+            {whereSql}
+            ORDER BY {sortCol} {sortDir}
+            LIMIT @Limit";
+
+        foreach (var p in parameters) cmd.Parameters.Add(new MySqlParameter(p.ParameterName, p.Value));
+        cmd.Parameters.AddWithValue("@Limit", Math.Clamp(maxRows, 1, 200000));
+
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        int count = 0;
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var id = reader["Id"]?.ToString() ?? "";
+            var date = reader["Date"] is DBNull or null ? "" : Convert.ToDateTime(reader["Date"]).ToString("yyyy-MM-dd HH:mm:ss");
+            var lvl = EscapeCsvCell(reader["Level"]?.ToString());
+            var usr = EscapeCsvCell(reader["UserID"]?.ToString());
+            var pg = EscapeCsvCell(reader["PageName"]?.ToString());
+            var ip = EscapeCsvCell(reader["IP"]?.ToString());
+            var comp = EscapeCsvCell(reader["ComputerName"]?.ToString());
+            var msg = EscapeCsvCell(reader["Message"]?.ToString());
+
+            await writer.WriteLineAsync($"{id},{date},{lvl},{usr},{pg},{ip},{comp},{msg}");
+            count++;
+            if (count % 250 == 0)
+            {
+                await writer.FlushAsync(cancellationToken);
+            }
+        }
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private static string EscapeCsvCell(string? val)
+    {
+        if (string.IsNullOrEmpty(val)) return "\"\"";
+        return "\"" + val.Replace("\"", "\"\"").Replace("\r\n", " ").Replace("\n", " ") + "\"";
+    }
+
+    [HttpPost("logs/seed-sample")]
+    public async Task<IActionResult> SeedSampleLogs([FromQuery] int count = 100)
+    {
+        count = Math.Clamp(count, 1, 50000);
         string connStr = GetMySqlConnectionString();
         var sampleLevels = new[] { "INFO", "INFO", "INFO", "WARN", "ERROR" };
         var samplePages = new[] { "General.aspx", "logViewer.aspx", "UserManage.aspx", "eLeaveDefault.aspx", "eOTDefault.aspx", "login.aspx" };
@@ -1870,29 +2101,23 @@ public class AdminController : ControllerBase
             using (var conn = new MySqlConnection(connStr))
             {
                 await conn.OpenAsync();
-                using var trans = await conn.BeginTransactionAsync();
 
-                using (var cmd = conn.CreateCommand())
+                DateTime baseTime = DateTime.Now;
+                int remaining = count;
+                int batchSize = 250;
+
+                while (remaining > 0)
                 {
-                    cmd.Transaction = trans;
-                    cmd.CommandText = @"
-                        INSERT INTO `log` (`Date`, `Thread`, `Level`, `Logger`, `IP`, `ComputerName`, `UserID`, `PageName`, `Message`, `Exception`)
-                        VALUES (@Date, @Thread, @Level, @Logger, @IP, @ComputerName, @UserID, @PageName, @Message, @Exception)";
+                    int currentBatch = Math.Min(remaining, batchSize);
+                    using var cmd = conn.CreateCommand();
+                    var sb = new StringBuilder();
+                    sb.Append("INSERT INTO `log` (`Date`, `Thread`, `Level`, `Logger`, `IP`, `ComputerName`, `UserID`, `PageName`, `Message`, `Exception`) VALUES ");
 
-                    var pDate = cmd.Parameters.Add("@Date", MySqlDbType.DateTime);
-                    var pThread = cmd.Parameters.Add("@Thread", MySqlDbType.VarChar);
-                    var pLevel = cmd.Parameters.Add("@Level", MySqlDbType.VarChar);
-                    var pLogger = cmd.Parameters.Add("@Logger", MySqlDbType.VarChar);
-                    var pIP = cmd.Parameters.Add("@IP", MySqlDbType.VarChar);
-                    var pComp = cmd.Parameters.Add("@ComputerName", MySqlDbType.VarChar);
-                    var pUser = cmd.Parameters.Add("@UserID", MySqlDbType.VarChar);
-                    var pPage = cmd.Parameters.Add("@PageName", MySqlDbType.VarChar);
-                    var pMsg = cmd.Parameters.Add("@Message", MySqlDbType.LongText);
-                    var pEx = cmd.Parameters.Add("@Exception", MySqlDbType.LongText);
-
-                    DateTime baseTime = DateTime.Now;
-                    for (int i = 0; i < count; i++)
+                    for (int i = 0; i < currentBatch; i++)
                     {
+                        if (i > 0) sb.Append(", ");
+                        sb.Append($"(@Date{i}, @Thread{i}, @Level{i}, @Logger{i}, @IP{i}, @ComputerName{i}, @UserID{i}, @PageName{i}, @Message{i}, @Exception{i})");
+
                         var lvl = sampleLevels[rng.Next(sampleLevels.Length)];
                         var user = sampleUsers[rng.Next(sampleUsers.Length)];
                         var page = samplePages[rng.Next(samplePages.Length)];
@@ -1902,25 +2127,25 @@ public class AdminController : ControllerBase
                         var msg = string.Format(rawMsg, user, ip, comp);
                         string ex = lvl == "ERROR" ? "System.InvalidOperationException: Operation timed out or failed to commit transaction.\n   at Hrsuite.BLL_Class.ProcessTransaction(Int32 id)\n   at Hrsuite.WebApi.Controllers.AdminController" : "";
 
-                        pDate.Value = baseTime.AddMinutes(-rng.Next(0, 7200)); // Within last 5 days
-                        pThread.Value = rng.Next(1, 24).ToString();
-                        pLevel.Value = lvl;
-                        pLogger.Value = $"Hrsuite.{page.Replace(".aspx", "")}";
-                        pIP.Value = ip;
-                        pComp.Value = comp;
-                        pUser.Value = user;
-                        pPage.Value = page;
-                        pMsg.Value = msg;
-                        pEx.Value = ex;
-
-                        await cmd.ExecuteNonQueryAsync();
+                        cmd.Parameters.AddWithValue($"@Date{i}", baseTime.AddMinutes(-rng.Next(0, 7200)));
+                        cmd.Parameters.AddWithValue($"@Thread{i}", rng.Next(1, 24).ToString());
+                        cmd.Parameters.AddWithValue($"@Level{i}", lvl);
+                        cmd.Parameters.AddWithValue($"@Logger{i}", $"Hrsuite.{page.Replace(".aspx", "")}");
+                        cmd.Parameters.AddWithValue($"@IP{i}", ip);
+                        cmd.Parameters.AddWithValue($"@ComputerName{i}", comp);
+                        cmd.Parameters.AddWithValue($"@UserID{i}", user);
+                        cmd.Parameters.AddWithValue($"@PageName{i}", page);
+                        cmd.Parameters.AddWithValue($"@Message{i}", msg);
+                        cmd.Parameters.AddWithValue($"@Exception{i}", ex);
                     }
-                }
 
-                await trans.CommitAsync();
+                    cmd.CommandText = sb.ToString();
+                    await cmd.ExecuteNonQueryAsync();
+                    remaining -= currentBatch;
+                }
             }
 
-            return Ok(new { Success = true, Message = $"Successfully seeded {count} sample logs into database table `log`." });
+            return Ok(new { Success = true, Message = $"Successfully seeded {count} sample logs into database table `log` via fast batch insert." });
         }
         catch (Exception ex)
         {

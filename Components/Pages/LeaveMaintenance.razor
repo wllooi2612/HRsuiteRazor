@@ -1,0 +1,992 @@
+@page "/leaves/maintenance"
+@page "/leaves/leave-maintenance"
+@page "/eleavemaintenance"
+@page "/eLeave/eLeaveMaintenance.aspx"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>Leave Maintenance - HRsuite</PageTitle>
+
+<div class="maintenance-container pb-5">
+    <!-- Top Header Bar -->
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" 
+                    @onclick='() => NavManager.NavigateTo("leaves")' title="Back to Leave Portal">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <h5 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="maintenance-icon-badge" style="width: 32px; height: 32px; font-size: 1.1rem;">
+                    <i class="bi bi-gear-wide-connected"></i>
+                </span>
+                <span>Leave Maintenance Configuration</span>
+            </h5>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 extra-small fw-bold text-muted text-nowrap">Select User Group ID:</label>
+                <select class="form-select form-select-sm" style="min-width: 260px; max-width: 320px;" 
+                        value="@selectedGroupId" @onchange="OnGroupChanged">
+                    @foreach (var g in userGroups)
+                    {
+                        <option value="@g.UserGroupID">@g.DisplayText</option>
+                    }
+                </select>
+            </div>
+
+            <button class="btn btn-sm btn-outline-secondary py-1 px-3 extra-small d-flex align-items-center gap-1" 
+                    @onclick="() => LoadDataAsync(selectedGroupId)" disabled="@isLoading" title="Refresh List">
+                <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                <span>Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Alert Notification -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3 rounded-3" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-5"></i>
+            <div class="flex-grow-1 extra-small">@statusMessage</div>
+            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Search & Summary Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+        <div class="card-body p-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold extra-small text-secondary text-uppercase tracking-wider">
+                    <i class="bi bi-sliders text-info me-1"></i> Leave Policy Matrix
+                </span>
+                <span class="badge bg-light text-muted border extra-small">
+                    Group: <strong class="text-dark">@selectedGroupId</strong>
+                </span>
+                <span class="badge bg-light text-muted border extra-small">
+                    Total: @FilteredRows.Count() Leave Type(s)
+                </span>
+            </div>
+
+            <!-- In-page Search Box -->
+            <div class="input-group input-group-sm" style="max-width: 320px;">
+                <span class="input-group-text bg-light border-end-0 text-muted">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input type="text" class="form-control border-start-0 bg-light extra-small" 
+                       placeholder="Search Leave ID, Description..." 
+                       @bind="searchQuery" @bind:event="oninput" />
+                @if (!string.IsNullOrWhiteSpace(searchQuery))
+                {
+                    <button class="btn btn-light border border-start-0 text-muted" type="button" @onclick='() => searchQuery = ""'>
+                        <i class="bi bi-x-circle-fill"></i>
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    @if (isLoading)
+    {
+        <div class="card border-0 shadow-sm rounded-3 p-5 text-center bg-white">
+            <div class="spinner-border text-info mx-auto mb-2" role="status" style="width: 2.2rem; height: 2.2rem;"></div>
+            <span class="text-muted extra-small">Loading Leave Maintenance records...</span>
+        </div>
+    }
+    else if (!FilteredRows.Any())
+    {
+        <div class="card border-0 shadow-sm rounded-3 p-5 text-center bg-white">
+            <i class="bi bi-inbox text-muted fs-1 mb-2"></i>
+            <h6 class="fw-bold text-dark mb-1">No Leave Records Found</h6>
+            <p class="text-muted extra-small mb-0">No leave configurations match the selected User Group or search criteria.</p>
+        </div>
+    }
+    else
+    {
+        <!-- Main Data Grid Table with Two-Tier Headers -->
+        <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white">
+            <div class="table-responsive" style="max-height: 680px;">
+                <table class="table table-hover table-bordered table-sm mb-0 extra-small align-middle text-nowrap matrix-table">
+                    <!-- Two-Tier Header -->
+                    <thead class="sticky-top">
+                        <!-- Top Header Row -->
+                        <tr class="table-header-top">
+                            <th rowspan="2" class="text-center align-middle" style="width: 70px;">ACTION</th>
+                            <th rowspan="2" class="text-center align-middle" style="width: 65px;">SELECT</th>
+                            <th rowspan="2" class="align-middle" style="width: 100px;">GROUP ID</th>
+                            <th rowspan="2" class="align-middle" style="width: 90px;">LEAVE ID</th>
+                            <th rowspan="2" class="align-middle" style="min-width: 170px;">DESCRIPTION</th>
+                            <th rowspan="2" class="text-center align-middle" style="width: 95px;">BAL COUNT</th>
+                            <th rowspan="2" class="text-center align-middle" style="width: 110px;">INDIRECT ID</th>
+                            <th rowspan="2" class="text-center align-middle" style="width: 95px;">1ST YR BLOCK</th>
+                            <th rowspan="2" class="text-center align-middle" style="width: 90px;">STOP 1/2 DAY</th>
+                            <th rowspan="2" class="text-center align-middle" style="width: 85px;">E-SYSTEM</th>
+                            <th rowspan="2" class="align-middle" style="min-width: 160px;">INCLUDE DAYS</th>
+                            <th rowspan="2" class="text-center align-middle" style="width: 95px;">ATTACH FILE</th>
+                            <th colspan="6" class="text-center align-middle header-band-special">
+                                SPECIAL APPROVAL SETTING BY LEAVE ID
+                            </th>
+                        </tr>
+                        <!-- Sub Header Row -->
+                        <tr class="table-header-sub">
+                            <th class="text-center" style="width: 80px;">SPECIAL APP</th>
+                            <th style="min-width: 90px;">APP 1</th>
+                            <th style="min-width: 90px;">APP 2</th>
+                            <th style="min-width: 90px;">APP 3</th>
+                            <th class="text-center" style="width: 60px;">APP NO</th>
+                            <th style="min-width: 110px;">LEVEL TYPE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in FilteredRows)
+                        {
+                            <tr class="@(row.Display == "Y" ? "row-active-leave" : "")">
+                                <!-- Action -->
+                                <td class="text-center">
+                                    <button class="btn btn-outline-primary btn-xs py-1 px-2 fw-semibold d-inline-flex align-items-center gap-1"
+                                            @onclick="() => OpenEditModal(row)">
+                                        <i class="bi bi-pencil-square"></i>
+                                        <span>Edit</span>
+                                    </button>
+                                </td>
+
+                                <!-- Select (Display) -->
+                                <td class="text-center">
+                                    @if (row.Display == "Y")
+                                    {
+                                        <span class="badge bg-success py-1 px-2">YES</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border py-1 px-2">NO</span>
+                                    }
+                                </td>
+
+                                <!-- Group ID -->
+                                <td>
+                                    <span class="badge bg-secondary-subtle text-secondary font-monospace">@row.UserGroupID</span>
+                                </td>
+
+                                <!-- Leave ID -->
+                                <td>
+                                    <span class="fw-bold text-dark font-monospace">@row.Leave_ID</span>
+                                </td>
+
+                                <!-- Description -->
+                                <td>
+                                    <span class="fw-semibold text-dark">@row.Description</span>
+                                </td>
+
+                                <!-- BalCount -->
+                                <td class="text-center">
+                                    @if (row.BalCount == "Y")
+                                    {
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">YES</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border">NO</span>
+                                    }
+                                </td>
+
+                                <!-- IndirectLeaveID -->
+                                <td class="text-center">
+                                    @if (!string.IsNullOrWhiteSpace(row.IndirectLeaveID))
+                                    {
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle font-monospace">
+                                            @row.IndirectLeaveID
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+
+                                <!-- LeaveFirstYearNotAllow -->
+                                <td class="text-center">
+                                    @if (row.LeaveFirstYearNotAllow == "Y")
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle">YES</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border">NO</span>
+                                    }
+                                </td>
+
+                                <!-- StopHalfDay -->
+                                <td class="text-center">
+                                    @if (row.StopHalfDay == "Y")
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">YES</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border">NO</span>
+                                    }
+                                </td>
+
+                                <!-- Follow Esystem -->
+                                <td class="text-center">
+                                    @if (row.FollowEsystem == "Y")
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">YES</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border">NO</span>
+                                    }
+                                </td>
+
+                                <!-- IncludeDay -->
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(row.IncludeDay))
+                                    {
+                                        <span class="text-dark extra-small" title="@row.IncludeDay">
+                                            @row.IncludeDay
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">None</span>
+                                    }
+                                </td>
+
+                                <!-- Compulsory Attach -->
+                                <td class="text-center">
+                                    @if (row.CompulsoryAttach == "Y")
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">YES</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border">NO</span>
+                                    }
+                                </td>
+
+                                <!-- Special Approval Setting -->
+                                <td class="text-center">
+                                    @if (row.SpecialApproval == "Y")
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">YES</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border">NO</span>
+                                    }
+                                </td>
+
+                                <!-- App 1 -->
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(row.App1))
+                                    {
+                                        <span class="badge bg-light text-dark border font-monospace" title="@row.App1Name">
+                                            @row.App1
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+
+                                <!-- App 2 -->
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(row.App2))
+                                    {
+                                        <span class="badge bg-light text-dark border font-monospace" title="@row.App2Name">
+                                            @row.App2
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+
+                                <!-- App 3 -->
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(row.App3))
+                                    {
+                                        <span class="badge bg-light text-dark border font-monospace" title="@row.App3Name">
+                                            @row.App3
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+
+                                <!-- App No -->
+                                <td class="text-center">
+                                    <span class="badge bg-light text-secondary border">@row.AppNo</span>
+                                </td>
+
+                                <!-- Level Type -->
+                                <td>
+                                    @if (row.SpecialApproval == "Y")
+                                    {
+                                        <span class="badge bg-info-subtle text-dark border">@row.AppLevelName</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer bg-light py-2 px-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span class="extra-small text-muted">
+                    Tip: Click <strong>Edit</strong> on any leave row to configure balance deduction, allowed days, and special approvers.
+                </span>
+                <span class="extra-small text-muted">
+                    Total: <strong>@FilteredRows.Count()</strong> item(s) displayed
+                </span>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- ====================================================================== -->
+<!-- EDIT MODAL DIALOG (Matching eLeaveMaintenance.aspx EditForm)           -->
+<!-- ====================================================================== -->
+@if (showEditModal && editItem != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.55);" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content shadow-lg border-0 rounded-3">
+                <!-- Modal Header -->
+                <div class="modal-header py-2 px-3 bg-white border-bottom align-items-center">
+                    <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0">
+                        <i class="bi bi-pencil-square text-primary"></i>
+                        <span>Edit Leave ID Maintenance:</span>
+                        <span class="badge bg-primary-subtle text-primary font-monospace">@editItem.Leave_ID</span>
+                        <span class="text-secondary">- @editItem.Description</span>
+                        <span class="badge bg-secondary-subtle text-secondary ms-1">Group: @editItem.UserGroupID</span>
+                    </h6>
+                    <button type="button" class="btn-close extra-small" @onclick="CloseEditModal" disabled="@isSaving"></button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="modal-body p-3">
+                    @if (!string.IsNullOrEmpty(modalErrorMessage))
+                    {
+                        <div class="alert alert-danger py-2 px-3 extra-small mb-3 d-flex align-items-center gap-2 rounded-2">
+                            <i class="bi bi-exclamation-octagon-fill text-danger fs-6"></i>
+                            <div>@modalErrorMessage</div>
+                        </div>
+                    }
+
+                    <!-- Section 1: Leave Balance Detail -->
+                    <div class="card border border-light-subtle rounded-3 mb-3">
+                        <div class="card-header py-2 px-3 bg-light border-bottom d-flex align-items-center gap-2">
+                            <i class="bi bi-card-checklist text-primary"></i>
+                            <span class="fw-bold extra-small text-dark text-uppercase">1. Leave Balance Detail</span>
+                        </div>
+                        <div class="card-body p-3">
+                            <div class="row g-3">
+                                <!-- Select Leave (Display) -->
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="chkDisplay" 
+                                               checked="@(editItem.Display == "Y")" 
+                                               @onchange='(e) => editItem.Display = ((bool)e.Value!) ? "Y" : "N"' />
+                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkDisplay">
+                                            Select Leave (Enable)
+                                        </label>
+                                    </div>
+                                    <div class="extra-small text-muted ms-4">Leave ID active under this group</div>
+                                </div>
+
+                                <!-- Leave Balance Count -->
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="chkBalCount" 
+                                               checked="@(editItem.BalCount == "Y")" 
+                                               @onchange='(e) => editItem.BalCount = ((bool)e.Value!) ? "Y" : "N"' />
+                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkBalCount">
+                                            Leave Balance Count
+                                        </label>
+                                    </div>
+                                    <div class="extra-small text-muted ms-4">Include in balance count &amp; deduction</div>
+                                </div>
+
+                                <!-- Compulsory Attach -->
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="chkCompulsoryAttach" 
+                                               checked="@(editItem.CompulsoryAttach == "Y")" 
+                                               @onchange='(e) => editItem.CompulsoryAttach = ((bool)e.Value!) ? "Y" : "N"' />
+                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkCompulsoryAttach">
+                                            Compulsory Attach
+                                        </label>
+                                    </div>
+                                    <div class="extra-small text-muted ms-4">Require document file upload</div>
+                                </div>
+
+                                <!-- Stop HalfDay -->
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="chkStopHalfDay" 
+                                               checked="@(editItem.StopHalfDay == "Y")" 
+                                               @onchange='(e) => editItem.StopHalfDay = ((bool)e.Value!) ? "Y" : "N"' />
+                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkStopHalfDay">
+                                            Stop HalfDay
+                                        </label>
+                                    </div>
+                                    <div class="extra-small text-muted ms-4">Disallow half-day leave applications</div>
+                                </div>
+
+                                <!-- Follow Esystem -->
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="chkFollowEsystem" 
+                                               checked="@(editItem.FollowEsystem == "Y")" 
+                                               @onchange='(e) => editItem.FollowEsystem = ((bool)e.Value!) ? "Y" : "N"' />
+                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkFollowEsystem">
+                                            Follow Esystem
+                                        </label>
+                                    </div>
+                                    <div class="extra-small text-muted ms-4">Follow Esystem holidays/rules</div>
+                                </div>
+
+                                <!-- Indirect Leave ID -->
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label extra-small fw-semibold text-dark mb-1">Indirect Leave ID:</label>
+                                    <select class="form-select form-select-sm" @bind="editItem.IndirectLeaveID">
+                                        <option value="">-- None / Standard --</option>
+                                        @foreach (var lt in availableLeaveTypes)
+                                        {
+                                            <option value="@lt.Code">@lt.Code - @lt.Name</option>
+                                        }
+                                    </select>
+                                    <div class="extra-small text-muted mt-1">Converts to payroll leave (e.g. AL / L01P)</div>
+                                </div>
+
+                                <!-- Including Days -->
+                                <div class="col-12">
+                                    <label class="form-label extra-small fw-semibold text-dark mb-1">
+                                        Including Days <span class="text-muted fw-normal">(Tick days that count towards leave duration)</span>:
+                                    </label>
+                                    <div class="d-flex flex-wrap gap-3 p-2 bg-light rounded-2 border">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="chkMon" 
+                                                   checked="@(editItem.Monday == "Y")" 
+                                                   @onchange='(e) => editItem.Monday = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small" for="chkMon">Monday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="chkTue" 
+                                                   checked="@(editItem.Tuesday == "Y")" 
+                                                   @onchange='(e) => editItem.Tuesday = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small" for="chkTue">Tuesday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="chkWed" 
+                                                   checked="@(editItem.Wednesday == "Y")" 
+                                                   @onchange='(e) => editItem.Wednesday = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small" for="chkWed">Wednesday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="chkThu" 
+                                                   checked="@(editItem.Thursday == "Y")" 
+                                                   @onchange='(e) => editItem.Thursday = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small" for="chkThu">Thursday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="chkFri" 
+                                                   checked="@(editItem.Friday == "Y")" 
+                                                   @onchange='(e) => editItem.Friday = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small" for="chkFri">Friday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="chkSat" 
+                                                   checked="@(editItem.Saturday == "Y")" 
+                                                   @onchange='(e) => editItem.Saturday = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small" for="chkSat">Saturday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="chkSun" 
+                                                   checked="@(editItem.Sunday == "Y")" 
+                                                   @onchange='(e) => editItem.Sunday = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small" for="chkSun">Sunday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="chkHoliday" 
+                                                   checked="@(editItem.Restday == "Y")" 
+                                                   @onchange='(e) => editItem.Restday = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small fw-semibold text-danger" for="chkHoliday">Holiday / Rest Day</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Not allow to apply Leave within 1 year -->
+                                <div class="col-12">
+                                    <label class="form-label extra-small fw-semibold text-dark mb-1">
+                                        Not allow to apply Leave within 1 year:
+                                    </label>
+                                    <div class="d-flex align-items-center gap-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="rdo1stYear" id="rdo1stYearYes" 
+                                                   value="Y" checked="@(editItem.LeaveFirstYearNotAllow == "Y")" 
+                                                   @onchange='() => editItem.LeaveFirstYearNotAllow = "Y"' />
+                                            <label class="form-check-label extra-small fw-semibold" for="rdo1stYearYes">Yes</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="rdo1stYear" id="rdo1stYearNo" 
+                                                   value="N" checked="@(editItem.LeaveFirstYearNotAllow == "N")" 
+                                                   @onchange='() => editItem.LeaveFirstYearNotAllow = "N"' />
+                                            <label class="form-check-label extra-small fw-semibold" for="rdo1stYearNo">No</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Special Setting for Approval -->
+                    <div class="card border border-warning-subtle rounded-3" style="background-color: #fffdf5;">
+                        <div class="card-header py-2 px-3 border-bottom d-flex align-items-center justify-content-between" style="background-color: #fef7db;">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-people-fill text-warning"></i>
+                                <span class="fw-bold extra-small text-dark text-uppercase">
+                                    2. Special Setting for Approval (For this Leave Group)
+                                </span>
+                            </div>
+
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="chkFollowSpecialApp" 
+                                       checked="@(editItem.SpecialApproval == "Y")" 
+                                       @onchange='(e) => editItem.SpecialApproval = ((bool)e.Value!) ? "Y" : "N"' />
+                                <label class="form-check-label extra-small fw-bold text-dark" for="chkFollowSpecialApp">
+                                    Follow Special Approval
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="card-body p-3">
+                            <div class="row g-3">
+                                <!-- App 1 -->
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 1:</label>
+                                    <select class="form-select form-select-sm" @bind="editItem.App1" disabled="@(editItem.SpecialApproval != "Y")">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.ID">@u.ID - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <!-- App 2 -->
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 2:</label>
+                                    <select class="form-select form-select-sm" @bind="editItem.App2" disabled="@(editItem.SpecialApproval != "Y")">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.ID">@u.ID - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <!-- App 3 -->
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Approval 3:</label>
+                                    <select class="form-select form-select-sm" @bind="editItem.App3" disabled="@(editItem.SpecialApproval != "Y")">
+                                        <option value="">-- None / Empty --</option>
+                                        @foreach (var u in usersList)
+                                        {
+                                            <option value="@u.ID">@u.ID - @u.Name</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <!-- Level Type -->
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted mb-1">Level Type:</label>
+                                    <select class="form-select form-select-sm" @bind="editItem.AppLevel" disabled="@(editItem.SpecialApproval != "Y")">
+                                        <option value="1">1 - ALL (All approvers must approve)</option>
+                                        <option value="2">2 - One Of Them (Any one approver approves)</option>
+                                        <option value="3">3 - Two Of Them with one compulsory approval (App3 compulsory)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="modal-footer py-2 px-3 bg-light border-top d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm extra-small px-3" 
+                            @onclick="CloseEditModal" disabled="@isSaving">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm extra-small px-4 fw-semibold d-inline-flex align-items-center gap-1" 
+                            @onclick="SaveEditModalAsync" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save me-1"></i>
+                            <span>Update Leave ID</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string? statusMessage;
+    private bool isSuccess = true;
+    private string searchQuery = string.Empty;
+
+    private string selectedGroupId = "Admin";
+    private List<LeaveUserGroupOption> userGroups = new();
+    private List<LeaveMaintenanceRow> rows = new();
+    private List<EmployeeLookupModel> usersList = new();
+    private List<LeaveTypeLookup> availableLeaveTypes = new();
+
+    // Modal state
+    private bool showEditModal = false;
+    private LeaveMaintenanceRow? editItem;
+    private string? modalErrorMessage;
+
+    private IEnumerable<LeaveMaintenanceRow> FilteredRows
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchQuery)) return rows;
+            var q = searchQuery.Trim().ToLower();
+            return rows.Where(r => 
+                (r.Leave_ID?.ToLower().Contains(q) ?? false) ||
+                (r.Description?.ToLower().Contains(q) ?? false) ||
+                (r.IndirectLeaveID?.ToLower().Contains(q) ?? false) ||
+                (r.App1?.ToLower().Contains(q) ?? false) ||
+                (r.App1Name?.ToLower().Contains(q) ?? false) ||
+                (r.App2?.ToLower().Contains(q) ?? false) ||
+                (r.App2Name?.ToLower().Contains(q) ?? false) ||
+                (r.App3?.ToLower().Contains(q) ?? false) ||
+                (r.App3Name?.ToLower().Contains(q) ?? false)
+            );
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task OnGroupChanged(ChangeEventArgs e)
+    {
+        selectedGroupId = e.Value?.ToString() ?? "";
+        await LoadDataAsync(selectedGroupId);
+    }
+
+    private async Task LoadDataAsync(string? groupId = null)
+    {
+        isLoading = true;
+        try
+        {
+            var data = await ApiClient.GetLeaveMaintenanceDataAsync(groupId ?? selectedGroupId);
+            if (data != null)
+            {
+                userGroups = data.UserGroups;
+                usersList = data.Users;
+                availableLeaveTypes = data.AvailableLeaveTypes;
+                rows = data.Rows;
+
+                if (!string.IsNullOrEmpty(groupId))
+                {
+                    selectedGroupId = groupId;
+                }
+                else if (userGroups.Count > 0 && !userGroups.Any(g => g.UserGroupID.Equals(selectedGroupId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    selectedGroupId = userGroups[0].UserGroupID;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Failed to load leave maintenance data: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenEditModal(LeaveMaintenanceRow row)
+    {
+        modalErrorMessage = null;
+        // Deep copy row for safe editing
+        editItem = new LeaveMaintenanceRow
+        {
+            UserGroupID = row.UserGroupID,
+            Leave_ID = row.Leave_ID,
+            Description = row.Description,
+            Display = row.Display,
+            BalCount = row.BalCount,
+            IndirectLeaveID = row.IndirectLeaveID,
+            LeaveFirstYearNotAllow = row.LeaveFirstYearNotAllow,
+            StopHalfDay = row.StopHalfDay,
+            FollowEsystem = row.FollowEsystem,
+            CompulsoryAttach = row.CompulsoryAttach,
+            Monday = row.Monday,
+            Tuesday = row.Tuesday,
+            Wednesday = row.Wednesday,
+            Thursday = row.Thursday,
+            Friday = row.Friday,
+            Saturday = row.Saturday,
+            Sunday = row.Sunday,
+            Restday = row.Restday,
+            IncludeDay = row.IncludeDay,
+            SpecialApproval = row.SpecialApproval,
+            App1 = row.App1,
+            App1Name = row.App1Name,
+            App2 = row.App2,
+            App2Name = row.App2Name,
+            App3 = row.App3,
+            App3Name = row.App3Name,
+            AppNo = row.AppNo,
+            AppLevel = row.AppLevel
+        };
+        showEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+        editItem = null;
+        modalErrorMessage = null;
+    }
+
+    private async Task SaveEditModalAsync()
+    {
+        if (editItem == null) return;
+        modalErrorMessage = null;
+
+        // Client-side validations matching legacy eLeaveMaintenance.aspx.vb
+        if (editItem.SpecialApproval == "Y")
+        {
+            string a1 = editItem.App1?.Trim() ?? "";
+            string a2 = editItem.App2?.Trim() ?? "";
+            string a3 = editItem.App3?.Trim() ?? "";
+            int level = editItem.AppLevel ?? 1;
+
+            if (level == 1 || level == 2)
+            {
+                if (string.IsNullOrEmpty(a1) && !string.IsNullOrEmpty(a2))
+                {
+                    modalErrorMessage = "Error! App1 must fill in before App2.";
+                    return;
+                }
+                if (string.IsNullOrEmpty(a2) && !string.IsNullOrEmpty(a3))
+                {
+                    modalErrorMessage = "Error! App2 must fill in before App3.";
+                    return;
+                }
+                if (!string.IsNullOrEmpty(a1) && !string.IsNullOrEmpty(a2) && a1.Equals(a2, StringComparison.OrdinalIgnoreCase))
+                {
+                    modalErrorMessage = "Error! App1 and App2 not allow same person.";
+                    return;
+                }
+                if (!string.IsNullOrEmpty(a1) && !string.IsNullOrEmpty(a3) && a1.Equals(a3, StringComparison.OrdinalIgnoreCase))
+                {
+                    modalErrorMessage = "Error! App1 and App3 not allow same person.";
+                    return;
+                }
+                if (!string.IsNullOrEmpty(a2) && !string.IsNullOrEmpty(a3) && a2.Equals(a3, StringComparison.OrdinalIgnoreCase))
+                {
+                    modalErrorMessage = "Error! App2 and App3 not allow same person.";
+                    return;
+                }
+            }
+            else if (level == 3)
+            {
+                if (string.IsNullOrEmpty(a1) && string.IsNullOrEmpty(a2))
+                {
+                    modalErrorMessage = "Error! You must select App1 or App2.";
+                    return;
+                }
+                if (string.IsNullOrEmpty(a3))
+                {
+                    modalErrorMessage = "Error! App3 is compulsory approval and not allow empty.";
+                    return;
+                }
+                if (!string.IsNullOrEmpty(a1) && !string.IsNullOrEmpty(a2) && a1.Equals(a2, StringComparison.OrdinalIgnoreCase))
+                {
+                    modalErrorMessage = "Error! App1 and App2 not allow same person.";
+                    return;
+                }
+                if (!string.IsNullOrEmpty(a1) && !string.IsNullOrEmpty(a3) && a1.Equals(a3, StringComparison.OrdinalIgnoreCase))
+                {
+                    modalErrorMessage = "Error! App1 and App3 not allow same person.";
+                    return;
+                }
+                if (!string.IsNullOrEmpty(a2) && !string.IsNullOrEmpty(a3) && a2.Equals(a3, StringComparison.OrdinalIgnoreCase))
+                {
+                    modalErrorMessage = "Error! App2 and App3 not allow same person.";
+                    return;
+                }
+            }
+        }
+
+        // Indirect leave ID validation
+        if (!string.IsNullOrEmpty(editItem.IndirectLeaveID) && editItem.IndirectLeaveID.Equals(editItem.Leave_ID, StringComparison.OrdinalIgnoreCase))
+        {
+            modalErrorMessage = $"Error! Indirect leave ID not allow equal to Leave ID: {editItem.Leave_ID}.";
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var req = new UpdateLeaveMaintenanceRequest
+            {
+                UserGroupID = editItem.UserGroupID,
+                Leave_ID = editItem.Leave_ID,
+                Description = editItem.Description,
+                Display = editItem.Display,
+                BalCount = editItem.BalCount,
+                IndirectLeaveID = editItem.IndirectLeaveID,
+                LeaveFirstYearNotAllow = editItem.LeaveFirstYearNotAllow,
+                StopHalfDay = editItem.StopHalfDay,
+                FollowEsystem = editItem.FollowEsystem,
+                CompulsoryAttach = editItem.CompulsoryAttach,
+                Monday = editItem.Monday,
+                Tuesday = editItem.Tuesday,
+                Wednesday = editItem.Wednesday,
+                Thursday = editItem.Thursday,
+                Friday = editItem.Friday,
+                Saturday = editItem.Saturday,
+                Sunday = editItem.Sunday,
+                Restday = editItem.Restday,
+                SpecialApproval = editItem.SpecialApproval,
+                App1 = editItem.App1,
+                App2 = editItem.App2,
+                App3 = editItem.App3,
+                AppLevel = editItem.AppLevel
+            };
+
+            var (ok, msg) = await ApiClient.SaveLeaveMaintenanceAsync(req);
+            if (ok)
+            {
+                statusMessage = $"Leave configuration for '{editItem.Leave_ID}' saved successfully.";
+                isSuccess = true;
+                CloseEditModal();
+                await LoadDataAsync(selectedGroupId);
+            }
+            else
+            {
+                modalErrorMessage = msg;
+            }
+        }
+        catch (Exception ex)
+        {
+            modalErrorMessage = $"Save error: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}
+
+<style>
+    .maintenance-container {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding-top: 4px;
+    }
+
+    .maintenance-icon-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #00bcd4;
+        color: #ffffff;
+        border-radius: 8px;
+    }
+
+    .back-arrow-btn {
+        transition: transform 0.15s ease;
+    }
+    .back-arrow-btn:hover {
+        transform: translateX(-3px);
+    }
+
+    .extra-small {
+        font-size: 0.76rem;
+    }
+
+    .btn-xs {
+        padding: 0.15rem 0.45rem;
+        font-size: 0.72rem;
+        border-radius: 4px;
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Two-Tier Table Matrix */
+    .matrix-table thead {
+        z-index: 10;
+    }
+
+    .table-header-top th {
+        background-color: #f1f5f9;
+        color: #334155;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        border-bottom: 1px solid #cbd5e1;
+        padding: 6px 8px;
+    }
+
+    .header-band-special {
+        background-color: #fef3c7 !important;
+        color: #92400e !important;
+        border-left: 2px solid #f59e0b !important;
+        border-bottom: 1px solid #fde68a !important;
+    }
+
+    .table-header-sub th {
+        background-color: #fffbeb;
+        color: #78350f;
+        font-size: 0.7rem;
+        font-weight: 700;
+        border-bottom: 2px solid #cbd5e1;
+        padding: 4px 6px;
+    }
+
+    .matrix-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .row-active-leave {
+        background-color: rgba(240, 253, 250, 0.45);
+    }
+</style>
