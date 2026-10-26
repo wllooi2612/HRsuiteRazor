@@ -30,7 +30,7 @@ public class ClaimController : ControllerBase
                 await conn.OpenAsync();
                 using (var cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "SELECT DISTINCT ClaimNo, Name FROM aspnet_ClaimID WHERE Display = 'Y' OR Display IS NULL";
+                    cmd.CommandText = "SELECT DISTINCT ClaimNo, Name FROM aspnet_claimid WHERE Display = 'Y' OR Display IS NULL";
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
                         while (await reader.ReadAsync())
@@ -85,7 +85,7 @@ public class ClaimController : ControllerBase
                         SELECT ClaimID, ClaimNo, EMP_ID, NAME, Claim_Apply_DATE, claimTotal, 
                                ApprovedAmount, Claim_STATUS, Remarks, description, receipt_no, 
                                Clinic_ID, applevel, CreatedDate 
-                        FROM aspnet_ClaimRecord 
+                        FROM aspnet_claimrecord 
                         WHERE EMP_ID = @EmpID";
 
                     if (year.HasValue)
@@ -154,7 +154,7 @@ public class ClaimController : ControllerBase
                         SELECT ClaimID, ClaimNo, EMP_ID, NAME, Claim_Apply_DATE, claimTotal, 
                                ApprovedAmount, Claim_STATUS, Remarks, description, receipt_no, 
                                Clinic_ID, applevel, CreatedDate 
-                        FROM aspnet_ClaimRecord 
+                        FROM aspnet_claimrecord 
                         WHERE Claim_STATUS = 'PENDING' 
                           AND (
                               (applevel = '1' AND app1 = @SuperID AND (app1Pass = 'NO' OR app1Pass IS NULL))
@@ -250,7 +250,7 @@ public class ClaimController : ControllerBase
                 using (var cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = @"
-                        INSERT INTO aspnet_ClaimRecord (
+                        INSERT INTO aspnet_claimrecord (
                             ClaimID, ClaimNo, Claim_Apply_DATE, EMP_ID, NAME, SUPER_ID,
                             Claim_STATUS, claimTotal, description, receipt_no, Clinic_ID,
                             Remarks, app1, app2, app3, app1Pass, app2Pass, app3Pass,
@@ -313,7 +313,7 @@ public class ClaimController : ControllerBase
                 using (var cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = @"
-                        UPDATE aspnet_ClaimRecord 
+                        UPDATE aspnet_claimrecord 
                         SET Claim_STATUS = @Status, 
                             app1Pass = 'YES', 
                             dateapp1 = NOW(), 

@@ -60,7 +60,7 @@ public class HomeController : ControllerBase
                 {
                     cmd.CommandText = @"
                         SELECT LeaveNo, Leave_Date, Leave_Status, Leave_ID, leave_reason 
-                        FROM aspnet_LeaveRecord 
+                        FROM aspnet_leaverecord 
                         WHERE Emp_ID = @EmpID AND Leave_Date BETWEEN @StartDate AND @EndDate";
                     cmd.Parameters.AddWithValue("@EmpID", userId);
                     cmd.Parameters.AddWithValue("@StartDate", startDt);

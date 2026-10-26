@@ -93,7 +93,7 @@ public class OTController : ControllerBase
                         SELECT OTNo, EMP_ID, NAME, OT_DATE, OT_ID, OT_name, OT_HOUR, 
                                OT_START, OT_END, s1, s2, OT_BREAK, OT_STATUS, OT_REASON, 
                                OT_Remarks, applevel, CreatedDate 
-                        FROM aspnet_OTRecord 
+                        FROM aspnet_otrecord 
                         WHERE EMP_ID = @EmpID";
 
                     if (year.HasValue)
@@ -165,7 +165,7 @@ public class OTController : ControllerBase
                         SELECT OTNo, EMP_ID, NAME, OT_DATE, OT_ID, OT_name, OT_HOUR, 
                                OT_START, OT_END, s1, s2, OT_BREAK, OT_STATUS, OT_REASON, 
                                OT_Remarks, applevel, CreatedDate 
-                        FROM aspnet_OTRecord 
+                        FROM aspnet_otrecord 
                         WHERE OT_STATUS = 'PENDING' 
                           AND (
                               (applevel = '1' AND app1 = @SuperID AND (app1Pass = 'NO' OR app1Pass IS NULL))
@@ -271,7 +271,7 @@ public class OTController : ControllerBase
                     using (var cmd = conn.CreateCommand())
                     {
                         cmd.CommandText = @"
-                            INSERT INTO aspnet_OTRecord (
+                            INSERT INTO aspnet_otrecord (
                                 OTNo, OT_DATE, EMP_ID, NAME, OT_ID, OT_HOUR, OT_STATUS, OT_REF,
                                 OT_REASON, SUPER_ID, OT_START, OT_END, s1, s2, OT_BREAK,
                                 app1Pass, app1, app2Pass, app2, app3Pass, app3, app4Pass, app4,
@@ -351,7 +351,7 @@ public class OTController : ControllerBase
                 using (var cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = @"
-                        SELECT OT_ID, OT_HOUR, OT_START, OT_END, OT_BREAK, OT_REASON, s1, s2, OT_DATE FROM aspnet_OTRecord WHERE OTNo = @OTNo AND EMP_ID = @EmpID LIMIT 1";
+                        SELECT OT_ID, OT_HOUR, OT_START, OT_END, OT_BREAK, OT_REASON, s1, s2, OT_DATE FROM aspnet_otrecord WHERE OTNo = @OTNo AND EMP_ID = @EmpID LIMIT 1";
                     cmd.Parameters.AddWithValue("@OTNo", model.OTNo);
                     cmd.Parameters.AddWithValue("@EmpID", model.EmpId);
 
@@ -376,7 +376,7 @@ public class OTController : ControllerBase
                 using (var cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = @"
-                        UPDATE aspnet_OTRecord 
+                        UPDATE aspnet_otrecord 
                         SET OT_STATUS = @Status, 
                             app1Pass = 'YES', 
                             dateapp1 = NOW(), 

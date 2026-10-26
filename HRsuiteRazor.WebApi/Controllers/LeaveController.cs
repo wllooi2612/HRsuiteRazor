@@ -115,14 +115,14 @@ public class LeaveController : ControllerBase
                 return Ok(list);
             }
 
-            // 3. Query allowed leave IDs from SQL Server aspnet_LeaveID
+            // 3. Query allowed leave IDs from SQL Server aspnet_leaveid
             var allowedLeaves = new List<(string LeaveID, string Display, string BalCount, string IndirectLeaveID)>();
             using (var conn = new MySqlConnection(sqlConnStr))
             {
                 conn.Open();
                 using (var cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "SELECT LEAVE_ID, Display, BalCount, IndirectLeaveID FROM aspnet_LeaveID WHERE UserGroupID = @GroupID AND Display = 'Y'";
+                    cmd.CommandText = "SELECT LEAVE_ID, Display, BalCount, IndirectLeaveID FROM aspnet_leaveid WHERE UserGroupID = @GroupID AND Display = 'Y'";
                     cmd.Parameters.AddWithValue("@GroupID", groupId);
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -190,11 +190,11 @@ public class LeaveController : ControllerBase
                         }
                     }
 
-                    // Count pending from ASPNET_leaveRecord & ASPNET_Pre_LeaveRecord
+                    // Count pending from aspnet_leaverecord & aspnet_pre_leaverecord
                     decimal pending = 0;
                     using (var cmd = connSql.CreateCommand())
                     {
-                        cmd.CommandText = "SELECT LEAVE_TYPE, COUNT(*) as CountVal FROM ASPNET_leaveRecord WHERE LEAVE_ID = @LeaveID AND EMP_ID = @EmpID AND LEAVE_STATUS = 'PENDING' GROUP BY LEAVE_TYPE";
+                        cmd.CommandText = "SELECT LEAVE_TYPE, COUNT(*) as CountVal FROM aspnet_leaverecord WHERE LEAVE_ID = @LeaveID AND EMP_ID = @EmpID AND LEAVE_STATUS = 'PENDING' GROUP BY LEAVE_TYPE";
                         cmd.Parameters.Clear();
                         cmd.Parameters.AddWithValue("@LeaveID", item.LeaveID);
                         cmd.Parameters.AddWithValue("@EmpID", userId);
@@ -212,7 +212,7 @@ public class LeaveController : ControllerBase
                     {
                         using (var cmd = connSql.CreateCommand())
                         {
-                            cmd.CommandText = "SELECT LEAVE_TYPE, COUNT(*) as CountVal FROM ASPNET_Pre_LeaveRecord WHERE LEAVE_ID = @LeaveID AND EMP_ID = @EmpID AND LEAVE_STATUS = 'PENDING' GROUP BY LEAVE_TYPE";
+                            cmd.CommandText = "SELECT LEAVE_TYPE, COUNT(*) as CountVal FROM aspnet_pre_leaverecord WHERE LEAVE_ID = @LeaveID AND EMP_ID = @EmpID AND LEAVE_STATUS = 'PENDING' GROUP BY LEAVE_TYPE";
                             cmd.Parameters.Clear();
                             cmd.Parameters.AddWithValue("@LeaveID", item.LeaveID);
                             cmd.Parameters.AddWithValue("@EmpID", userId);
@@ -236,7 +236,7 @@ public class LeaveController : ControllerBase
                         var indirectLeaveIds = new List<string>();
                         using (var cmd = connSql.CreateCommand())
                         {
-                            cmd.CommandText = "SELECT LEAVE_ID FROM aspnet_LeaveID WHERE UserGroupID = @GroupID AND IndirectLeaveID = @IndirectID AND Display = 'Y' AND LEAVE_ID <> @IndirectID AND IndirectLeaveID <> LEAVE_ID";
+                            cmd.CommandText = "SELECT LEAVE_ID FROM aspnet_leaveid WHERE UserGroupID = @GroupID AND IndirectLeaveID = @IndirectID AND Display = 'Y' AND LEAVE_ID <> @IndirectID AND IndirectLeaveID <> LEAVE_ID";
                             cmd.Parameters.Clear();
                             cmd.Parameters.AddWithValue("@GroupID", groupId);
                             cmd.Parameters.AddWithValue("@IndirectID", item.IndirectLeaveID);
@@ -276,7 +276,7 @@ public class LeaveController : ControllerBase
                         var indirectAllIds = new List<string>();
                         using (var cmd = connSql.CreateCommand())
                         {
-                            cmd.CommandText = "SELECT LEAVE_ID FROM aspnet_LeaveID WHERE UserGroupID = @GroupID AND IndirectLeaveID = @IndirectID AND Display = 'Y'";
+                            cmd.CommandText = "SELECT LEAVE_ID FROM aspnet_leaveid WHERE UserGroupID = @GroupID AND IndirectLeaveID = @IndirectID AND Display = 'Y'";
                             cmd.Parameters.Clear();
                             cmd.Parameters.AddWithValue("@GroupID", groupId);
                             cmd.Parameters.AddWithValue("@IndirectID", item.IndirectLeaveID);
@@ -293,7 +293,7 @@ public class LeaveController : ControllerBase
                         {
                             using (var cmd = connSql.CreateCommand())
                             {
-                                cmd.CommandText = "SELECT LEAVE_TYPE, COUNT(*) as CountVal FROM ASPNET_leaveRecord WHERE LEAVE_ID = @LeaveID AND EMP_ID = @EmpID AND LEAVE_STATUS = 'PENDING' GROUP BY LEAVE_TYPE";
+                                cmd.CommandText = "SELECT LEAVE_TYPE, COUNT(*) as CountVal FROM aspnet_leaverecord WHERE LEAVE_ID = @LeaveID AND EMP_ID = @EmpID AND LEAVE_STATUS = 'PENDING' GROUP BY LEAVE_TYPE";
                                 cmd.Parameters.Clear();
                                 cmd.Parameters.AddWithValue("@LeaveID", indAllId);
                                 cmd.Parameters.AddWithValue("@EmpID", userId);
@@ -438,7 +438,7 @@ public class LeaveController : ControllerBase
                         SELECT r.LeaveNo, r.Emp_ID, MAX(u.Name) AS EmpName, MAX(r.Leave_ID) AS Leave_ID, 
                                MIN(r.Leave_Date) AS DateFrom, MAX(r.Leave_Date) AS DateTo, 
                                r.Leave_Status, MAX(r.leave_reason) AS Leave_Reason, MAX(r.applevel) AS AppLevel
-                        FROM ASPNET_leaveRecord r
+                        FROM aspnet_leaverecord r
                         LEFT JOIN aspnet_users u ON r.Emp_ID = u.ID
                         WHERE r.Emp_ID = @EmpID
                         GROUP BY r.LeaveNo, r.Emp_ID, r.Leave_Status
@@ -494,7 +494,7 @@ public class LeaveController : ControllerBase
                         SELECT r.LeaveNo, r.Emp_ID, MAX(u.Name) AS EmpName, MAX(r.Leave_ID) AS Leave_ID, 
                                MIN(r.Leave_Date) AS DateFrom, MAX(r.Leave_Date) AS DateTo, 
                                r.Leave_Status, MAX(r.leave_reason) AS Leave_Reason, MAX(r.applevel) AS AppLevel
-                        FROM ASPNET_leaveRecord r
+                        FROM aspnet_leaverecord r
                         LEFT JOIN aspnet_users u ON r.Emp_ID = u.ID
                         WHERE r.Leave_Status = 'PENDING'
                           AND (r.app1 = @SuperID OR r.app2 = @SuperID OR r.app3 = @SuperID OR r.app4 = @SuperID)
@@ -590,7 +590,7 @@ public class LeaveController : ControllerBase
                     using (var cmd = conn.CreateCommand())
                     {
                         cmd.CommandText = @"
-                            INSERT INTO ASPNET_leaveRecord (
+                            INSERT INTO aspnet_leaverecord (
                                 leaveNo, LEAVE_DATE, EMP_ID, NAME, SUPER_ID, LEAVE_STATUS, LEAVE_REASON, LEAVE_ID, LEAVE_TYPE,
                                 dateLeavefrom, dateLeaveto, app1, app2, app3, app4, app1Pass, app2Pass, app3Pass, app4Pass,
                                 applevel, appNo, CreatedDate
@@ -658,7 +658,7 @@ public class LeaveController : ControllerBase
 
                 using (var cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "SELECT LEAVE_ID, dateLeavefrom, dateLeaveto, LEAVE_TYPE FROM ASPNET_leaveRecord WHERE LeaveNo = @LeaveNo AND Emp_ID = @EmpID LIMIT 1";
+                    cmd.CommandText = "SELECT LEAVE_ID, dateLeavefrom, dateLeaveto, LEAVE_TYPE FROM aspnet_leaverecord WHERE LeaveNo = @LeaveNo AND Emp_ID = @EmpID LIMIT 1";
                     cmd.Parameters.AddWithValue("@LeaveNo", model.LeaveNo);
                     cmd.Parameters.AddWithValue("@EmpID", model.EmpId);
                     using (var reader = cmd.ExecuteReader())
@@ -677,7 +677,7 @@ public class LeaveController : ControllerBase
                 using (var cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = @"
-                        UPDATE ASPNET_leaveRecord 
+                        UPDATE aspnet_leaverecord 
                         SET LEAVE_STATUS = @Status, 
                             dateapp1 = NOW(), 
                             app1Pass = 'YES' 
