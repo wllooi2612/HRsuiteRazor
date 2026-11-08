@@ -58,7 +58,7 @@
                 <img src="img/icon/LeaveMaintenance.png" alt="Leave Maintenance" class="leave-tile-img" />
             </button>
 
-            <button type="button" class="leave-tile @(activeTab == "doc_rule" ? "active" : "")" @onclick='() => SelectTile("doc_rule")' title="Leave Doc Rule">
+            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/doc-rule")' title="Leave Doc Rule">
                 <img src="img/icon/LeaveDocRule.png" alt="Leave Doc Rule" class="leave-tile-img" />
             </button>
 
@@ -71,11 +71,11 @@
                 <img src="img/icon/ViewLeave.png" alt="View Leave" class="leave-tile-img" />
             </button>
 
-            <button type="button" class="leave-tile @(activeTab == "calendar" ? "active" : "")" @onclick='() => SelectTile("calendar")' title="Leave Calendar">
+            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/calendar")' title="Leave Calendar">
                 <img src="img/icon/LeaveCalendar.png" alt="Leave Calendar" class="leave-tile-img" />
             </button>
 
-            <button type="button" class="leave-tile @(activeTab == "user_review" ? "active" : "")" @onclick='() => SelectTile("user_review")' title="User Access Review">
+            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/create-user-access")' title="User Access Review">
                 <img src="img/icon/UserAccessReview.png" alt="User Access Review" class="leave-tile-img" />
             </button>
 
@@ -419,39 +419,6 @@
         </div>
     }
 
-
-    <!-- 8. LEAVE DOC RULE -->
-    @if (activeTab == "doc_rule")
-    {
-        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
-            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #c83e1c !important;">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-file-earmark-check-fill"></i>
-                    <h6 class="mb-0 fw-bold">Leave Document Attachment Policies &amp; Rules</h6>
-                </div>
-                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
-            </div>
-            <div class="card-body p-3">
-                <div class="row g-2">
-                    <div class="col-12 col-md-6">
-                        <div class="p-3 bg-light rounded-3 border">
-                            <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-hospital text-danger me-2"></i>Medical Certificate (MC) Policy</h6>
-                            <p class="extra-small text-muted mb-2">Mandatory upload of scanned/photographed MC slip from recognized registered clinic or hospital. Submission window: Within 48 hours of return.</p>
-                            <span class="badge bg-danger-subtle text-danger border border-danger">Mandatory Enforcement</span>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <div class="p-3 bg-light rounded-3 border">
-                            <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-heart-fill text-danger me-2"></i>Marriage &amp; Maternity Rule</h6>
-                            <p class="extra-small text-muted mb-2">Marriage cert copy required within 14 days. Maternity requires medical estimated date of delivery (EDD) endorsement prior to departure.</p>
-                            <span class="badge bg-success-subtle text-success border border-success">Verified by HR</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-
     <!-- 9. LEAVE ADMINISTRATOR CONSOLE -->
     @if (activeTab == "administrator")
     {
@@ -504,112 +471,9 @@
         </div>
     }
 
-    <!-- 10. LEAVE CALENDAR SCHEDULER -->
-    @if (activeTab == "calendar")
-    {
-        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
-            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #688636 !important;">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-calendar3"></i>
-                    <h6 class="mb-0 fw-bold">Leave Calendar Schedule - October 2026</h6>
-                </div>
-                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
-            </div>
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 extra-small">&laquo; September</button>
-                    <span class="fw-bold text-dark">October 2026 (Live Schedule)</span>
-                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 extra-small">November &raquo;</button>
-                </div>
 
-                <div class="calendar-grid-table">
-                    <div class="calendar-day-header text-danger">Sun</div>
-                    <div class="calendar-day-header">Mon</div>
-                    <div class="calendar-day-header">Tue</div>
-                    <div class="calendar-day-header">Wed</div>
-                    <div class="calendar-day-header">Thu</div>
-                    <div class="calendar-day-header">Fri</div>
-                    <div class="calendar-day-header text-primary">Sat</div>
 
-                    @for (int day = 1; day <= 31; day++)
-                    {
-                        var d = day;
-                        <div class="calendar-cell @(d == 23 ? "today" : "")">
-                            <span class="calendar-date-no">@d</span>
-                            @if (d == 5 || d == 12 || d == 23 || d == 27)
-                            {
-                                <div class="calendar-event-tag bg-success text-white">00001 (AL)</div>
-                            }
-                            @if (d == 16 || d == 24)
-                            {
-                                <div class="calendar-event-tag bg-warning text-dark">1002 (MC)</div>
-                            }
-                            @if (d == 30)
-                            {
-                                <div class="calendar-event-tag bg-info text-dark">1005 (HL)</div>
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-    }
 
-    <!-- 11. USER ACCESS REVIEW AUDIT -->
-    @if (activeTab == "user_review")
-    {
-        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
-            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #b53c15 !important;">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-fingerprint"></i>
-                    <h6 class="mb-0 fw-bold">User Access Review &amp; Security Audit Trail</h6>
-                </div>
-                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
-            </div>
-            <div class="card-body p-3">
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0 extra-small align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>User ID</th>
-                                <th>Name</th>
-                                <th>Access Role</th>
-                                <th>Approval Quota</th>
-                                <th>Last Review Date</th>
-                                <th>Compliance</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code>ADMIN</code></td>
-                                <td>System Administrator</td>
-                                <td><span class="badge bg-danger">Full Control</span></td>
-                                <td>Unlimited</td>
-                                <td>2026-10-23</td>
-                                <td><span class="badge bg-success">Verified</span></td>
-                            </tr>
-                            <tr>
-                                <td><code>1002</code></td>
-                                <td>Siti Sarah</td>
-                                <td><span class="badge bg-primary">Supervisor</span></td>
-                                <td>&le; 5 Days</td>
-                                <td>2026-10-22</td>
-                                <td><span class="badge bg-success">Verified</span></td>
-                            </tr>
-                            <tr>
-                                <td><code>1005</code></td>
-                                <td>Michael Tan</td>
-                                <td><span class="badge bg-info text-dark">Approver L2</span></td>
-                                <td>&le; 14 Days</td>
-                                <td>2026-10-18</td>
-                                <td><span class="badge bg-success">Verified</span></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    }
 
     <!-- 12. VIEW LEAVE (Only shown when 'View Leave' tile is tapped) -->
     @if (activeTab == "view_leave")
@@ -745,7 +609,30 @@
     private bool isSuccess;
 
     // Active Tab Navigation: Defaults to null so ONLY the 12 dashboard icon tiles are displayed by default!
+    [SupplyParameterFromQuery(Name = "tab")]
+    public string? Tab { get; set; }
+
     private string? activeTab = null;
+
+    protected override void OnParametersSet()
+    {
+        if (Tab == "doc_rule")
+        {
+            NavManager.NavigateTo("leaves/doc-rule", replace: true);
+            return;
+        }
+
+        if (Tab == "calendar")
+        {
+            NavManager.NavigateTo("leaves/calendar", replace: true);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Tab))
+        {
+            activeTab = Tab;
+        }
+    }
 
     // Filter controls
     private string filterStatus = "ALL";

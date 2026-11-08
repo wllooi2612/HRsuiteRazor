@@ -1,10 +1,16 @@
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand d-flex align-items-center gap-2 brand-offset" href="">
-            <i class="bi bi-building-fill-gear"></i>
-            <span>HRsuiteRazor</span>
-        </a>
-    </div>
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+@implements IDisposable
+
+<!-- Top Blue Header Bar (Matching HOME < in example image) -->
+<div class="sidebar-header d-flex align-items-center justify-content-between">
+    <a href="" class="sidebar-title text-decoration-none d-flex align-items-center gap-2" onclick="var t = document.getElementById('nav-toggle'); if(t) t.checked = false;">
+        <i class="bi bi-building-fill-gear text-white-50"></i>
+        <span>Myhrsuite</span>
+    </a>
+    <button type="button" class="sidebar-collapse-btn" onclick="document.getElementById('nav-toggle').checked = false;" title="Collapse navigation">
+        <i class="bi bi-chevron-left"></i>
+    </button>
 </div>
 
 <input type="checkbox" id="nav-toggle" title="Navigation menu" class="navbar-toggler" />
@@ -12,64 +18,275 @@
 <!-- Mobile Backdrop -->
 <div class="drawer-backdrop" onclick="document.getElementById('nav-toggle').checked = false;"></div>
 
-<!-- Left Offcanvas Drawer -->
-<div class="nav-scrollable" onclick="document.getElementById('nav-toggle').checked = false;">
+<!-- Clean TreeView Container -->
+<div class="nav-scrollable">
     <!-- Mobile Drawer Header with Close Button -->
-    <div class="drawer-header d-flex align-items-center justify-content-between px-3 py-3 border-bottom border-white border-opacity-10 d-md-none">
+    <div class="drawer-header d-flex align-items-center justify-content-between px-3 py-2 border-bottom d-md-none" style="background-color: #1d68a4;">
         <div class="d-flex align-items-center gap-2 text-white fw-bold">
-            <i class="bi bi-building-fill-gear text-info fs-5"></i>
-            <span>HRsuiteRazor</span>
+            <i class="bi bi-building-fill-gear text-white-50 fs-5"></i>
+            <span>Myhrsuite</span>
         </div>
         <button type="button" class="btn btn-sm btn-outline-light py-0 px-2 border-0 fs-5" title="Close" onclick="event.stopPropagation(); document.getElementById('nav-toggle').checked = false;">
             <i class="bi bi-x-lg"></i>
         </button>
     </div>
 
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+    <div class="clean-treeview py-1" onclick="if(event.target.closest('a')) { var t = document.getElementById('nav-toggle'); if(t) t.checked = false; setTimeout(function() { var m = document.querySelector('main'); if(m) { m.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }, 60); }">
+        <!-- 1. DASHBOARD -->
+        <div class="tree-node @(IsActive("") ? "active-node" : "")">
+            <NavLink class="tree-node-header single-link" href="" Match="NavLinkMatch.All">
+                <i class="bi bi-caret-right-fill tree-arrow"></i>
+                <span class="tree-title">DASHBOARD</span>
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="staff">
-                <i class="bi bi-people-fill me-2"></i> Staff &amp; Users
+        <!-- 2. STAFF & USERS -->
+        <div class="tree-node @(IsActive("staff") ? "active-node" : "")">
+            <NavLink class="tree-node-header single-link" href="staff">
+                <i class="bi bi-caret-right-fill tree-arrow"></i>
+                <span class="tree-title">STAFF &amp; USERS</span>
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="leaves">
-                <i class="bi bi-calendar-check-fill me-2"></i> Leaves
+        <!-- 3. LEAVES (Expandable Tree Node) -->
+        <div class="tree-node @(IsParentActive("leaves") ? "active-group" : "")">
+            <button type="button" class="tree-node-header" @onclick="ToggleLeaves" title="Click to minimize or expand Leaves">
+                <i class="bi @(isLeavesExpanded ? "bi-caret-down-fill" : "bi-caret-right-fill") tree-arrow"></i>
+                <span class="tree-title">LEAVES</span>
+            </button>
+
+            <!-- Detailed Leaves Child Nodes -->
+            @if (isLeavesExpanded)
+            {
+                <div class="tree-children">
+                    <!-- USER ACCESS RIGHT (Detail node below Leave) -->
+                    <NavLink class="tree-child-link" href="leaves/create-user-access">
+                        User Access Right
+                    </NavLink>
+
+                    <!-- Leave Approval Level -->
+                    <NavLink class="tree-child-link" href="leaves/approval-level">
+                        Leave Approval Level
+                    </NavLink>
+
+                    <!-- Leave Maintenance -->
+                    <NavLink class="tree-child-link" href="leaves/maintenance">
+                        Leave Maintenance
+                    </NavLink>
+
+                    <!-- Group Leave Apply -->
+                    <a class="tree-child-link @(IsTabActive("group_apply") ? "active" : "")" href="leaves?tab=group_apply">
+                        Group Leave Apply
+                    </a>
+
+                    <!-- Individual Leave Apply -->
+                    <a class="tree-child-link @(IsTabActive("ind_apply") ? "active" : "")" href="leaves?tab=ind_apply">
+                        Individual Leave Apply
+                    </a>
+
+                    <!-- Leave Supervisor -->
+                    <a class="tree-child-link @(IsTabActive("supervisor") ? "active" : "")" href="leaves?tab=supervisor">
+                        Leave Supervisor
+                    </a>
+
+                    <!-- Leave Administrator -->
+                    <a class="tree-child-link @(IsTabActive("administrator") ? "active" : "")" href="leaves?tab=administrator">
+                        Leave Administrator
+                    </a>
+
+                    <!-- Leave Doc Rule -->
+                    <NavLink class="tree-child-link" href="leaves/doc-rule">
+                        Leave Doc Rule
+                    </NavLink>
+
+                    <!-- View Leave Records -->
+                    <a class="tree-child-link @(IsTabActive("view_leave") ? "active" : "")" href="leaves?tab=view_leave">
+                        View Leave Records
+                    </a>
+
+                    <!-- Leave Calendar -->
+                    <NavLink class="tree-child-link" href="leaves/calendar">
+                        Leave Calendar
+                    </NavLink>
+                </div>
+            }
+        </div>
+
+        <!-- 4. OVERTIME -->
+        <div class="tree-node @(IsActive("overtime") ? "active-node" : "")">
+            <NavLink class="tree-node-header single-link" href="overtime">
+                <i class="bi bi-caret-right-fill tree-arrow"></i>
+                <span class="tree-title">OVERTIME</span>
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="overtime">
-                <i class="bi bi-clock-history me-2"></i> Overtime
+        <!-- 5. DATABASE EXPLORER -->
+        <div class="tree-node @(IsActive("database") ? "active-node" : "")">
+            <NavLink class="tree-node-header single-link" href="database">
+                <i class="bi bi-caret-right-fill tree-arrow"></i>
+                <span class="tree-title">DATABASE EXPLORER</span>
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="database">
-                <i class="bi bi-database-fill-gear me-2"></i> Database Explorer
-            </NavLink>
+        <!-- 6. ADMIN & SETUP (Expandable Tree Node) -->
+        <div class="tree-node @(IsParentActive("admin") ? "active-group" : "")">
+            <div class="tree-node-header" @onclick="OnAdminMotherClick" title="Go to Admin Main Page">
+                <button type="button" class="tree-arrow-btn" @onclick="ToggleAdmin" @onclick:stopPropagation="true" title="Toggle Admin & Setup">
+                    <i class="bi @(isAdminExpanded ? "bi-caret-down-fill" : "bi-caret-right-fill") tree-arrow"></i>
+                </button>
+                <span class="tree-title flex-grow-1">ADMIN &amp; SETUP</span>
+            </div>
+
+            <!-- Admin Child Nodes -->
+            @if (isAdminExpanded)
+            {
+                <div class="tree-children">
+                    <NavLink class="tree-child-link" href="admin/users">
+                        User Master
+                    </NavLink>
+
+                    <NavLink class="tree-child-link" href="admin/users/qde">
+                        Quick Add (QDE)
+                    </NavLink>
+
+                    <NavLink class="tree-child-link" href="admin/groups">
+                        User Groups
+                    </NavLink>
+
+                    <NavLink class="tree-child-link" href="admin/group-page-setup">
+                        Group Page Setup
+                    </NavLink>
+
+                    <NavLink class="tree-child-link" href="admin/general">
+                        General Settings
+                    </NavLink>
+
+                    <NavLink class="tree-child-link" href="admin/logviewer">
+                        System Logs
+                    </NavLink>
+                </div>
+            }
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="admin">
-                <i class="bi bi-shield-lock-fill me-2"></i> Admin &amp; Setup
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3 mt-3 border-top pt-2">
-            <small class="text-white-50 px-3 text-uppercase fw-semibold" style="font-size: 0.7rem;">Architecture</small>
-        </div>
-
-        <div class="nav-item px-3">
-            <a class="nav-link text-white-50" href="http://localhost:5145/openapi/v1.json" target="_blank">
-                <i class="bi bi-box-arrow-up-right me-2"></i> OpenAPI Spec (5145)
+        <!-- 7. ARCHITECTURE / OPENAPI -->
+        <div class="tree-node">
+            <a class="tree-node-header single-link" href="http://localhost:5145/openapi/v1.json" target="_blank">
+                <i class="bi bi-caret-right-fill tree-arrow"></i>
+                <span class="tree-title">OPENAPI SPEC (5145)</span>
             </a>
         </div>
-    </nav>
+    </div>
 </div>
+
+@code {
+    private bool isLeavesExpanded = true;
+    private bool isAdminExpanded = false;
+    private string currentUrl = "";
+    private string lastSection = "";
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavManager.Uri;
+        CheckUrl(currentUrl, isInitial: true);
+        NavManager.LocationChanged += HandleLocationChanged;
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = e.Location;
+        CheckUrl(currentUrl, isInitial: false);
+        _ = CloseNavDrawerAsync();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CloseNavDrawerAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("eval", "var t = document.getElementById('nav-toggle'); if (t && t.checked) t.checked = false; var m = document.querySelector('main'); if(m) { m.focus(); }");
+        }
+        catch { }
+    }
+
+    private void CheckUrl(string url, bool isInitial = false)
+    {
+        var lower = url.ToLowerInvariant();
+        string currentSection = "";
+        if (lower.Contains("/leave") || lower.Contains("/eleave"))
+        {
+            currentSection = "leaves";
+        }
+        else if (lower.Contains("/admin") || lower.Contains("/users") || lower.Contains("/group") || lower.Contains("/logviewer"))
+        {
+            currentSection = "admin";
+        }
+
+        // Auto-expand when navigating into a different section, or on initial page load
+        if (isInitial || (!string.IsNullOrEmpty(currentSection) && currentSection != lastSection))
+        {
+            if (currentSection == "leaves")
+            {
+                isLeavesExpanded = true;
+            }
+            else if (currentSection == "admin")
+            {
+                isAdminExpanded = true;
+            }
+        }
+
+        lastSection = currentSection;
+    }
+
+    private bool IsActive(string href)
+    {
+        var rel = NavManager.ToBaseRelativePath(currentUrl).ToLowerInvariant();
+        var target = href.ToLowerInvariant();
+        if (string.IsNullOrEmpty(target))
+        {
+            return string.IsNullOrEmpty(rel) || rel == "index" || rel == "home";
+        }
+        return rel == target || rel.StartsWith(target + "/");
+    }
+
+    private bool IsTabActive(string tabName)
+    {
+        var lower = currentUrl.ToLowerInvariant();
+        return lower.Contains("tab=" + tabName.ToLowerInvariant());
+    }
+
+    private bool IsParentActive(string section)
+    {
+        var rel = NavManager.ToBaseRelativePath(currentUrl).ToLowerInvariant();
+        if (section == "leaves")
+        {
+            return rel.StartsWith("leave") || rel.StartsWith("eleave");
+        }
+        if (section == "admin")
+        {
+            return rel.StartsWith("admin") || rel.StartsWith("users") || rel.StartsWith("logviewer");
+        }
+        return false;
+    }
+
+    private void ToggleLeaves()
+    {
+        isLeavesExpanded = !isLeavesExpanded;
+    }
+
+    private void ToggleAdmin()
+    {
+        isAdminExpanded = !isAdminExpanded;
+    }
+
+    private async Task OnAdminMotherClick()
+    {
+        isAdminExpanded = true;
+        await CloseNavDrawerAsync();
+        NavManager.NavigateTo("admin");
+    }
+
+    public void Dispose()
+    {
+        NavManager.LocationChanged -= HandleLocationChanged;
+    }
+}

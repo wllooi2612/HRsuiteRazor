@@ -16,6 +16,9 @@ using LeaveMaintenanceRow = HRsuiteRazor.Shared.Models.LeaveMaintenanceRow;
 using UpdateLeaveMaintenanceRequest = HRsuiteRazor.Shared.Models.UpdateLeaveMaintenanceRequest;
 using LeaveMaintenanceData = HRsuiteRazor.Shared.Models.LeaveMaintenanceData;
 using LeaveTypeLookup = HRsuiteRazor.Shared.Models.LeaveTypeLookup;
+using LeaveDocRuleRow = HRsuiteRazor.Shared.Models.LeaveDocRuleRow;
+using SaveLeaveDocRuleRequest = HRsuiteRazor.Shared.Models.SaveLeaveDocRuleRequest;
+using DeleteLeaveDocRulesRequest = HRsuiteRazor.Shared.Models.DeleteLeaveDocRulesRequest;
 
 namespace Hrsuite.WebApi.Controllers;
 
@@ -772,8 +775,8 @@ public class LeaveController : ControllerBase
                 await conn.OpenAsync();
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = string.IsNullOrEmpty(remarkCol)
-                    ? $"SELECT {idCol}, {nameCol} FROM dw__app_demo2.{tableName} ORDER BY {idCol}"
-                    : $"SELECT {idCol}, {nameCol}, {remarkCol} FROM dw__app_demo2.{tableName} ORDER BY {idCol}";
+                    ? $"SELECT {idCol}, {nameCol} FROM `{tableName}` ORDER BY {idCol}"
+                    : $"SELECT {idCol}, {nameCol}, {remarkCol} FROM `{tableName}` ORDER BY {idCol}";
 
                 using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
@@ -1615,6 +1618,153 @@ public class LeaveController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, new { Message = "Failed to save leave maintenance configuration", Details = ex.Message });
+        }
+    }
+
+    // ==========================================
+    // LEAVE DOCUMENT RULES (aspnet_rules)
+    // ==========================================
+
+    [HttpGet("doc-rules")]
+    public async Task<IActionResult> GetLeaveDocRules([FromQuery] string group = "LEAVE")
+    {
+        string sqlConnStr = _configuration.GetConnectionString("MyhrsuiteConnectionString") ?? "";
+        var list = new List<LeaveDocRuleRow>();
+
+        try
+        {
+            using var conn = new MySqlConnection(sqlConnStr);
+            await conn.OpenAsync();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT RuleID, `Condition`, `Action`, RouteID, GroupID, `explain`, Approval_allow
+                FROM aspnet_rules
+                WHERE GroupID = @GroupID
+                ORDER BY RuleID ASC;";
+            cmd.Parameters.AddWithValue("@GroupID", group);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                list.Add(new LeaveDocRuleRow
+                {
+                    RuleID = reader.GetInt32(0),
+                    Condition = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                    Action = reader.IsDBNull(2) ? "N" : reader.GetString(2),
+                    RouteID = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                    GroupID = reader.IsDBNull(4) ? "LEAVE" : reader.GetString(4),
+                    Explain = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                    ApprovalAllow = reader.IsDBNull(6) ? null : reader.GetString(6)
+                });
+            }
+
+            return Ok(list);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Failed to load leave document rules", Details = ex.Message });
+        }
+    }
+
+    [HttpPost("doc-rules/save")]
+    public async Task<IActionResult> SaveLeaveDocRule([FromBody] SaveLeaveDocRuleRequest req)
+    {
+        if (req == null)
+            return BadRequest(new { Message = "Invalid request payload." });
+
+        if (string.IsNullOrWhiteSpace(req.Condition))
+            return BadRequest(new { Message = "Condition cannot be empty." });
+
+        string group = string.IsNullOrWhiteSpace(req.GroupID) ? "LEAVE" : req.GroupID.Trim();
+        string sqlConnStr = _configuration.GetConnectionString("MyhrsuiteConnectionString") ?? "";
+
+        try
+        {
+            using var conn = new MySqlConnection(sqlConnStr);
+            await conn.OpenAsync();
+
+            int ruleId = req.RuleID;
+
+            if (req.IsNew && ruleId <= 0)
+            {
+                using var cmdMax = conn.CreateCommand();
+                cmdMax.CommandText = "SELECT COALESCE(MAX(RuleID), 0) + 1 FROM aspnet_rules WHERE GroupID = @GroupID;";
+                cmdMax.Parameters.AddWithValue("@GroupID", group);
+                ruleId = Convert.ToInt32(await cmdMax.ExecuteScalarAsync());
+            }
+
+            if (!req.IsNew && req.OriginalRuleID.HasValue && req.OriginalRuleID.Value != ruleId)
+            {
+                using var cmdDel = conn.CreateCommand();
+                cmdDel.CommandText = "DELETE FROM aspnet_rules WHERE RuleID = @OrigRuleID AND GroupID = @GroupID;";
+                cmdDel.Parameters.AddWithValue("@OrigRuleID", req.OriginalRuleID.Value);
+                cmdDel.Parameters.AddWithValue("@GroupID", group);
+                await cmdDel.ExecuteNonQueryAsync();
+            }
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO aspnet_rules (RuleID, `Condition`, `Action`, RouteID, GroupID, `explain`, Approval_allow)
+                VALUES (@RuleID, @Condition, @Action, @RouteID, @GroupID, @Explain, @ApprovalAllow)
+                ON DUPLICATE KEY UPDATE
+                    `Condition` = VALUES(`Condition`),
+                    `Action` = VALUES(`Action`),
+                    RouteID = VALUES(RouteID),
+                    `explain` = VALUES(`explain`),
+                    Approval_allow = VALUES(Approval_allow);";
+
+            cmd.Parameters.AddWithValue("@RuleID", ruleId);
+            cmd.Parameters.AddWithValue("@Condition", req.Condition?.Trim() ?? "");
+            cmd.Parameters.AddWithValue("@Action", req.Action?.Trim() ?? "N");
+            cmd.Parameters.AddWithValue("@RouteID", req.RouteID?.Trim() ?? "");
+            cmd.Parameters.AddWithValue("@GroupID", group);
+            cmd.Parameters.AddWithValue("@Explain", req.Explain?.Trim() ?? "");
+            cmd.Parameters.AddWithValue("@ApprovalAllow", string.IsNullOrWhiteSpace(req.ApprovalAllow) ? (object)DBNull.Value : req.ApprovalAllow.Trim());
+
+            await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new { Success = true, Message = $"Rule #{ruleId} saved successfully.", RuleID = ruleId });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Failed to save leave document rule", Details = ex.Message });
+        }
+    }
+
+    [HttpPost("doc-rules/delete")]
+    public async Task<IActionResult> DeleteLeaveDocRules([FromBody] DeleteLeaveDocRulesRequest req)
+    {
+        if (req == null || req.RuleIDs == null || req.RuleIDs.Count == 0)
+            return BadRequest(new { Message = "No rule IDs specified for deletion." });
+
+        string group = string.IsNullOrWhiteSpace(req.GroupID) ? "LEAVE" : req.GroupID.Trim();
+        string sqlConnStr = _configuration.GetConnectionString("MyhrsuiteConnectionString") ?? "";
+
+        try
+        {
+            using var conn = new MySqlConnection(sqlConnStr);
+            await conn.OpenAsync();
+
+            var paramNames = new List<string>();
+            using var cmd = conn.CreateCommand();
+            cmd.Parameters.AddWithValue("@GroupID", group);
+
+            for (int i = 0; i < req.RuleIDs.Count; i++)
+            {
+                string p = $"@id{i}";
+                paramNames.Add(p);
+                cmd.Parameters.AddWithValue(p, req.RuleIDs[i]);
+            }
+
+            cmd.CommandText = $"DELETE FROM aspnet_rules WHERE GroupID = @GroupID AND RuleID IN ({string.Join(", ", paramNames)});";
+            int affected = await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new { Success = true, Message = $"{affected} rule(s) deleted successfully." });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Failed to delete leave document rules", Details = ex.Message });
         }
     }
 }

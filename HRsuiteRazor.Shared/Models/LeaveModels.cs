@@ -223,3 +223,34 @@ public class LeaveTypeLookup
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
 }
+
+public class LeaveDocRuleRow
+{
+    public int RuleID { get; set; }
+    public string Condition { get; set; } = string.Empty;
+    public string Action { get; set; } = "N"; // 'Y' or 'N'
+    public string RouteID { get; set; } = string.Empty;
+    public string GroupID { get; set; } = "LEAVE";
+    public string Explain { get; set; } = string.Empty;
+    public string? ApprovalAllow { get; set; } // 'Y', 'N' or null
+}
+
+public class SaveLeaveDocRuleRequest
+{
+    public int RuleID { get; set; }
+    public string Condition { get; set; } = string.Empty;
+    public string Action { get; set; } = "N";
+    public string RouteID { get; set; } = string.Empty;
+    public string GroupID { get; set; } = "LEAVE";
+    public string Explain { get; set; } = string.Empty;
+    public string? ApprovalAllow { get; set; }
+    public bool IsNew { get; set; }
+    public int? OriginalRuleID { get; set; }
+}
+
+public class DeleteLeaveDocRulesRequest
+{
+    public List<int> RuleIDs { get; set; } = new();
+    public string GroupID { get; set; } = "LEAVE";
+}
+

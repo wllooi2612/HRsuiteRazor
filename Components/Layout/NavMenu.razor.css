@@ -1,89 +1,210 @@
+/* Mobile Toggle Button */
 .navbar-toggler {
     appearance: none;
     cursor: pointer;
-    width: 3.25rem;
-    height: 2.4rem;
+    width: 2.2rem;
+    height: 1.85rem;
     color: white;
     position: absolute;
-    top: 0.55rem;
-    left: 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
-    background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.6rem rgba(255, 255, 255, 0.12);
+    top: 4px;
+    left: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.95%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.1rem rgba(255, 255, 255, 0.15);
     z-index: 1040;
     transition: background-color 0.15s ease;
 }
 
 .navbar-toggler:hover {
-    background-color: rgba(255, 255, 255, 0.22);
+    background-color: rgba(255, 255, 255, 0.25);
 }
 
 .navbar-toggler:checked {
     background-color: rgba(255, 255, 255, 0.4);
 }
 
-.top-row {
-    min-height: 3.5rem;
-    background-color: rgba(0,0,0,0.4);
-}
-
-.brand-offset {
-    margin-left: 3.5rem;
-}
-
-@media (min-width: 641px) {
-    .brand-offset {
-        margin-left: 0;
-    }
-}
-
-.navbar-brand {
-    font-size: 1.1rem;
-}
-
-.bi {
-    display: inline-block;
-    position: relative;
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-right: 0.75rem;
-    top: -1px;
-    background-size: cover;
-}
-
-.nav-item {
-    font-size: 0.9rem;
-    padding-bottom: 0.5rem;
-}
-
-.nav-item:first-of-type {
-    padding-top: 1rem;
-}
-
-.nav-item:last-of-type {
-    padding-bottom: 1rem;
-}
-
-.nav-item ::deep .nav-link {
-    color: #d7d7d7;
-    background: none;
-    border: none;
-    border-radius: 4px;
-    height: 3rem;
+/* Sidebar Top Blue Bar (Matching example image: HOME <) */
+.sidebar-header {
+    height: 38px;
+    background-color: #1d68a4;
+    border-bottom: 1px solid #165384;
     display: flex;
     align-items: center;
-    line-height: 3rem;
+    justify-content: space-between;
+    padding: 0 10px 0 14px;
+}
+
+.sidebar-title {
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+}
+
+.sidebar-collapse-btn {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease;
+}
+
+.sidebar-collapse-btn:hover {
+    background-color: #155384;
+}
+
+/* Clean TreeView Container */
+.clean-treeview {
+    background-color: #ffffff;
+    font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    user-select: none;
+    font-size: 0.84rem;
+}
+
+.tree-node {
+    position: relative;
+    border-bottom: 1px solid transparent;
+}
+
+/* Tree Node Header (Bold Uppercase with Caret on Left) */
+.clean-treeview ::deep .tree-node-header,
+.tree-node-header {
+    display: flex;
+    align-items: center;
     width: 100%;
+    background: transparent;
+    border: none;
+    padding: 6px 14px;
+    color: #111827;
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-align: left;
+    text-decoration: none !important;
+    cursor: pointer;
+    line-height: 1.35;
+    transition: background-color 0.12s ease;
 }
 
-.nav-item ::deep a.active {
-    background-color: rgba(255,255,255,0.37);
-    color: white;
+.clean-treeview ::deep .tree-node-header:hover,
+.tree-node-header:hover {
+    background-color: #f1f5f9;
 }
 
-.nav-item ::deep .nav-link:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
+/* Caret Arrow Button for Parent Nodes */
+.clean-treeview ::deep .tree-arrow-btn,
+.tree-arrow-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+}
+
+/* Caret Arrow on the Left (▼ when open, ▶ when closed) */
+.tree-arrow {
+    font-size: 0.65rem;
+    color: #475569;
+    margin-right: 8px;
+    width: 11px;
+    height: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tree-title {
+    text-transform: uppercase;
+    letter-spacing: 0.25px;
+    color: #111827;
+}
+
+/* Active Group / Module Highlight - matching FGTS selection band in example image */
+.active-group {
+    background-color: #e5f1fb;
+}
+
+.active-group > .tree-node-header {
+    background-color: transparent;
+}
+
+.active-node {
+    background-color: #e5f1fb;
+}
+
+.active-node .tree-title {
+    color: #003388;
+}
+
+/* Tree Children Links */
+.tree-children {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 6px;
+}
+
+.clean-treeview ::deep .tree-child-link,
+.tree-child-link {
+    display: block !important;
+    padding: 4px 14px 4px 33px !important;
+    color: #0066cc !important;
+    font-size: 0.84rem !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    line-height: 1.45 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    transition: color 0.12s ease !important;
+}
+
+.clean-treeview ::deep .tree-child-link:hover,
+.tree-child-link:hover {
+    color: #004499 !important;
+    text-decoration: underline !important;
+}
+
+.clean-treeview ::deep .tree-child-link.active,
+.tree-child-link.active {
+    color: #003388 !important;
+    font-weight: 700 !important;
+    text-decoration: underline !important;
+}
+
+/* Scrollable Container with Clean Gray Scrollbar */
+.nav-scrollable {
+    background-color: #ffffff;
+    height: calc(100vh - 38px);
+    overflow-y: auto;
+}
+
+.nav-scrollable::-webkit-scrollbar {
+    width: 8px;
+}
+
+.nav-scrollable::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.nav-scrollable::-webkit-scrollbar-thumb {
+    background: #888888;
+    border-radius: 4px;
+}
+
+.nav-scrollable::-webkit-scrollbar-thumb:hover {
+    background: #555555;
 }
 
 /* Backdrop for Mobile Left Drawer */
@@ -93,6 +214,16 @@
 
 /* Mobile Screen Layout: Left Drawer (Offcanvas) */
 @media (max-width: 640.98px) {
+    .sidebar-header {
+        height: 38px;
+        padding-left: 3.3rem !important; /* Space for hamburger toggle button */
+        padding-right: 12px !important;
+    }
+
+    .sidebar-collapse-btn {
+        display: none !important;
+    }
+
     .drawer-backdrop {
         display: none;
         position: fixed;
@@ -116,15 +247,14 @@
         bottom: 0;
         left: 0;
         width: 280px;
-        max-width: 82vw;
+        max-width: 85vw;
         height: 100vh;
         height: 100dvh;
-        background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 100%);
-        box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5);
+        background-color: #ffffff;
+        box-shadow: 4px 0 25px rgba(0, 0, 0, 0.3);
         transform: translateX(-100%);
         transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         z-index: 1050;
-        overflow-y: auto;
     }
 
     .navbar-toggler:checked ~ .nav-scrollable {
@@ -132,10 +262,19 @@
     }
 }
 
-/* Desktop Wide Screen Layout */
+/* Desktop Layout */
 @media (min-width: 641px) {
     .navbar-toggler {
-        display: none;
+        display: none !important;
+    }
+
+    .sidebar-header {
+        height: 38px;
+        padding: 0 10px 0 14px !important;
+    }
+
+    .sidebar-collapse-btn {
+        display: flex !important;
     }
 
     .drawer-backdrop {
@@ -147,16 +286,13 @@
     }
 
     .nav-scrollable {
-        /* Never collapse the sidebar for wide screens */
         display: block;
         position: static;
         transform: none !important;
         box-shadow: none;
-        background: transparent;
+        background-color: #ffffff;
         width: 100%;
-
-        /* Allow sidebar to scroll for tall menus */
-        height: calc(100vh - 3.5rem);
+        height: calc(100vh - 38px);
         overflow-y: auto;
     }
 }

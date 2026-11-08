@@ -21,6 +21,7 @@ bld/
 *.log
 *.tmp
 *.temp
+*.apk
 
 ## OS generated files
 Thumbs.db

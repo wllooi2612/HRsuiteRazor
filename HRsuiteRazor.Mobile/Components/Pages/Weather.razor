@@ -1,4 +1,7 @@
 ﻿@page "/weather"
+@attribute [StreamRendering]
+
+<PageTitle>Weather</PageTitle>
 
 <h1>Weather</h1>
 
@@ -14,8 +17,8 @@ else
         <thead>
             <tr>
                 <th>Date</th>
-                <th>Temp. (C)</th>
-                <th>Temp. (F)</th>
+                <th aria-label="Temperature in Celsius">Temp. (C)</th>
+                <th aria-label="Temperature in Farenheit">Temp. (F)</th>
                 <th>Summary</th>
             </tr>
         </thead>
@@ -38,7 +41,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Simulate asynchronous loading to demonstrate a loading indicator
+        // Simulate asynchronous loading to demonstrate streaming rendering
         await Task.Delay(500);
 
         var startDate = DateOnly.FromDateTime(DateTime.Now);

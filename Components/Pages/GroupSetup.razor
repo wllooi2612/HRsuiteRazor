@@ -83,6 +83,19 @@
                         }
                     </button>
 
+                    <!-- View Switcher (Auto / Grid / Cards) -->
+                    <div class="btn-group btn-group-sm shadow-sm" role="group">
+                        <button type="button" class="btn @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Cards on Mobile, Grid on Desktop)">
+                            <i class="bi bi-phone"></i>
+                        </button>
+                        <button type="button" class="btn @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "table"' title="Grid Table View">
+                            <i class="bi bi-table"></i>
+                        </button>
+                        <button type="button" class="btn @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "cards"' title="Cards View">
+                            <i class="bi bi-grid-fill"></i>
+                        </button>
+                    </div>
+
                     <!-- Refresh Button -->
                     <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="() => LoadGroupsAsync(keepStatus: false)" title="Refresh Groups from Database">
                         <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
@@ -91,109 +104,195 @@
             </div>
         </div>
 
-        <!-- MAIN DATA DISPLAY (GRID / TABLE VIEW) -->
-        <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
-            <div class="table-responsive enterprise-table-container">
-                <table class="table table-hover table-sm align-middle enterprise-table mb-0">
-                    <thead class="table-header-custom sticky-top">
-                        <tr>
-                            <th class="col-action text-center" style="width: 60px;">#</th>
-                            <th class="col-checkbox text-center" style="width: 40px;">
-                                <input type="checkbox" class="form-check-input" checked="@isAllSelected" @onchange="ToggleSelectAll" title="Select All" />
-                            </th>
-                            <th class="col-id">User Group ID</th>
-                            <th class="col-system text-center">System Group</th>
-                            <th class="col-name">Group Name / Description</th>
-                            <th class="col-remarks">Remarks</th>
-                            <th class="col-approval text-center" style="width: 120px;">Approval Level</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (isLoading)
-                        {
-                            <tr>
-                                <td colspan="7" class="text-center py-5">
-                                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
-                                    <div class="text-muted small mt-2">Loading group records from MySQL via Web API...</div>
-                                </td>
-                            </tr>
-                        }
-                        else if (FilteredGroups.Count == 0)
-                        {
-                            <tr>
-                                <td colspan="7" class="text-center py-5 text-muted">
-                                    <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
-                                    <span>No group records match the search criteria.</span>
-                                </td>
-                            </tr>
-                        }
-                        else
-                        {
-                            @foreach (var g in FilteredGroups)
+        <!-- MAIN DATA DISPLAY (WEB 桌面端 宽屏表格 / ANDROID 手机端 自适应卡片) -->
+        @if (viewMode == "table" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+                    <div class="table-responsive enterprise-table-container">
+                        <table class="table table-hover table-sm align-middle enterprise-table mb-0">
+                            <thead class="table-header-custom sticky-top">
+                                <tr>
+                                    <th class="col-action text-center" style="width: 60px;">#</th>
+                                    <th class="col-checkbox text-center" style="width: 40px;">
+                                        <input type="checkbox" class="form-check-input" checked="@isAllSelected" @onchange="ToggleSelectAll" title="Select All" />
+                                    </th>
+                                    <th class="col-id" style="width: 140px;">User Group ID</th>
+                                    <th class="col-system text-center" style="width: 130px;">System Group</th>
+                                    <th class="col-name">Group Name / Description</th>
+                                    <th class="col-remarks">Remarks</th>
+                                    <th class="col-approval text-center" style="width: 130px;">Approval Level</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (isLoading)
+                                {
+                                    <tr>
+                                        <td colspan="7" class="text-center py-5">
+                                            <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                            <div class="text-muted small mt-2">Loading group records from MySQL via Web API...</div>
+                                        </td>
+                                    </tr>
+                                }
+                                else if (FilteredGroups.Count == 0)
+                                {
+                                    <tr>
+                                        <td colspan="7" class="text-center py-5 text-muted">
+                                            <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                                            <span>No group records match the search criteria.</span>
+                                        </td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    @foreach (var g in FilteredGroups)
+                                    {
+                                        var key = $"{g.UserGroupID}||{g.GroupID}";
+                                        var isChecked = selectedGroupKeys.Contains(key);
+                                        <tr class="@(isChecked ? "row-selected" : "")">
+                                            <!-- Edit Button (Matching UserManage # column) -->
+                                            <td class="text-center col-action">
+                                                <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold text-decoration-none" @onclick="() => StartEditGroup(g)" title="Edit Group">
+                                                    Edit
+                                                </button>
+                                            </td>
+
+                                            <!-- Selection Checkbox -->
+                                            <td class="text-center col-checkbox">
+                                                <input type="checkbox" class="form-check-input" checked="@isChecked" @onchange="() => ToggleRowSelection(key)" />
+                                            </td>
+
+                                            <!-- User Group ID -->
+                                            <td class="col-id">
+                                                <span class="badge bg-secondary font-monospace fw-bold">@g.UserGroupID</span>
+                                            </td>
+
+                                            <!-- System Group -->
+                                            <td class="col-system text-center">
+                                                <span class="badge @GetGroupBadgeClass(g.GroupID)">@g.GroupID</span>
+                                            </td>
+
+                                            <!-- Group Name / Description -->
+                                            <td class="col-name fw-semibold text-dark">@g.UserGroup</td>
+
+                                            <!-- Remarks -->
+                                            <td class="col-remarks text-muted">@(string.IsNullOrWhiteSpace(g.Remark) ? "-" : g.Remark)</td>
+
+                                            <!-- Approval Level -->
+                                            <td class="col-approval text-center">
+                                                @if (g.ApprovalLevel == "Y")
+                                                {
+                                                    <span class="badge bg-success-subtle text-success border border-success" title="Active Approval Level">Active (Y)</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary-subtle text-secondary border" title="Standard Level">No (N)</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Table Footer Status -->
+                    <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
+                        <div>
+                            Showing <strong>@FilteredGroups.Count</strong> of <strong>@groupsList.Count</strong> groups
+                            @if (selectedGroupKeys.Count > 0)
                             {
-                                var key = $"{g.UserGroupID}||{g.GroupID}";
-                                var isChecked = selectedGroupKeys.Contains(key);
-                                <tr class="@(isChecked ? "row-selected" : "")">
-                                    <!-- Edit Button (Matching UserManage # column) -->
-                                    <td class="text-center col-action">
-                                        <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold text-decoration-none" @onclick="() => StartEditGroup(g)" title="Edit Group">
-                                            Edit
-                                        </button>
-                                    </td>
+                                <span class="ms-3 badge bg-danger">@selectedGroupKeys.Count Selected</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
 
-                                    <!-- Selection Checkbox -->
-                                    <td class="text-center col-checkbox">
-                                        <input type="checkbox" class="form-check-input" checked="@isChecked" @onchange="() => ToggleRowSelection(key)" />
-                                    </td>
+        <!-- ANDROID 手机端（自适应为卡片，告别左右滑动） -->
+        @if (viewMode == "cards" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") mb-4">
+                @if (isLoading)
+                {
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                        <div class="text-muted small mt-2">Loading group records...</div>
+                    </div>
+                }
+                else if (FilteredGroups.Count == 0)
+                {
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                        <span>No group records match the search criteria.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-2">
+                        @foreach (var g in FilteredGroups)
+                        {
+                            var key = $"{g.UserGroupID}||{g.GroupID}";
+                            var isChecked = selectedGroupKeys.Contains(key);
 
-                                    <!-- User Group ID -->
-                                    <td class="col-id">
-                                        <span class="badge bg-secondary font-monospace fw-bold">@g.UserGroupID</span>
-                                    </td>
+                            <div class="col-12 col-sm-6 col-lg-4">
+                                <div class="card border rounded-3 p-3 shadow-sm user-card-item @(isChecked ? "card-selected" : "")" style="background-color: #ffffff;" @onclick="() => ToggleRowSelection(key)">
+                                    <!-- Top Line: [Checkbox] [UserGroupID] GroupName        [GroupID] [Edit] -->
+                                    <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                        <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                            <input type="checkbox" class="form-check-input me-1 flex-shrink-0" checked="@isChecked" @onchange="() => ToggleRowSelection(key)" @onclick:stopPropagation="true" />
+                                            <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@g.UserGroupID]</span>
+                                            <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.95rem;">@g.UserGroup</span>
+                                        </div>
+                                        <div class="flex-shrink-0 d-flex align-items-center gap-1">
+                                            <span class="badge @GetGroupBadgeClass(g.GroupID)" style="font-size: 0.72rem; letter-spacing: 0.3px;">
+                                                [@g.GroupID]
+                                            </span>
+                                            <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold text-decoration-none ms-1" @onclick="() => StartEditGroup(g)" @onclick:stopPropagation="true" title="Edit Group">
+                                                Edit
+                                            </button>
+                                        </div>
+                                    </div>
 
-                                    <!-- System Group -->
-                                    <td class="col-system text-center">
-                                        <span class="badge @GetGroupBadgeClass(g.GroupID)">@g.GroupID</span>
-                                    </td>
-
-                                    <!-- Group Name / Description -->
-                                    <td class="col-name fw-semibold text-dark">@g.UserGroup</td>
-
-                                    <!-- Remarks -->
-                                    <td class="col-remarks text-muted">@(string.IsNullOrWhiteSpace(g.Remark) ? "-" : g.Remark)</td>
-
-                                    <!-- Approval Level -->
-                                    <td class="col-approval text-center">
+                                    <!-- Line 2: 🛡️ Level   : Approval Level (Y) / Standard Level (N) -->
+                                    <div class="d-flex align-items-center text-muted small mb-1.5">
+                                        <i class="bi bi-shield-check text-secondary me-2 fs-6" style="width: 16px;"></i>
+                                        <span class="text-secondary fw-semibold" style="width: 72px;">Level   :</span>
                                         @if (g.ApprovalLevel == "Y")
                                         {
-                                            <span class="badge bg-success-subtle text-success border border-success" title="Active Approval Level">Active (Y)</span>
+                                            <span class="badge bg-success-subtle text-success border border-success py-0.5 px-1.5" style="font-size: 0.68rem;">Approval Level (Y)</span>
                                         }
                                         else
                                         {
-                                            <span class="badge bg-secondary-subtle text-secondary border" title="Standard Level">No (N)</span>
+                                            <span class="badge bg-secondary-subtle text-secondary border py-0.5 px-1.5" style="font-size: 0.68rem;">Standard Level (N)</span>
                                         }
-                                    </td>
-                                </tr>
-                            }
-                        }
-                    </tbody>
-                </table>
-            </div>
+                                    </div>
 
-            <!-- Table Footer Status (Matching UserManage) -->
-            <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
-                <div>
-                    Showing <strong>@FilteredGroups.Count</strong> of <strong>@groupsList.Count</strong> groups
-                    @if (selectedGroupKeys.Count > 0)
-                    {
-                        <span class="ms-3 badge bg-danger">@selectedGroupKeys.Count Selected</span>
-                    }
-                </div>
-                <div class="d-none d-md-block">
-                    <span>Source: MySQL 5.7 schema <code>myhrsuitelog.aspnet_usergroup</code></span>
-                </div>
+                                    <!-- Line 3: 📝 Remark  : <Remark> -->
+                                    <div class="d-flex align-items-center text-muted small">
+                                        <i class="bi bi-chat-left-text text-secondary me-2 fs-6" style="width: 16px;"></i>
+                                        <span class="text-secondary fw-semibold" style="width: 72px;">Remark  :</span>
+                                        <span class="text-dark text-truncate">@(string.IsNullOrWhiteSpace(g.Remark) ? "-" : g.Remark)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Cards Footer Status -->
+                    <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border rounded-bottom-3 mt-2">
+                        <div>
+                            Showing <strong>@FilteredGroups.Count</strong> of <strong>@groupsList.Count</strong> groups
+                            @if (selectedGroupKeys.Count > 0)
+                            {
+                                <span class="ms-3 badge bg-danger">@selectedGroupKeys.Count Selected</span>
+                            }
+                        </div>
+                    </div>
+                }
             </div>
-        </div>
+        }
     }
     else
     {
@@ -378,6 +477,7 @@
     [SupplyParameterFromQuery]
     public string? Action { get; set; }
 
+    private string viewMode = "auto"; // "auto", "table", "cards"
     private bool isFormView = false;
     private bool isEditMode = false;
     private bool isLoading = true;
@@ -830,6 +930,24 @@
 
     .animate-fade-in {
         animation: fadeIn 0.2s ease-in-out;
+    }
+
+    /* Mobile Card Styles */
+    .user-card-item {
+        border-color: #cbd5e1 !important;
+        background-color: #ffffff;
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.15s ease;
+    }
+
+    .user-card-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .user-card-item.card-selected {
+        border-color: #ef4444 !important;
+        background-color: #fef2f2 !important;
     }
 
     @@keyframes fadeIn {

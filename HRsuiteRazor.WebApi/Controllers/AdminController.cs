@@ -441,7 +441,6 @@ public class AdminController : ControllerBase
     }
 
 
-    // --- USER MANAGEMENT ---
     [HttpGet("users")]
     public async Task<IActionResult> GetUsers()
     {
@@ -450,6 +449,20 @@ public class AdminController : ControllerBase
 
         try
         {
+            var empDeptMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var emps = await FetchAllEmployeesInternalAsync();
+                foreach (var emp in emps)
+                {
+                    if (!string.IsNullOrEmpty(emp.DeptId))
+                    {
+                        empDeptMap[emp.EmpId] = emp.DeptId;
+                    }
+                }
+            }
+            catch { }
+
             using (var conn = new MySqlConnection(connStr))
             {
                 await conn.OpenAsync();
@@ -467,9 +480,36 @@ public class AdminController : ControllerBase
                     {
                         while (await reader.ReadAsync())
                         {
+                            string id = reader["ID"]?.ToString() ?? "";
+                            string empId = reader["emp_id"]?.ToString() ?? "";
+                            string userGrp = reader["UserGroupID"]?.ToString() ?? "";
+                            string leaveGrp = reader["LeaveUserGroupID"]?.ToString() ?? "";
+
+                            string dept = "";
+                            if (!string.IsNullOrEmpty(empId) && empDeptMap.TryGetValue(empId, out var d1))
+                            {
+                                dept = d1;
+                            }
+                            else if (!string.IsNullOrEmpty(id) && empDeptMap.TryGetValue(id, out var d2))
+                            {
+                                dept = d2;
+                            }
+                            else if (!string.IsNullOrEmpty(userGrp))
+                            {
+                                dept = userGrp;
+                            }
+                            else if (!string.IsNullOrEmpty(leaveGrp))
+                            {
+                                dept = leaveGrp;
+                            }
+                            else
+                            {
+                                dept = "IT";
+                            }
+
                             list.Add(new AdminUserModel
                             {
-                                ID = reader["ID"]?.ToString() ?? "",
+                                ID = id,
                                 Name = reader["Name"]?.ToString() ?? "",
                                 Password = reader["Password"]?.ToString() ?? "",
                                 Remark = reader["Remark"]?.ToString() ?? "",
@@ -477,17 +517,18 @@ public class AdminController : ControllerBase
                                 Email = reader["Email"]?.ToString() ?? "",
                                 IsEmail = reader["IsEmail"]?.ToString() ?? "",
                                 OTUserGroupID = reader["OTUserGroupID"]?.ToString() ?? "",
-                                EmpId = reader["emp_id"]?.ToString() ?? "",
-                                LeaveUserGroupID = reader["LeaveUserGroupID"]?.ToString() ?? "",
+                                EmpId = empId,
+                                LeaveUserGroupID = leaveGrp,
                                 AttnUserGroupID = reader["AttnUserGroupID"]?.ToString() ?? "",
                                 PayslipUserGroupID = reader["PayslipUserGroupID"]?.ToString() ?? "",
-                                UserGroupID = reader["UserGroupID"]?.ToString() ?? "",
+                                UserGroupID = userGrp,
                                 SuperAdminLeave = reader["superAdminLeave"]?.ToString() ?? "",
                                 ClaimUserGroupID = reader["ClaimUserGroupID"]?.ToString() ?? "",
                                 EAFORMGroupID = reader["EAFORMGroupID"]?.ToString() ?? "",
                                 CoNo = reader["CoNo"]?.ToString() ?? "",
                                 IsAttn = reader["IsAttn"]?.ToString() ?? "",
-                                PasswordPayslip = reader["password_payslip"]?.ToString() ?? ""
+                                PasswordPayslip = reader["password_payslip"]?.ToString() ?? "",
+                                Department = dept
                             });
                         }
                     }

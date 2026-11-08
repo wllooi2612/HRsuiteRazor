@@ -981,6 +981,88 @@ public class HrApiClient
             return (false, ex.Message);
         }
     }
+
+    // -------------------------------------------------------------
+    // Leave Document Rules (aspnet_rules)
+    // -------------------------------------------------------------
+
+    public async Task<List<LeaveDocRuleRow>> GetLeaveDocRulesAsync(string group = "LEAVE")
+    {
+        try
+        {
+            var res = await _http.GetFromJsonAsync<List<LeaveDocRuleRow>>($"api/Leave/doc-rules?group={Uri.EscapeDataString(group)}");
+            return res ?? new List<LeaveDocRuleRow>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to call api/Leave/doc-rules");
+            return new List<LeaveDocRuleRow>();
+        }
+    }
+
+    public async Task<(bool Success, string Message, int RuleID)> SaveLeaveDocRuleAsync(SaveLeaveDocRuleRequest request)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Leave/doc-rules/save", request);
+            if (res.IsSuccessStatusCode)
+            {
+                var content = await res.Content.ReadFromJsonAsync<JsonDocument>();
+                int ruleId = request.RuleID;
+                if (content != null && (content.RootElement.TryGetProperty("ruleID", out var rId) || content.RootElement.TryGetProperty("RuleID", out rId)))
+                {
+                    ruleId = rId.GetInt32();
+                }
+                return (true, $"Rule #{ruleId} saved successfully.", ruleId);
+            }
+
+            var err = await res.Content.ReadAsStringAsync();
+            try
+            {
+                var jsonDoc = JsonDocument.Parse(err);
+                if (jsonDoc.RootElement.TryGetProperty("message", out var msgProp) || jsonDoc.RootElement.TryGetProperty("Message", out msgProp))
+                {
+                    return (false, msgProp.GetString() ?? err, request.RuleID);
+                }
+            }
+            catch { }
+            return (false, $"Error saving rule: {err}", request.RuleID);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save leave document rule");
+            return (false, ex.Message, request.RuleID);
+        }
+    }
+
+    public async Task<(bool Success, string Message)> DeleteLeaveDocRulesAsync(DeleteLeaveDocRulesRequest request)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Leave/doc-rules/delete", request);
+            if (res.IsSuccessStatusCode)
+            {
+                return (true, "Selected rule(s) deleted successfully.");
+            }
+
+            var err = await res.Content.ReadAsStringAsync();
+            try
+            {
+                var jsonDoc = JsonDocument.Parse(err);
+                if (jsonDoc.RootElement.TryGetProperty("message", out var msgProp) || jsonDoc.RootElement.TryGetProperty("Message", out msgProp))
+                {
+                    return (false, msgProp.GetString() ?? err);
+                }
+            }
+            catch { }
+            return (false, $"Error deleting rules: {err}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete leave document rules");
+            return (false, ex.Message);
+        }
+    }
 }
 
 

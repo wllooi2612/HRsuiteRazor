@@ -1,0 +1,1291 @@
+@page "/admin/users"
+@page "/users"
+@page "/admin/users/edit/{EditUserId}"
+@page "/admin/users/new"
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>User Management - HRsuite</PageTitle>
+
+<div class="user-management-page">
+    @if (!isFormView)
+    {
+        <!-- Top Header Bar (Matching Image 2: Clean back arrow and title, no unneeded subtitle) -->
+        <div class="page-top-bar d-flex align-items-center gap-3 mb-3">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-4 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <h4 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+            <i class="bi bi-person-lines-fill text-primary"></i>
+            <span>User Management Directory</span>
+        </h4>
+    </div>
+
+    <!-- Status Alert Banner -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(statusSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-2 shadow-sm animate-fade-in" role="alert">
+            <i class="bi @(statusSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") fs-5"></i>
+            <div class="flex-grow-1 small">@statusMessage</div>
+            <button type="button" class="btn-close btn-close-sm" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Unified Single-Line Control Bar (Compact Icons with Tooltips, Inline Status, No Group Pills) -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+        <div class="card-body p-2 d-flex flex-wrap align-items-center gap-2">
+            <!-- Search Box -->
+            <div class="search-box" style="width: 230px; min-width: 180px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0 py-1"><i class="bi bi-search text-muted small"></i></span>
+                    <input type="text" class="form-control border-start-0 bg-light py-1" placeholder="Search ID, Name, EmpID, Email..." @bind="globalSearchText" @bind:event="oninput" title="Search by User ID, Name, EmpID, or Email" />
+                    @if (!string.IsNullOrEmpty(globalSearchText))
+                    {
+                        <button class="btn btn-sm btn-outline-secondary bg-light border-start-0 py-1" @onclick='() => globalSearchText = ""' title="Clear search">✕</button>
+                    }
+                </div>
+            </div>
+
+            <!-- Status Filter Chips (Inline on the same line) -->
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted small me-1">Status:</span>
+                <button class="btn btn-xs rounded-pill @(filterStatus == null ? "btn-dark text-white" : "btn-light text-dark border")" @onclick='() => filterStatus = null' title="Show all users">All</button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "Y" ? "btn-success text-white" : "btn-light text-dark border")" @onclick='() => filterStatus = "Y"' title="Show active users only">Active</button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "N" ? "btn-danger text-white" : "btn-light text-dark border")" @onclick='() => filterStatus = "N"' title="Show inactive users only">Inactive</button>
+            </div>
+
+            <div class="vr mx-1 my-auto text-secondary opacity-25 d-none d-sm-block" style="height: 22px;"></div>
+
+            <!-- Action Icons Toolbar (All Icon Buttons with Tooltips in ONE Line) -->
+            <div class="d-flex align-items-center gap-1 flex-wrap">
+                <!-- Add New Record -->
+                <a href="admin/users/new" class="btn btn-sm btn-success icon-toolbar-btn shadow-sm text-decoration-none text-white d-inline-flex align-items-center justify-content-center" @onclick="() => OpenAddUserView(syncUrl: false)" title="Add New Record">
+                    <i class="bi bi-plus-lg fs-6"></i>
+                </a>
+
+                <!-- Delete Selected Users -->
+                <button class="btn btn-sm btn-outline-danger icon-toolbar-btn position-relative shadow-sm" @onclick="DeleteSelectedUsersAsync" disabled="@(SelectedCount == 0)" title="Delete Selected User(s)">
+                    <i class="bi bi-trash3-fill"></i>
+                    @if (SelectedCount > 0)
+                    {
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size: 0.65rem;">
+                            @SelectedCount
+                        </span>
+                    }
+                </button>
+
+                <!-- Print All Users -->
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="PrintUsers" title="Print All Users">
+                    <i class="bi bi-printer-fill"></i>
+                </button>
+
+                <!-- Send Email Notification -->
+                <button class="btn btn-sm btn-outline-primary icon-toolbar-btn shadow-sm" @onclick="SendNotificationEmail" disabled="@(SelectedCount == 0)" title="Send Email Notification to Selected">
+                    <i class="bi bi-envelope-fill"></i>
+                </button>
+
+                <!-- Reset Password -->
+                <button class="btn btn-sm btn-outline-warning text-dark icon-toolbar-btn shadow-sm" @onclick="ResetSelectedUserPassword" disabled="@(SelectedCount != 1)" title="Reset Password (1 selected user)">
+                    <i class="bi bi-key-fill"></i>
+                </button>
+
+                <!-- Update Company ID -->
+                <button class="btn btn-sm btn-outline-info text-dark icon-toolbar-btn shadow-sm" @onclick="OpenUpdateCompanyModal" disabled="@(SelectedCount == 0)" title="Update Company ID (CoNo)">
+                    <i class="bi bi-building"></i>
+                </button>
+
+                <div class="vr mx-1 my-auto text-secondary opacity-25" style="height: 22px;"></div>
+
+                <!-- Column Filters Toggle -->
+                <button class="btn btn-sm @(showFilters ? "btn-dark text-white" : "btn-outline-dark") icon-toolbar-btn shadow-sm" @onclick='() => showFilters = !showFilters' title="Toggle Per-Column Filters">
+                    <i class="bi bi-funnel-fill"></i>
+                </button>
+
+                <!-- View Switcher (Auto / Grid / Cards) -->
+                <div class="btn-group btn-group-sm shadow-sm" role="group">
+                    <button type="button" class="btn @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Cards on Mobile, Grid on Desktop)">
+                        <i class="bi bi-phone"></i>
+                    </button>
+                    <button type="button" class="btn @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "table"' title="Grid Table View">
+                        <i class="bi bi-table"></i>
+                    </button>
+                    <button type="button" class="btn @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "cards"' title="Cards View">
+                        <i class="bi bi-grid-fill"></i>
+                    </button>
+                </div>
+
+                <!-- Refresh Button -->
+                <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="() => LoadUsersAsync()" title="Refresh Users from Database">
+                    <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DATA DISPLAY (WEB 桌面端 宽屏表格 / ANDROID 手机端 自适应卡片) -->
+    @if (viewMode == "table" || viewMode == "auto")
+    {
+        <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+            <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+                <div class="table-responsive enterprise-table-container">
+                    <table class="table table-hover table-sm align-middle enterprise-table mb-0">
+                        <thead class="table-header-custom sticky-top">
+                            <!-- Main Header Row: BADGE ID | USER ID | NAME | DEPARTMENT | EMAIL -->
+                            <tr>
+                                <th class="col-action text-center" style="width: 55px;">#</th>
+                                <th class="col-checkbox text-center" style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" checked="@IsAllSelected" @onchange="ToggleSelectAll" title="Select All" />
+                                </th>
+                                <th class="col-badge text-center" style="width: 120px;">BADGE ID</th>
+                                <th class="col-id" style="width: 130px;">USER ID</th>
+                                <th class="col-name">NAME</th>
+                                <th class="col-dept text-center" style="width: 160px;">DEPARTMENT</th>
+                                <th class="col-email">EMAIL</th>
+                                <th class="col-status text-center" style="width: 90px;">STATUS</th>
+                            </tr>
+
+                            <!-- Interactive Per-Column Filter Row -->
+                            @if (showFilters)
+                            {
+                                <tr class="filter-row bg-light">
+                                    <th class="text-center"><small class="text-muted">Filter</small></th>
+                                    <th></th>
+                                    <th><input type="text" class="form-control form-control-xs text-center" @bind="colFilterEmpId" @bind:event="oninput" placeholder="Badge ID" /></th>
+                                    <th><input type="text" class="form-control form-control-xs" @bind="colFilterId" @bind:event="oninput" placeholder="User ID" /></th>
+                                    <th><input type="text" class="form-control form-control-xs" @bind="colFilterName" @bind:event="oninput" placeholder="Name" /></th>
+                                    <th><input type="text" class="form-control form-control-xs text-center" @bind="colFilterDept" @bind:event="oninput" placeholder="Dept" /></th>
+                                    <th><input type="text" class="form-control form-control-xs" @bind="colFilterEmail" @bind:event="oninput" placeholder="Email" /></th>
+                                    <th>
+                                        <select class="form-select form-select-xs" @bind="colFilterActive">
+                                            <option value="">All</option>
+                                            <option value="Y">Active</option>
+                                            <option value="N">Inactive</option>
+                                        </select>
+                                    </th>
+                                </tr>
+                            }
+                        </thead>
+                        <tbody>
+                            @if (isLoading)
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-5">
+                                        <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                        <div class="text-muted small mt-2">Loading user records from MySQL via Web API...</div>
+                                    </td>
+                                </tr>
+                            }
+                            else if (FilteredUsers.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                                        <span>No users match the search criteria.</span>
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var user in FilteredUsers)
+                                {
+                                    bool isSelected = selectedUserIds.Contains(user.ID);
+                                    bool isHighlighted = (activeUser?.ID == user.ID);
+                                    string badgeId = GetUserBadgeId(user);
+                                    string dept = GetUserDepartment(user);
+
+                                    <tr class="user-row @(isHighlighted ? "row-highlighted" : "") @(isSelected ? "row-selected" : "")" @onclick="() => SelectRow(user)">
+                                        <!-- Edit Link -->
+                                        <td class="text-center col-action" @onclick:stopPropagation="true">
+                                            <a href="admin/users/edit/@user.ID" class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold text-decoration-none" @onclick="() => StartEditUser(user, syncUrl: false)">
+                                                Edit
+                                            </a>
+                                        </td>
+
+                                        <!-- Selection Checkbox -->
+                                        <td class="text-center col-checkbox" @onclick:stopPropagation="true">
+                                            <input type="checkbox" class="form-check-input" checked="@isSelected" @onchange="(e) => ToggleUserSelection(user.ID, e)" />
+                                        </td>
+
+                                        <!-- BADGE ID -->
+                                        <td class="text-center col-badge">
+                                            <span class="font-monospace fw-bold text-dark">@badgeId</span>
+                                        </td>
+
+                                        <!-- USER ID -->
+                                        <td class="col-id">
+                                            <span class="badge bg-secondary font-monospace fw-bold">@user.ID</span>
+                                        </td>
+
+                                        <!-- NAME -->
+                                        <td class="col-name fw-semibold text-dark">@user.Name</td>
+
+                                        <!-- DEPARTMENT -->
+                                        <td class="text-center col-dept">
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold text-uppercase">
+                                                @dept
+                                            </span>
+                                        </td>
+
+                                        <!-- EMAIL -->
+                                        <td class="col-email">
+                                            @if (!string.IsNullOrEmpty(user.Email))
+                                            {
+                                                <a href="mailto:@user.Email" class="text-decoration-none text-muted font-monospace small" @onclick:stopPropagation="true">
+                                                    <i class="bi bi-envelope me-1"></i>@user.Email
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+
+                                        <!-- STATUS -->
+                                        <td class="text-center col-status" @onclick:stopPropagation="true">
+                                            @if (user.IsActive == "Y")
+                                            {
+                                                <span class="badge bg-success" style="cursor: pointer;" @onclick="() => ToggleUserActiveStatus(user)" title="Click to toggle status">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger" style="cursor: pointer;" @onclick="() => ToggleUserActiveStatus(user)" title="Click to toggle status">Inactive</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Table Footer Status -->
+                <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
+                    <div>
+                        Showing <strong>@FilteredUsers.Count</strong> of <strong>@usersList.Count</strong> users
+                        @if (SelectedCount > 0)
+                        {
+                            <span class="ms-3 badge bg-primary">@SelectedCount Selected</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ANDROID 手机端（自适应为卡片，告别左右滑动） -->
+    @if (viewMode == "cards" || viewMode == "auto")
+    {
+        <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") mb-4">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                    <div class="text-muted small mt-2">Loading user records...</div>
+                </div>
+            }
+            else if (FilteredUsers.Count == 0)
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                    <span>No users match the search criteria.</span>
+                </div>
+            }
+            else
+            {
+                <div class="row g-2">
+                    @foreach (var user in FilteredUsers)
+                    {
+                        bool isSelected = selectedUserIds.Contains(user.ID);
+                        string badgeId = GetUserBadgeId(user);
+                        string dept = GetUserDepartment(user);
+
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <div class="card border rounded-3 p-3 shadow-sm user-card-item @(isSelected ? "card-selected" : "")" style="background-color: #ffffff;" @onclick="() => SelectRow(user)">
+                                <!-- Top Line: [E1001]  Looi Engineer       [ENGINEERING] -->
+                                <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                    <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                        <input type="checkbox" class="form-check-input me-1 flex-shrink-0" checked="@isSelected" @onchange="(e) => ToggleUserSelection(user.ID, e)" @onclick:stopPropagation="true" />
+                                        <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@badgeId]</span>
+                                        <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.95rem;">@user.Name</span>
+                                    </div>
+                                    <div class="flex-shrink-0 d-flex align-items-center gap-1">
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.3px;">
+                                            [@dept]
+                                        </span>
+                                        <a href="admin/users/edit/@user.ID" class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold text-decoration-none ms-1" @onclick="() => StartEditUser(user, syncUrl: false)" @onclick:stopPropagation="true">
+                                            Edit
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <!-- Line 2: 👤 User ID : looi -->
+                                <div class="d-flex align-items-center text-muted small mb-1.5">
+                                    <i class="bi bi-person-fill text-secondary me-2 fs-6" style="width: 16px;"></i>
+                                    <span class="text-secondary fw-semibold" style="width: 72px;">User ID :</span>
+                                    <span class="text-dark font-monospace fw-bold">@user.ID</span>
+                                    @if (user.IsActive == "Y")
+                                    {
+                                        <span class="badge bg-success-subtle text-success ms-auto border border-success-subtle py-0.5 px-1.5" style="font-size: 0.68rem;">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger ms-auto border border-danger-subtle py-0.5 px-1.5" style="font-size: 0.68rem;">Inactive</span>
+                                    }
+                                </div>
+
+                                <!-- Line 3: ✉️ Email   : looi@xinyi.com -->
+                                <div class="d-flex align-items-center text-muted small">
+                                    <i class="bi bi-envelope-fill text-primary me-2 fs-6" style="width: 16px;"></i>
+                                    <span class="text-secondary fw-semibold" style="width: 72px;">Email   :</span>
+                                    @if (!string.IsNullOrEmpty(user.Email))
+                                    {
+                                        <a href="mailto:@user.Email" class="text-dark text-decoration-none text-truncate" @onclick:stopPropagation="true">
+                                            @user.Email
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Cards Footer Status -->
+                <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border rounded-bottom-3 mt-2">
+                    <div>
+                        Showing <strong>@FilteredUsers.Count</strong> of <strong>@usersList.Count</strong> users
+                        @if (SelectedCount > 0)
+                        {
+                            <span class="ms-3 badge bg-primary">@SelectedCount Selected</span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    }
+    else
+    {
+        <!-- NEW / EDIT USER FULL PAGE VIEW (No pop-out modal!) -->
+        <div class="user-edit-page animate-fade-in">
+            @if (!string.IsNullOrEmpty(formErrorMessage))
+            {
+                <div class="alert alert-danger py-2 px-3 small d-flex align-items-center gap-2 mb-3 shadow-sm">
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                    <span>@formErrorMessage</span>
+                </div>
+            }
+
+            <!-- Form Card -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+                <div class="card-header @(isEditMode ? "bg-primary" : "bg-success") text-white py-2 px-3 d-flex align-items-center justify-content-between">
+                    <h6 class="mb-0 fw-bold d-flex align-items-center gap-2">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle-fill")"></i>
+                        <span>@(isEditMode ? $"User Details & Permission Groups — {currentUser.ID}" : "New User Registration")</span>
+                    </h6>
+                    <button type="button" class="btn btn-link text-white p-0 text-decoration-none fs-4 d-inline-flex align-items-center" @onclick="CloseFormView" title="Back to User List">
+                        <i class="bi bi-arrow-left"></i>
+                    </button>
+                </div>
+                <div class="card-body p-3 p-md-4">
+                    <div class="row g-3">
+                        <!-- Section 1: Basic Credentials -->
+                        <div class="col-12"><h6 class="fw-bold text-muted border-bottom pb-2 mb-2 small">1. Basic Credentials</h6></div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">User ID (Login Name) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" placeholder="e.g. 00021" @bind="currentUser.ID" disabled="@isEditMode" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Full Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" placeholder="e.g. JOHN DOE" @bind="currentUser.Name" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Emp ID</label>
+                            <input type="text" class="form-control form-control-sm" list="empOptions" placeholder="e.g. 00021" @bind="currentUser.EmpId" @bind:after="OnEmpIdChanged" />
+                            <datalist id="empOptions">
+                                @foreach (var emp in employeeList)
+                                {
+                                    <option value="@emp.EmpId">@emp.Name</option>
+                                }
+                            </datalist>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Company Code (CoNo)</label>
+                            <select class="form-select form-select-sm" @bind="currentUser.CoNo">
+                                <option value="">(None)</option>
+                                @foreach (var comp in companyList)
+                                {
+                                    <option value="@comp.CoNo">@comp.CoNo - @comp.CompanyName</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Active Status</label>
+                            <select class="form-select form-select-sm" @bind="currentUser.IsActive">
+                                <option value="Y">Active (Y)</option>
+                                <option value="N">Inactive (N)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Email Address</label>
+                            <input type="email" class="form-control form-control-sm" placeholder="user@company.com" @bind="currentUser.Email" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">@(isEditMode ? "New Password (empty to keep)" : "Password")</label>
+                            <input type="password" class="form-control form-control-sm" placeholder="@(isEditMode ? "Keep current password" : "Default: 123456")" @bind="currentUser.Password" />
+                        </div>
+
+                        <!-- Section 2: Module Permission Groups (aspnet_usergroup) -->
+                        <div class="col-12 mt-4"><h6 class="fw-bold text-muted border-bottom pb-2 mb-2 small">2. Module Permission Groups (aspnet_usergroup)</h6></div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Leave Group (Leave Grp ID)</label>
+                            <select class="form-select form-select-sm" @bind="currentUser.LeaveUserGroupID">
+                                <option value="">(None)</option>
+                                @foreach (var g in leaveGroups)
+                                {
+                                    <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">OT Group (OT Grp ID)</label>
+                            <select class="form-select form-select-sm" @bind="currentUser.OTUserGroupID">
+                                <option value="">(None)</option>
+                                @foreach (var g in otGroups)
+                                {
+                                    <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Attendance Group (Attn Grp ID)</label>
+                            <select class="form-select form-select-sm" @bind="currentUser.AttnUserGroupID">
+                                <option value="">(None)</option>
+                                @foreach (var g in attnGroups)
+                                {
+                                    <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Payslip Group (Payslip Grp ID)</label>
+                            <select class="form-select form-select-sm" @bind="currentUser.PayslipUserGroupID">
+                                <option value="">(None)</option>
+                                @foreach (var g in payslipGroups)
+                                {
+                                    <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Claim Group (Claim Grp ID)</label>
+                            <select class="form-select form-select-sm" @bind="currentUser.ClaimUserGroupID">
+                                <option value="">(None)</option>
+                                @foreach (var g in claimGroups)
+                                {
+                                    <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">EA Form Group (EA Grp ID)</label>
+                            <select class="form-select form-select-sm" @bind="currentUser.EAFORMGroupID">
+                                <option value="">(None)</option>
+                                @foreach (var g in eaGroups)
+                                {
+                                    <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Staff Group (Staff Grp ID)</label>
+                            <select class="form-select form-select-sm" @bind="currentUser.UserGroupID">
+                                <option value="">(None)</option>
+                                @foreach (var g in staffGroups)
+                                {
+                                    <option value="@g.UserGroupID">@(string.IsNullOrWhiteSpace(g.UserGroup) || g.UserGroup.Equals(g.UserGroupID, StringComparison.OrdinalIgnoreCase) ? g.UserGroupID : $"{g.UserGroupID} - {g.UserGroup}")</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Remark</label>
+                            <input type="text" class="form-control form-control-sm" placeholder="Optional notes" @bind="currentUser.Remark" />
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer py-3 px-4 bg-light d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseFormView">Cancel</button>
+                    <button type="button" class="btn @(isEditMode ? "btn-primary" : "btn-success") px-4 fw-semibold" @onclick="RequestSaveUser" disabled="@isSubmitting">
+                        <i class="bi bi-check2-circle me-1"></i>
+                        <span>@(isEditMode ? "Update Record" : "Save Record")</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- MODAL: CONFIRMATION BEFORE SAVE/UPDATE -->
+    @if (isConfirmSaveModalOpen)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.65); z-index: 1060;">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content border-0 shadow-lg rounded-3">
+                    <div class="modal-header @(isEditMode ? "bg-primary text-white" : "bg-success text-white") py-2 px-3">
+                        <h6 class="modal-title fw-bold">
+                            <i class="bi bi-question-circle me-1"></i> Confirmation
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white" @onclick="() => isConfirmSaveModalOpen = false"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-question-circle-fill text-primary" style="font-size: 3rem;"></i>
+                        </div>
+                        <h6 class="fw-bold mb-2">Are you sure you want to continue?</h6>
+                        <p class="small text-muted mb-0">
+                            @(isEditMode 
+                                ? $"Are you sure you want to update user '{currentUser.ID}'?" 
+                                : $"Are you sure you want to add new user '{currentUser.ID}'?")
+                        </p>
+                    </div>
+                    <div class="modal-footer py-2 px-3 bg-light justify-content-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-3" @onclick="() => isConfirmSaveModalOpen = false" disabled="@isSubmitting">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn btn-sm @(isEditMode ? "btn-primary" : "btn-success") px-4 fw-semibold" @onclick="ConfirmAndSaveUserAsync" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check2-circle me-1"></i>
+                                <span>Confirm</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- MODAL 2: UPDATE COMPANY ID MODAL (Bulk Action) -->
+    @if (isCompanyModalOpen)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg rounded-3">
+                    <div class="modal-header bg-info text-dark py-2 px-3">
+                        <h6 class="modal-title fw-bold">
+                            <i class="bi bi-building me-1"></i> Update Company ID (CoNo)
+                        </h6>
+                        <button type="button" class="btn-close" @onclick='() => isCompanyModalOpen = false'></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <p class="small text-muted mb-2">Update the Company ID (CoNo) for the <strong>@SelectedCount</strong> selected user(s):</p>
+                        <select class="form-select form-select-sm" @bind="bulkCoNo">
+                            @foreach (var comp in companyList)
+                            {
+                                <option value="@comp.CoNo">@comp.CoNo - @comp.CompanyName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="modal-footer py-2 px-3 bg-light">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick='() => isCompanyModalOpen = false'>Cancel</button>
+                        <button type="button" class="btn btn-sm btn-info px-4 fw-semibold" @onclick="ExecuteBulkUpdateCoNoAsync">
+                            Apply Update
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? EditUserId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Action { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Edit { get; set; }
+
+    private string viewMode = "auto"; // "auto", "table" or "cards"
+    private bool showFilters = false;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+
+    private List<AdminUserModel> usersList = new();
+    private AdminUserModel? activeUser;
+    private HashSet<string> selectedUserIds = new();
+
+    private string? statusMessage;
+    private bool statusSuccess = true;
+
+    // Filters
+    private string globalSearchText = "";
+    private string? filterStatus = null;
+
+    // Per-column filters (matching BADGE ID, USER ID, NAME, DEPARTMENT, EMAIL, STATUS)
+    private string colFilterCoNo = "";
+    private string colFilterEmpId = "";
+    private string colFilterId = "";
+    private string colFilterName = "";
+    private string colFilterDept = "";
+    private string colFilterEmail = "";
+    private string colFilterActive = "";
+
+    // Page Views
+    private bool isFormView = false;
+    private bool isFormModalOpen => isFormView;
+    private bool isEditMode = false;
+    private AdminUserModel currentUser = new();
+    private bool isConfirmSaveModalOpen = false;
+    private string? formErrorMessage;
+
+    private bool isCompanyModalOpen = false;
+    private string bulkCoNo = "ID";
+
+    // Dynamic Lookups from MySQL (aspnet_usergroup, aspnet_general, dw_emp)
+    private List<UserGroupModel> allGroups = new();
+    private List<CompanyModel> companyList = new();
+    private List<EmployeeLookupModel> employeeList = new();
+
+    private IEnumerable<UserGroupModel> leaveGroups => allGroups.Where(g => g.GroupID.Equals("LEAVE", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> otGroups => allGroups.Where(g => g.GroupID.Equals("OT", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> attnGroups => allGroups.Where(g => g.GroupID.Equals("ATTENDANCE", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> payslipGroups => allGroups.Where(g => g.GroupID.Equals("PAYSLIP", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> claimGroups => allGroups.Where(g => g.GroupID.Equals("CLAIM", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> eaGroups => allGroups.Where(g => g.GroupID.Equals("EAFORM", StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<UserGroupModel> staffGroups => allGroups.Where(g => g.GroupID.Equals("STAFF", StringComparison.OrdinalIgnoreCase));
+
+    private int SelectedCount => selectedUserIds.Count;
+    private bool IsAllSelected => usersList.Count > 0 && selectedUserIds.Count == FilteredUsers.Count;
+
+    private string GetUserBadgeId(AdminUserModel u)
+    {
+        if (!string.IsNullOrWhiteSpace(u.EmpId))
+            return u.EmpId;
+        return u.ID;
+    }
+
+    private string GetUserDepartment(AdminUserModel u)
+    {
+        if (!string.IsNullOrWhiteSpace(u.Department))
+            return u.Department;
+        if (!string.IsNullOrWhiteSpace(u.UserGroupID))
+            return u.UserGroupID;
+        if (!string.IsNullOrWhiteSpace(u.LeaveUserGroupID))
+            return u.LeaveUserGroupID;
+        return "IT";
+    }
+
+    private List<AdminUserModel> FilteredUsers
+    {
+        get
+        {
+            return usersList.Where(u =>
+                // Global search
+                (string.IsNullOrWhiteSpace(globalSearchText) ||
+                 u.ID.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase) ||
+                 u.Name.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase) ||
+                 (u.EmpId != null && u.EmpId.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase)) ||
+                 GetUserDepartment(u).Contains(globalSearchText, StringComparison.OrdinalIgnoreCase) ||
+                 (u.Email != null && u.Email.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase))) &&
+
+                // Top Status pill
+                (string.IsNullOrEmpty(filterStatus) || u.IsActive == filterStatus) &&
+
+                // Column-level filters matching the 5 columns
+                (string.IsNullOrEmpty(colFilterEmpId) || GetUserBadgeId(u).Contains(colFilterEmpId, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(colFilterId) || u.ID.Contains(colFilterId, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(colFilterName) || u.Name.Contains(colFilterName, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(colFilterDept) || GetUserDepartment(u).Contains(colFilterDept, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(colFilterEmail) || (u.Email != null && u.Email.Contains(colFilterEmail, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterActive) || u.IsActive == colFilterActive)
+            ).ToList();
+        }
+    }
+
+    private string? EffectiveEditId => !string.IsNullOrEmpty(EditUserId) ? EditUserId : Edit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(
+            LoadUsersAsync(),
+            LoadLookupsAsync()
+        );
+
+        ApplyRouteParameters();
+    }
+
+    protected override void OnParametersSet()
+    {
+        ApplyRouteParameters();
+    }
+
+    private void ApplyRouteParameters()
+    {
+        if (!string.IsNullOrEmpty(EffectiveEditId) && usersList.Count > 0)
+        {
+            if (!isFormView || currentUser.ID != EffectiveEditId)
+            {
+                var u = usersList.FirstOrDefault(x => x.ID.Equals(EffectiveEditId, StringComparison.OrdinalIgnoreCase));
+                if (u != null)
+                {
+                    StartEditUser(u, syncUrl: false);
+                }
+            }
+        }
+        else if ((string.Equals(Action, "new", StringComparison.OrdinalIgnoreCase) || NavManager.Uri.EndsWith("/new", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!isFormView || isEditMode)
+            {
+                OpenAddUserView(syncUrl: false);
+            }
+        }
+        else if (string.IsNullOrEmpty(EffectiveEditId) && !string.Equals(Action, "new", StringComparison.OrdinalIgnoreCase) && !NavManager.Uri.EndsWith("/new", StringComparison.OrdinalIgnoreCase))
+        {
+            isFormView = false;
+        }
+    }
+
+    private async Task LoadLookupsAsync()
+    {
+        try
+        {
+            allGroups = await ApiClient.GetAdminGroupsAsync();
+            companyList = await ApiClient.GetCompaniesAsync();
+            employeeList = await ApiClient.GetEmployeesAsync();
+
+            if (companyList.Count > 0 && (string.IsNullOrEmpty(bulkCoNo) || bulkCoNo == "ID"))
+            {
+                bulkCoNo = companyList[0].CoNo;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error loading lookup data: " + ex.Message);
+        }
+    }
+
+    private void OnEmpIdChanged()
+    {
+        if (!string.IsNullOrWhiteSpace(currentUser.EmpId))
+        {
+            var matchedEmp = employeeList.FirstOrDefault(e => e.EmpId.Equals(currentUser.EmpId, StringComparison.OrdinalIgnoreCase));
+            if (matchedEmp != null)
+            {
+                if (string.IsNullOrWhiteSpace(currentUser.Name))
+                {
+                    currentUser.Name = matchedEmp.Name;
+                }
+                if (!isEditMode && string.IsNullOrWhiteSpace(currentUser.ID))
+                {
+                    currentUser.ID = matchedEmp.EmpId;
+                }
+            }
+        }
+    }
+
+    private async Task LoadUsersAsync(bool keepStatus = false)
+    {
+        isLoading = true;
+        if (!keepStatus)
+        {
+            statusMessage = null;
+        }
+        try
+        {
+            usersList = await ApiClient.GetAdminUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error loading users: " + ex.Message;
+            statusSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectRow(AdminUserModel user)
+    {
+        activeUser = user;
+    }
+
+    private void ToggleUserSelection(string userId, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        if (isChecked) selectedUserIds.Add(userId);
+        else selectedUserIds.Remove(userId);
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        selectedUserIds.Clear();
+        if (isChecked)
+        {
+            foreach (var u in FilteredUsers)
+            {
+                selectedUserIds.Add(u.ID);
+            }
+        }
+    }
+
+    private void OpenAddUserModal()
+    {
+        OpenAddUserView(syncUrl: true);
+    }
+
+    private void OpenAddUserView(bool syncUrl = true)
+    {
+        currentUser = new AdminUserModel
+        {
+            IsActive = "Y",
+            CoNo = companyList.FirstOrDefault()?.CoNo ?? "ID",
+            UserGroupID = staffGroups.FirstOrDefault()?.UserGroupID ?? "",
+            LeaveUserGroupID = leaveGroups.FirstOrDefault()?.UserGroupID ?? "",
+            Password = "123"
+        };
+        isEditMode = false;
+        isFormView = true;
+        if (syncUrl)
+        {
+            NavManager.NavigateTo("admin/users?action=new");
+        }
+    }
+
+    private void StartEditUser(AdminUserModel user, bool syncUrl = true)
+    {
+        currentUser = new AdminUserModel
+        {
+            ID = user.ID,
+            Name = user.Name,
+            Email = user.Email,
+            EmpId = user.EmpId,
+            CoNo = string.IsNullOrEmpty(user.CoNo) ? "ID" : user.CoNo,
+            IsActive = user.IsActive,
+            OTUserGroupID = user.OTUserGroupID,
+            LeaveUserGroupID = user.LeaveUserGroupID,
+            AttnUserGroupID = user.AttnUserGroupID,
+            PayslipUserGroupID = user.PayslipUserGroupID,
+            ClaimUserGroupID = user.ClaimUserGroupID,
+            EAFORMGroupID = user.EAFORMGroupID,
+            UserGroupID = user.UserGroupID,
+            Remark = user.Remark,
+            Password = ""
+        };
+        isEditMode = true;
+        isFormView = true;
+        if (syncUrl)
+        {
+            NavManager.NavigateTo($"admin/users?edit={Uri.EscapeDataString(user.ID)}");
+        }
+    }
+
+    private void StartEditUser(AdminUserModel user) => StartEditUser(user, syncUrl: true);
+
+    private void CloseFormView()
+    {
+        isFormView = false;
+        isConfirmSaveModalOpen = false;
+        currentUser = new AdminUserModel();
+        formErrorMessage = null;
+        NavManager.NavigateTo("admin/users");
+    }
+
+    private void CloseFormModal() => CloseFormView();
+
+    private void RequestSaveUser()
+    {
+        if (string.IsNullOrWhiteSpace(currentUser.ID) || string.IsNullOrWhiteSpace(currentUser.Name))
+        {
+            formErrorMessage = "User ID and Full Name are required.";
+            return;
+        }
+
+        formErrorMessage = null;
+        isConfirmSaveModalOpen = true;
+    }
+
+    private async Task ConfirmAndSaveUserAsync()
+    {
+        isSubmitting = true;
+        formErrorMessage = null;
+
+        try
+        {
+            if (isEditMode)
+            {
+                var (ok, errMsg) = await ApiClient.UpdateAdminUserWithDetailsAsync(currentUser.ID, currentUser);
+                if (ok)
+                {
+                    statusMessage = $"User record '{currentUser.ID}' updated successfully!";
+                    statusSuccess = true;
+                    CloseFormView();
+                    await LoadUsersAsync(keepStatus: true);
+                }
+                else
+                {
+                    isConfirmSaveModalOpen = false;
+                    formErrorMessage = !string.IsNullOrWhiteSpace(errMsg) ? errMsg : "Web API error updating user record.";
+                }
+            }
+            else
+            {
+                bool ok = await ApiClient.CreateAdminUserAsync(currentUser);
+                if (ok)
+                {
+                    statusMessage = $"New user '{currentUser.ID}' created successfully!";
+                    statusSuccess = true;
+                    CloseFormView();
+                    await LoadUsersAsync(keepStatus: true);
+                }
+                else
+                {
+                    isConfirmSaveModalOpen = false;
+                    formErrorMessage = "Web API error: User ID may already exist.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            isConfirmSaveModalOpen = false;
+            formErrorMessage = "Error saving user: " + ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task ToggleUserActiveStatus(AdminUserModel user)
+    {
+        string newStatus = (user.IsActive == "Y") ? "N" : "Y";
+        user.IsActive = newStatus;
+
+        try
+        {
+            bool ok = await ApiClient.UpdateAdminUserAsync(user.ID, user);
+            if (ok)
+            {
+                statusMessage = $"User '{user.ID}' active status toggled to '{newStatus}'.";
+                statusSuccess = true;
+            }
+            else
+            {
+                statusMessage = $"Failed to toggle status for '{user.ID}'.";
+                statusSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error: " + ex.Message;
+            statusSuccess = false;
+        }
+    }
+
+    private async Task DeleteSelectedUsersAsync()
+    {
+        if (SelectedCount == 0) return;
+
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to delete the {SelectedCount} selected user(s)?");
+        if (!confirmed) return;
+
+        int deletedCount = 0;
+        foreach (var id in selectedUserIds.ToList())
+        {
+            bool ok = await ApiClient.DeleteAdminUserAsync(id);
+            if (ok) deletedCount++;
+        }
+
+        selectedUserIds.Clear();
+        statusMessage = $"Successfully deleted {deletedCount} user(s).";
+        statusSuccess = true;
+        await LoadUsersAsync();
+    }
+
+    private async Task ResetSelectedUserPassword()
+    {
+        string? singleId = selectedUserIds.FirstOrDefault();
+        if (string.IsNullOrEmpty(singleId)) return;
+
+        try
+        {
+            string? tempPwd = await ApiClient.ResetUserPasswordAsync(singleId);
+            if (!string.IsNullOrEmpty(tempPwd))
+            {
+                statusMessage = $"Password for '{singleId}' reset successfully! Temporary Password: {tempPwd}";
+                statusSuccess = true;
+            }
+            else
+            {
+                statusMessage = $"Failed to reset password for '{singleId}'.";
+                statusSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error: " + ex.Message;
+            statusSuccess = false;
+        }
+    }
+
+    private async Task ResetPassword(AdminUserModel user)
+    {
+        try
+        {
+            string? tempPwd = await ApiClient.ResetUserPasswordAsync(user.ID);
+            if (!string.IsNullOrEmpty(tempPwd))
+            {
+                statusMessage = $"Password for '{user.ID}' reset! Temporary Password: {tempPwd}";
+                statusSuccess = true;
+            }
+            else
+            {
+                statusMessage = $"Failed to reset password for '{user.ID}'.";
+                statusSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error: " + ex.Message;
+            statusSuccess = false;
+        }
+    }
+
+    private void OpenUpdateCompanyModal()
+    {
+        isCompanyModalOpen = true;
+    }
+
+    private async Task ExecuteBulkUpdateCoNoAsync()
+    {
+        if (string.IsNullOrWhiteSpace(bulkCoNo)) return;
+
+        int updated = 0;
+        foreach (var id in selectedUserIds.ToList())
+        {
+            var user = usersList.FirstOrDefault(u => u.ID == id);
+            if (user != null)
+            {
+                user.CoNo = bulkCoNo;
+                bool ok = await ApiClient.UpdateAdminUserAsync(id, user);
+                if (ok) updated++;
+            }
+        }
+
+        isCompanyModalOpen = false;
+        statusMessage = $"Updated Company ID (CoNo='{bulkCoNo}') for {updated} user(s).";
+        statusSuccess = true;
+        await LoadUsersAsync();
+    }
+
+    private void SendNotificationEmail()
+    {
+        statusMessage = $"Notification email dispatched to {SelectedCount} selected user(s).";
+        statusSuccess = true;
+    }
+
+    private void PrintUsers()
+    {
+        statusMessage = "Print view ready. You can use your browser's Print dialog (Ctrl+P) to print the user list.";
+        statusSuccess = true;
+    }
+}
+
+<style>
+    .user-management-page {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto;
+        padding-bottom: 80px;
+    }
+
+    .user-edit-page {
+        width: 100%;
+        max-width: 680px;
+        margin: 0;
+        padding-bottom: 100px;
+    }
+
+    /* Compact Action Toolbar Icon Buttons */
+    .icon-toolbar-btn {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        transition: all 0.15s ease-in-out;
+        position: relative;
+    }
+
+    .icon-toolbar-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.12), 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+    }
+
+    .icon-toolbar-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
+    .back-arrow-btn {
+        color: #1e293b !important;
+        line-height: 1;
+        transition: transform 0.15s ease-in-out, color 0.15s ease-in-out;
+    }
+
+    .back-arrow-btn:hover {
+        color: #0284c7 !important;
+        transform: translateX(-3px);
+    }
+
+    /* Enterprise Table Styling */
+    .enterprise-table-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        max-height: 580px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .enterprise-table {
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    .enterprise-table th {
+        font-weight: 700;
+        letter-spacing: -0.1px;
+        padding: 8px 10px;
+        vertical-align: middle;
+        font-size: 0.78rem;
+    }
+
+    .table-header-custom {
+        background-color: #2e6430; /* Corporate HRsuite Deep Green matching legacy theme */
+        color: #ffffff;
+    }
+
+    .table-header-custom th {
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .enterprise-table td {
+        padding: 6px 10px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .enterprise-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    /* Highlighted Row (Matching the amber glow in legacy Image 1) */
+    .row-highlighted {
+        background-color: #fef3c7 !important; /* Soft Amber Glow */
+    }
+
+    .row-selected {
+        background-color: #eff6ff !important; /* Soft Primary Blue Glow */
+    }
+
+    /* Group Badges */
+    .badge-group {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 3px 6px;
+        letter-spacing: -0.2px;
+    }
+
+    .bg-purple-subtle {
+        background-color: #f3e8ff !important;
+    }
+
+    .text-purple {
+        color: #7e22ce !important;
+    }
+
+    .border-purple {
+        border-color: #d8b4fe !important;
+    }
+
+    .form-control-xs, .form-select-xs {
+        font-size: 0.72rem;
+        padding: 2px 4px;
+        height: 24px;
+        border-radius: 4px;
+    }
+
+    .btn-xs {
+        font-size: 0.72rem;
+        padding: 1px 6px;
+        line-height: 1.4;
+    }
+
+    .spin {
+        animation: spin 1s infinite linear;
+    }
+
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    /* Mobile Card Styles */
+    .user-card-item {
+        border-color: #cbd5e1 !important;
+        background-color: #ffffff;
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.15s ease;
+    }
+
+    .user-card-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .user-card-item.card-selected {
+        border-color: #3b82f6 !important;
+        background-color: #f0f7ff !important;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>

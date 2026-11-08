@@ -1,0 +1,969 @@
+@page "/leaves/doc-rule"
+@page "/leaves/rule-doc"
+@page "/eLeave/eLeaveRuleDoc.aspx"
+@page "/eleaveruledoc"
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>Leave Document Rule - HRsuite</PageTitle>
+
+<div class="ruledoc-container pb-5">
+    <!-- Top Header Bar with Standardized Action Buttons -->
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" 
+                    @onclick='() => NavManager.NavigateTo("leaves")' title="Back to Leave Portal">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <h5 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="rule-icon-badge" style="width: 32px; height: 32px; font-size: 1.1rem;">
+                    <i class="bi bi-shield-check"></i>
+                </span>
+                <span>Leave Document Rule</span>
+            </h5>
+            <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill extra-small ms-1">
+                Total: @FilteredRules.Count() rules
+            </span>
+        </div>
+
+        <!-- Standardized Page Action Buttons -->
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" class="btn btn-success btn-sm extra-small px-3 fw-semibold shadow-sm d-inline-flex align-items-center gap-1"
+                    @onclick="OpenAddModal" title="Add New Rule">
+                <i class="bi bi-plus-lg"></i>
+                <span>Add</span>
+            </button>
+            <button type="button" class="btn btn-danger btn-sm extra-small px-3 fw-semibold shadow-sm d-inline-flex align-items-center gap-1"
+                    @onclick="ConfirmDeleteSelected" disabled="@(!selectedRuleIds.Any() || isDeleting)" title="Delete Selected Rule(s)">
+                <i class="bi bi-trash"></i>
+                <span>Delete @(selectedRuleIds.Any() ? $"({selectedRuleIds.Count})" : "")</span>
+            </button>
+            <button type="button" class="btn btn-primary btn-sm extra-small px-3 fw-semibold shadow-sm d-inline-flex align-items-center gap-1"
+                    @onclick="OpenTestModal" title="Test Rule Evaluator">
+                <i class="bi bi-lightning-charge"></i>
+                <span>Test</span>
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm extra-small px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
+                    @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh List">
+                <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                <span>Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show py-2 px-3 extra-small mb-3 shadow-sm" role="alert">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-6"></i>
+                <div>@statusMessage</div>
+            </div>
+            <button type="button" class="btn-close py-2 extra-small" @onclick="() => statusMessage = null"></button>
+        </div>
+    }
+
+    <!-- Main Card Box -->
+    <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white">
+        <!-- Table Container -->
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 custom-rules-table">
+                <thead>
+                    <tr class="table-light-header">
+                        <th style="width: 45px;" class="text-center">#</th>
+                        <th style="width: 105px;" class="text-center">
+                            <div class="d-flex align-items-center justify-content-center gap-2">
+                                <span>Action</span>
+                                <input type="checkbox" class="form-check-input mt-0 cursor-pointer" 
+                                       title="Select / Deselect All"
+                                       checked="@IsAllSelected" 
+                                       @onchange="ToggleSelectAll" />
+                            </div>
+                        </th>
+                        <th style="width: 90px;">
+                            <div class="d-flex flex-column gap-1">
+                                <span>Rule ID</span>
+                                <input type="text" class="form-control form-control-sm table-filter-input" 
+                                       placeholder="Filter..." 
+                                       @bind="filterRuleId" 
+                                       @bind:event="oninput" />
+                            </div>
+                        </th>
+                        <th style="min-width: 280px;">
+                            <div class="d-flex flex-column gap-1">
+                                <span>Condition</span>
+                                <input type="text" class="form-control form-control-sm table-filter-input" 
+                                       placeholder="Filter condition..." 
+                                       @bind="filterCondition" 
+                                       @bind:event="oninput" />
+                            </div>
+                        </th>
+                        <th style="width: 75px;" class="text-center">Action</th>
+                        <th style="min-width: 250px;">explain</th>
+                        <th style="min-width: 220px;">Route ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                <span class="text-muted extra-small">Loading leave document rules...</span>
+                            </td>
+                        </tr>
+                    }
+                    else if (!FilteredRules.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted extra-small">
+                                <i class="bi bi-inbox fs-3 d-block mb-1 text-secondary"></i>
+                                No leave document rules found matching your criteria.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        int seq = 1;
+                        foreach (var rule in FilteredRules)
+                        {
+                            var isSelected = selectedRuleIds.Contains(rule.RuleID);
+                            <tr class="@(isSelected ? "row-selected" : "")">
+                                <!-- # Sequence -->
+                                <td class="text-center text-muted extra-small fw-semibold">
+                                    @seq
+                                </td>
+
+                                <!-- Edit & Checkbox -->
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center justify-content-center gap-2">
+                                        <button type="button" class="btn btn-outline-primary btn-sm py-0.5 px-2 extra-small fw-semibold d-inline-flex align-items-center gap-1"
+                                                @onclick="() => OpenEditModal(rule)">
+                                            <i class="bi bi-pencil-square"></i>
+                                            <span>Edit</span>
+                                        </button>
+                                        <input type="checkbox" class="form-check-input mt-0 cursor-pointer"
+                                               checked="@isSelected"
+                                               @onchange="(e) => ToggleRuleSelection(rule.RuleID, (bool)e.Value!)" />
+                                    </div>
+                                </td>
+
+                                <!-- Rule ID -->
+                                <td class="fw-bold extra-small text-dark">
+                                    <span class="badge bg-light text-dark border">@rule.RuleID</span>
+                                </td>
+
+                                <!-- Condition -->
+                                <td>
+                                    <code class="condition-code">@rule.Condition</code>
+                                </td>
+
+                                <!-- Action (Y / N) -->
+                                <td class="text-center">
+                                    @if (rule.Action == "Y")
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success extra-small px-2 py-0.5">Y</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger extra-small px-2 py-0.5">N</span>
+                                    }
+                                </td>
+
+                                <!-- explain -->
+                                <td class="extra-small text-dark">
+                                    @if (!string.IsNullOrWhiteSpace(rule.Explain))
+                                    {
+                                        <span>@rule.Explain</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted fst-italic">-- none --</span>
+                                    }
+                                </td>
+
+                                <!-- Route ID -->
+                                <td class="extra-small">
+                                    @if (!string.IsNullOrWhiteSpace(rule.RouteID))
+                                    {
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach (var r in rule.RouteID.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                            {
+                                                <span class="badge bg-light text-secondary border extra-small font-monospace">@r</span>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted fst-italic">-- All / None --</span>
+                                    }
+                                </td>
+                            </tr>
+                            seq++;
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Card Footer -->
+        <div class="card-footer bg-light border-top py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span class="extra-small text-muted">
+                Showing @FilteredRules.Count() of @rulesList.Count rules.
+            </span>
+            <div class="d-flex align-items-center gap-2 extra-small text-muted">
+                <i class="bi bi-info-circle text-primary"></i>
+                <span>Action: <strong>N</strong> = Disallow / Block application; <strong>Y</strong> = Allow under configured Route.</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- ADD / EDIT MODAL                                               -->
+<!-- ============================================================== -->
+@if (showEditModal && currentEditRule != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.55); backdrop-filter: blur(2px);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
+                <!-- Modal Header -->
+                <div class="modal-header py-2.5 px-3 bg-light border-bottom d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi @(isAddMode ? "bi-plus-circle-fill text-success" : "bi-pencil-square text-primary") fs-5"></i>
+                        <h6 class="mb-0 fw-bold text-dark">
+                            @(isAddMode ? "Add Leave Document Rule" : $"Edit Leave Document Rule (Rule ID: #{currentEditRule.RuleID})")
+                        </h6>
+                    </div>
+                    <button type="button" class="btn-close extra-small" @onclick="CloseEditModal" disabled="@isSaving"></button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="modal-body p-3">
+                    @if (!string.IsNullOrEmpty(modalErrorMessage))
+                    {
+                        <div class="alert alert-danger py-2 px-3 extra-small mb-3 d-flex align-items-center gap-2">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <div>@modalErrorMessage</div>
+                        </div>
+                    }
+
+                    <div class="row g-3">
+                        <!-- Rule ID -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">
+                                Rule ID <span class="text-danger">*</span>:
+                            </label>
+                            <input type="number" class="form-control form-control-sm" 
+                                   @bind="currentEditRule.RuleID" 
+                                   min="1" />
+                            <div class="form-text extra-small text-muted">Unique integer ID for this rule.</div>
+                        </div>
+
+                        <!-- Action (Y / N) -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">
+                                Action <span class="text-danger">*</span>:
+                            </label>
+                            <select class="form-select form-select-sm" @bind="currentEditRule.Action">
+                                <option value="N">N - Disallow / Block Leave</option>
+                                <option value="Y">Y - Allow / Special Route</option>
+                            </select>
+                            <div class="form-text extra-small text-muted">Rule enforcement outcome.</div>
+                        </div>
+
+                        <!-- Approval Allow -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">
+                                Approval Allow:
+                            </label>
+                            <select class="form-select form-select-sm" @bind="currentEditRule.ApprovalAllow">
+                                <option value="">-- None / Standard --</option>
+                                <option value="Y">Y - Allow In Approval</option>
+                                <option value="N">N - Disallow In Approval</option>
+                            </select>
+                            <div class="form-text extra-small text-muted">Allow supervisor bypass.</div>
+                        </div>
+
+                        <!-- Condition -->
+                        <div class="col-12">
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <label class="form-label extra-small fw-semibold text-dark mb-0">
+                                    Condition Expression <span class="text-danger">*</span>:
+                                </label>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 extra-small dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        Insert Variable
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm extra-small">
+                                        <li><a class="dropdown-item cursor-pointer" @onclick='() => AppendVariable("LeaveCode")'>LeaveCode (e.g. 'AL')</a></li>
+                                        <li><a class="dropdown-item cursor-pointer" @onclick='() => AppendVariable("ApplyDate")'>ApplyDate (&lt; 3)</a></li>
+                                        <li><a class="dropdown-item cursor-pointer" @onclick='() => AppendVariable("TotalLeaveApply")'>TotalLeaveApply (&gt; 5)</a></li>
+                                        <li><a class="dropdown-item cursor-pointer" @onclick='() => AppendVariable("No_Child")'>No_Child (&gt; 5)</a></li>
+                                        <li><a class="dropdown-item cursor-pointer" @onclick='() => AppendVariable("weekday")'>weekday (= 'Sunday')</a></li>
+                                        <li><a class="dropdown-item cursor-pointer" @onclick='() => AppendVariable("Status")'>Status (= 'P')</a></li>
+                                        <li><a class="dropdown-item cursor-pointer" @onclick='() => AppendVariable("JOB_ID")'>JOB_ID (= 'SUPERVISOR')</a></li>
+                                        <li><a class="dropdown-item cursor-pointer" @onclick='() => AppendVariable("BalanceTotalLeaveCode")'>BalanceTotalLeaveCode</a></li>
+                                        <li><a class="dropdown-item cursor-pointer" @onclick='() => AppendVariable("SameDayLeaveCount")'>SameDayLeaveCount</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <textarea class="form-control form-control-sm font-monospace" rows="3"
+                                      @bind="currentEditRule.Condition"
+                                      placeholder="e.g. LeaveCode = 'ML' and No_Child > '5'"></textarea>
+                            <div class="form-text extra-small text-muted">
+                                Logical condition that will trigger this rule during leave submission.
+                            </div>
+                        </div>
+
+                        <!-- explain -->
+                        <div class="col-12">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">
+                                Explanation (explain) Message:
+                            </label>
+                            <textarea class="form-control form-control-sm" rows="2"
+                                      @bind="currentEditRule.Explain"
+                                      placeholder="e.g. Leave Code 'ML' not allow more than 5 child"></textarea>
+                            <div class="form-text extra-small text-muted">
+                                Text prompt shown to applicant when the rule condition is matched.
+                            </div>
+                        </div>
+
+                        <!-- Route ID -->
+                        <div class="col-12">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">
+                                Route ID:
+                            </label>
+                            <input type="text" class="form-control form-control-sm font-monospace"
+                                   @bind="currentEditRule.RouteID"
+                                   placeholder="e.g. LV ADMIN, LV APPROVAL, LV GRP APPLY, LV IDV APPLY," />
+                            <div class="d-flex flex-wrap gap-1 mt-1.5 align-items-center">
+                                <span class="extra-small text-muted me-1">Quick Add Route:</span>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1.5 extra-small" @onclick='() => AddRouteToken("Admin")'>+ Admin</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1.5 extra-small" @onclick='() => AddRouteToken("LV ADMIN")'>+ LV ADMIN</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1.5 extra-small" @onclick='() => AddRouteToken("LV APPROVAL")'>+ LV APPROVAL</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1.5 extra-small" @onclick='() => AddRouteToken("LV GRP APPLY")'>+ LV GRP APPLY</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1.5 extra-small" @onclick='() => AddRouteToken("LV IDV APPLY")'>+ LV IDV APPLY</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1.5 extra-small" @onclick='() => AddRouteToken("Supervisor")'>+ Supervisor</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1.5 extra-small" @onclick='() => AddRouteToken("super admin")'>+ super admin</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="modal-footer py-2 px-3 bg-light border-top d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm extra-small px-3"
+                            @onclick="CloseEditModal" disabled="@isSaving">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm extra-small px-4 fw-semibold d-inline-flex align-items-center gap-1"
+                            @onclick="SaveRuleAsync" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save me-1"></i>
+                            <span>@(isAddMode ? "Create Rule" : "Update Rule")</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ============================================================== -->
+<!-- DELETE CONFIRMATION MODAL                                      -->
+<!-- ============================================================== -->
+@if (showDeleteConfirmModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.55); backdrop-filter: blur(2px);">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
+                <div class="modal-header py-2 px-3 bg-danger text-white d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-exclamation-octagon-fill"></i>
+                        <h6 class="mb-0 fw-bold">Confirm Delete</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white extra-small" @onclick="() => showDeleteConfirmModal = false"></button>
+                </div>
+                <div class="modal-body p-3 text-center">
+                    <p class="mb-2 extra-small text-dark">
+                        Are you sure you want to permanently delete the <strong>@selectedRuleIds.Count</strong> selected rule(s)?
+                    </p>
+                    <div class="p-2 bg-light rounded border text-muted extra-small font-monospace">
+                        Rule IDs: @string.Join(", ", selectedRuleIds)
+                    </div>
+                </div>
+                <div class="modal-footer py-2 px-3 bg-light border-top d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm extra-small px-3"
+                            @onclick="() => showDeleteConfirmModal = false" disabled="@isDeleting">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm extra-small px-3 fw-semibold"
+                            @onclick="ExecuteDeleteSelectedAsync" disabled="@isDeleting">
+                        @if (isDeleting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Deleting...</span>
+                        }
+                        else
+                        {
+                            <span>Yes, Delete</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ============================================================== -->
+<!-- TEST RULE MODAL                                                -->
+<!-- ============================================================== -->
+@if (showTestModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(15, 23, 42, 0.55); backdrop-filter: blur(2px);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
+                <div class="modal-header py-2.5 px-3 bg-primary text-white d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-lightning-charge-fill"></i>
+                        <h6 class="mb-0 fw-bold">Test Leave Document Rules Evaluator</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white extra-small" @onclick="() => showTestModal = false"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <p class="extra-small text-muted mb-3">
+                        Enter sample parameters below to simulate leave rule validation and inspect matching rule conditions.
+                    </p>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">LeaveCode:</label>
+                            <input type="text" class="form-control form-control-sm" @bind="testLeaveCode" placeholder="e.g. ML, AL, EL" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">No_Child:</label>
+                            <input type="number" class="form-control form-control-sm" @bind="testNoChild" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">ApplyDate (days):</label>
+                            <input type="number" class="form-control form-control-sm" @bind="testApplyDate" placeholder="e.g. 0, 2, -2" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">TotalLeaveApply:</label>
+                            <input type="number" class="form-control form-control-sm" @bind="testTotalLeaveApply" step="0.5" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">Weekday:</label>
+                            <select class="form-select form-select-sm" @bind="testWeekday">
+                                <option value="Monday">Monday</option>
+                                <option value="Tuesday">Tuesday</option>
+                                <option value="Wednesday">Wednesday</option>
+                                <option value="Thursday">Thursday</option>
+                                <option value="Friday">Friday</option>
+                                <option value="Saturday">Saturday</option>
+                                <option value="Sunday">Sunday</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">JOB_ID:</label>
+                            <input type="text" class="form-control form-control-sm" @bind="testJobId" placeholder="e.g. SUPERVISOR" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">Status:</label>
+                            <input type="text" class="form-control form-control-sm" @bind="testStatus" placeholder="e.g. P (Probation)" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label extra-small fw-semibold text-dark mb-1">Balance AL:</label>
+                            <input type="number" class="form-control form-control-sm" @bind="testBalance" step="0.5" />
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end mb-3">
+                        <button type="button" class="btn btn-primary btn-sm extra-small px-3 fw-semibold d-inline-flex align-items-center gap-1"
+                                @onclick="RunRuleTest">
+                            <i class="bi bi-play-fill"></i>
+                            <span>Evaluate Active Rules</span>
+                        </button>
+                    </div>
+
+                    <!-- Test Output -->
+                    <div class="border rounded-2 p-2.5 bg-light">
+                        <h6 class="extra-small fw-bold text-dark mb-2 d-flex align-items-center gap-1.5">
+                            <i class="bi bi-check2-circle text-success"></i>
+                            <span>Evaluation Results (@testResults.Count matched):</span>
+                        </h6>
+                        @if (!testResults.Any())
+                        {
+                            <div class="text-muted extra-small fst-italic">
+                                No rules matched or triggered with the provided parameters. (Leave submission allowed)
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-2">
+                                @foreach (var r in testResults)
+                                {
+                                    <div class="p-2 rounded border bg-white d-flex align-items-start gap-2">
+                                        <span class="badge @(r.Action == "N" ? "bg-danger" : "bg-warning text-dark") extra-small">
+                                            Rule #@r.RuleID [@r.Action]
+                                        </span>
+                                        <div class="extra-small">
+                                            <div class="fw-semibold text-dark">@r.Explain</div>
+                                            <code class="text-muted" style="font-size: 0.72rem;">@r.Condition</code>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer py-2 px-3 bg-light border-top">
+                    <button type="button" class="btn btn-secondary btn-sm extra-small px-3" @onclick="() => showTestModal = false">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .ruledoc-container {
+        padding: 0.25rem 0.5rem;
+    }
+
+    .rule-icon-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+        color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(234, 88, 12, 0.25);
+    }
+
+    .back-arrow-btn {
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        transition: background-color 0.15s ease;
+    }
+
+    .back-arrow-btn:hover {
+        background-color: #e2e8f0;
+    }
+
+    .custom-rules-table {
+        font-size: 0.8125rem;
+    }
+
+    .custom-rules-table th {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #475569;
+        background-color: #f8fafc;
+        border-bottom: 2px solid #e2e8f0;
+        vertical-align: middle;
+        padding: 0.5rem 0.65rem;
+    }
+
+    .custom-rules-table td {
+        padding: 0.45rem 0.65rem;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+
+    .table-filter-input {
+        font-size: 0.72rem;
+        padding: 0.15rem 0.4rem;
+        height: auto;
+        border-color: #cbd5e1;
+        background-color: #ffffff;
+    }
+
+    .condition-code {
+        color: #0f172a;
+        background-color: #f8fafc;
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid #e2e8f0;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        display: inline-block;
+    }
+
+    /* Selected row styling matching legacy image 3 amber/peach highlight */
+    .row-selected {
+        background-color: #fff7ed !important;
+    }
+
+    .row-selected td {
+        background-color: #fff7ed !important;
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool isDeleting = false;
+    private string? statusMessage;
+    private bool isSuccess = true;
+
+    private List<LeaveDocRuleRow> rulesList = new();
+    private HashSet<int> selectedRuleIds = new();
+
+    // Filters matching legacy Image 3
+    private string filterRuleId = string.Empty;
+    private string filterCondition = string.Empty;
+
+    // Add / Edit Modal state
+    private bool showEditModal = false;
+    private bool isAddMode = false;
+    private LeaveDocRuleRow? currentEditRule;
+    private int? originalRuleId;
+    private string? modalErrorMessage;
+
+    // Delete confirmation
+    private bool showDeleteConfirmModal = false;
+
+    // Test Evaluator state
+    private bool showTestModal = false;
+    private string testLeaveCode = "ML";
+    private int testNoChild = 6;
+    private int testApplyDate = 1;
+    private decimal testTotalLeaveApply = 1;
+    private string testWeekday = "Sunday";
+    private string testJobId = "SUPERVISOR";
+    private string testStatus = "P";
+    private decimal testBalance = 0;
+    private List<LeaveDocRuleRow> testResults = new();
+
+    private IEnumerable<LeaveDocRuleRow> FilteredRules
+    {
+        get
+        {
+            var query = rulesList.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(filterRuleId))
+            {
+                var q = filterRuleId.Trim();
+                query = query.Where(r => r.RuleID.ToString().Contains(q));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterCondition))
+            {
+                var q = filterCondition.Trim().ToLower();
+                query = query.Where(r => 
+                    (r.Condition?.ToLower().Contains(q) ?? false) ||
+                    (r.Explain?.ToLower().Contains(q) ?? false) ||
+                    (r.RouteID?.ToLower().Contains(q) ?? false)
+                );
+            }
+
+            return query;
+        }
+    }
+
+    private bool IsAllSelected
+    {
+        get
+        {
+            var visible = FilteredRules.Select(r => r.RuleID).ToList();
+            return visible.Any() && visible.All(id => selectedRuleIds.Contains(id));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        try
+        {
+            rulesList = await ApiClient.GetLeaveDocRulesAsync("LEAVE");
+            selectedRuleIds.Clear();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Failed to load rules: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool select = (bool)e.Value!;
+        var visibleIds = FilteredRules.Select(r => r.RuleID).ToList();
+        if (select)
+        {
+            foreach (var id in visibleIds)
+            {
+                selectedRuleIds.Add(id);
+            }
+        }
+        else
+        {
+            foreach (var id in visibleIds)
+            {
+                selectedRuleIds.Remove(id);
+            }
+        }
+    }
+
+    private void ToggleRuleSelection(int ruleId, bool isSelected)
+    {
+        if (isSelected)
+        {
+            selectedRuleIds.Add(ruleId);
+        }
+        else
+        {
+            selectedRuleIds.Remove(ruleId);
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        isAddMode = true;
+        modalErrorMessage = null;
+        int nextId = (rulesList.Any() ? rulesList.Max(r => r.RuleID) : 0) + 1;
+
+        currentEditRule = new LeaveDocRuleRow
+        {
+            RuleID = nextId,
+            Condition = "",
+            Action = "N",
+            RouteID = "",
+            GroupID = "LEAVE",
+            Explain = "",
+            ApprovalAllow = null
+        };
+        originalRuleId = null;
+        showEditModal = true;
+    }
+
+    private void OpenEditModal(LeaveDocRuleRow row)
+    {
+        isAddMode = false;
+        modalErrorMessage = null;
+        originalRuleId = row.RuleID;
+
+        currentEditRule = new LeaveDocRuleRow
+        {
+            RuleID = row.RuleID,
+            Condition = row.Condition,
+            Action = row.Action,
+            RouteID = row.RouteID,
+            GroupID = row.GroupID,
+            Explain = row.Explain,
+            ApprovalAllow = row.ApprovalAllow
+        };
+        showEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+        currentEditRule = null;
+        modalErrorMessage = null;
+    }
+
+    private void AppendVariable(string varName)
+    {
+        if (currentEditRule == null) return;
+        if (string.IsNullOrWhiteSpace(currentEditRule.Condition))
+        {
+            currentEditRule.Condition = varName;
+        }
+        else
+        {
+            currentEditRule.Condition += $" and {varName}";
+        }
+    }
+
+    private void AddRouteToken(string token)
+    {
+        if (currentEditRule == null) return;
+        var cur = currentEditRule.RouteID?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(cur))
+        {
+            currentEditRule.RouteID = $"{token},";
+        }
+        else if (!cur.Contains(token, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!cur.EndsWith(",")) cur += ", ";
+            else cur += " ";
+            currentEditRule.RouteID = $"{cur}{token},";
+        }
+    }
+
+    private async Task SaveRuleAsync()
+    {
+        if (currentEditRule == null) return;
+
+        if (currentEditRule.RuleID <= 0)
+        {
+            modalErrorMessage = "Rule ID must be a positive integer.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(currentEditRule.Condition))
+        {
+            modalErrorMessage = "Condition expression cannot be empty.";
+            return;
+        }
+
+        isSaving = true;
+        modalErrorMessage = null;
+
+        try
+        {
+            var req = new SaveLeaveDocRuleRequest
+            {
+                RuleID = currentEditRule.RuleID,
+                Condition = currentEditRule.Condition,
+                Action = currentEditRule.Action,
+                RouteID = currentEditRule.RouteID,
+                GroupID = "LEAVE",
+                Explain = currentEditRule.Explain,
+                ApprovalAllow = currentEditRule.ApprovalAllow,
+                IsNew = isAddMode,
+                OriginalRuleID = originalRuleId
+            };
+
+            var res = await ApiClient.SaveLeaveDocRuleAsync(req);
+            if (res.Success)
+            {
+                statusMessage = res.Message;
+                isSuccess = true;
+                CloseEditModal();
+                await LoadDataAsync();
+            }
+            else
+            {
+                modalErrorMessage = res.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            modalErrorMessage = $"Failed to save: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ConfirmDeleteSelected()
+    {
+        if (!selectedRuleIds.Any()) return;
+        showDeleteConfirmModal = true;
+    }
+
+    private async Task ExecuteDeleteSelectedAsync()
+    {
+        if (!selectedRuleIds.Any()) return;
+        isDeleting = true;
+
+        try
+        {
+            var req = new DeleteLeaveDocRulesRequest
+            {
+                RuleIDs = selectedRuleIds.ToList(),
+                GroupID = "LEAVE"
+            };
+
+            var res = await ApiClient.DeleteLeaveDocRulesAsync(req);
+            if (res.Success)
+            {
+                statusMessage = res.Message;
+                isSuccess = true;
+                showDeleteConfirmModal = false;
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = res.Message;
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Delete failed: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private void OpenTestModal()
+    {
+        testResults.Clear();
+        RunRuleTest();
+        showTestModal = true;
+    }
+
+    private void RunRuleTest()
+    {
+        testResults.Clear();
+
+        foreach (var rule in rulesList)
+        {
+            var cond = rule.Condition?.ToLower() ?? "";
+            bool match = false;
+
+            // Simplified evaluator for common rules
+            if (cond.Contains("no_child>'5'") && testNoChild > 5 && cond.Contains($"leavecode ='{testLeaveCode.ToLower()}'"))
+                match = true;
+            else if (cond.Contains("job_id ='supervisor'") && testJobId.Equals("SUPERVISOR", StringComparison.OrdinalIgnoreCase) && cond.Contains($"leavecode='{testLeaveCode.ToLower()}'"))
+                match = true;
+            else if (cond.Contains("status='p'") && testStatus.Equals("P", StringComparison.OrdinalIgnoreCase) && cond.Contains($"leavecode='{testLeaveCode.ToLower()}'"))
+                match = true;
+            else if (cond.Contains("applydate < 3") && testApplyDate < 3 && cond.Contains($"leavecode= '{testLeaveCode.ToLower()}'"))
+                match = true;
+            else if (cond.Contains($"weekday ='{testWeekday.ToLower()}'") && cond.Contains($"leavecode = '{testLeaveCode.ToLower()}'"))
+                match = true;
+            else if (cond.Contains("balancetotalleavecode <= 0") && testBalance <= 0 && cond.Contains($"leavecode = '{testLeaveCode.ToLower()}'"))
+                match = true;
+            else if (cond.Contains("totalleaveapply >=") && cond.Contains($"leavecode = '{testLeaveCode.ToLower()}'"))
+                match = true;
+
+            if (match)
+            {
+                testResults.Add(rule);
+            }
+        }
+    }
+}

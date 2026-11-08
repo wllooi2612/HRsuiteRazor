@@ -1,0 +1,766 @@
+@page "/leaves/create-user-access"
+@page "/leaves/user-access"
+@page "/eleavecreateuseraccess"
+@page "/eLeave/eLeaveCreateUserAccess.aspx"
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>Create User Access - HRsuite</PageTitle>
+
+<div class="user-access-container pb-5">
+    <!-- Top Header Bar -->
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" 
+                    @onclick='() => NavManager.NavigateTo("leaves")' title="Back to Leave Portal">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <h5 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="access-icon-badge" style="width: 32px; height: 32px; font-size: 1.1rem;">
+                    <i class="bi bi-person-gear"></i>
+                </span>
+                <span>User Access Control for Leave</span>
+            </h5>
+            @if (!string.IsNullOrEmpty(selectedUserId))
+            {
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill extra-small ms-1">
+                    Total Granted: @TotalSelectedCount
+                </span>
+            }
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-secondary py-1 px-3 extra-small d-flex align-items-center gap-1" 
+                    @onclick="RefreshUserAccessAsync" disabled="@isLoading" title="Refresh Access Data">
+                <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                <span>Refresh</span>
+            </button>
+            <button class="btn btn-sm btn-primary py-1 px-3 extra-small d-flex align-items-center gap-1 shadow-sm" 
+                    @onclick="SaveUserAccessAsync" disabled="@(isLoading || isSaving || string.IsNullOrEmpty(selectedUserId))" title="Save Permissions">
+                @if (isSaving)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <i class="bi bi-floppy-fill me-1"></i>
+                    <span>Save Changes</span>
+                }
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Alert Notification -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3 rounded-3" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-5"></i>
+            <div class="flex-grow-1 extra-small">@statusMessage</div>
+            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Select User for LEAVE (Duplicate Header Removed) -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+        <div class="card-body p-2.5 px-3">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <label class="form-label mb-0 extra-small fw-semibold text-muted text-nowrap">
+                    <i class="bi bi-person me-1"></i>Select User ID / Name:
+                </label>
+                <div class="flex-grow-1" style="max-width: 500px; min-width: 240px;">
+                    <select class="form-select form-select-sm" value="@selectedUserId" @onchange="OnUserChangedAsync" disabled="@isLoading">
+                        <option value="">-- Choose User --</option>
+                        @foreach (var u in usersList)
+                        {
+                            <option value="@u.EmpId">@u.EmpId - @u.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fieldset 2: User Access Group for LEAVE (All Categories Visible on Mobile & Responsive Grid/Cards) -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white">
+        <div class="card-header bg-white border-bottom p-0 rounded-top-3">
+            <!-- All 9 Categories Visible on Phone & Small Screens (Wrapped Pills - No Tabs Hidden Behind!) -->
+            <div class="category-pills-bar p-2.5 border-bottom bg-light">
+                <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                    <span class="extra-small fw-bold text-secondary text-uppercase tracking-wider">
+                        <i class="bi bi-ui-checks-grid text-primary me-1"></i>Access Categories <span class="text-muted fw-normal">(All 9 Available)</span>
+                    </span>
+                    <!-- Quick Dropdown option for fast 1-tap switching -->
+                    <div class="d-flex align-items-center gap-1.5">
+                        <span class="extra-small text-muted d-none d-sm-inline">Quick Pick:</span>
+                        <select class="form-select form-select-xs w-auto py-0.5 px-2 fw-semibold text-primary border-primary-subtle" 
+                                value="@activeTab" @onchange="OnTabDropdownChanged" style="font-size: 0.78rem;">
+                            <option value="dept">Department (@GetSelectedCount(accessData.Departments) selected)</option>
+                            <option value="sec">Section (@GetSelectedCount(accessData.Sections) selected)</option>
+                            <option value="cat">Category (@GetSelectedCount(accessData.Categories) selected)</option>
+                            <option value="grade">Grade (@GetSelectedCount(accessData.Grades) selected)</option>
+                            <option value="sup">Supervisor (@GetSelectedCount(accessData.Supervisors) selected)</option>
+                            <option value="job">Job Title (@GetSelectedCount(accessData.JobTitles) selected)</option>
+                            <option value="factory">Factory (@GetSelectedCount(accessData.Factories) selected)</option>
+                            <option value="grp">Group (@GetSelectedCount(accessData.Groups) selected)</option>
+                            <option value="email">Email (@GetSelectedCount(accessData.Emails) selected)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 9 Responsive Category Buttons (Wraps on Mobile so Job Title, Factory, Group, Email are 100% VISIBLE) -->
+                <div class="d-flex flex-wrap gap-1.5 align-items-center">
+                    <button type="button" class="btn btn-xs category-pill @(activeTab == "dept" ? "pill-active" : "pill-inactive")" @onclick='() => SetActiveTab("dept")'>
+                        Department <span class="badge @(GetSelectedCount(accessData.Departments) > 0 ? "bg-primary" : "bg-secondary-subtle text-secondary") ms-1">@GetSelectedCount(accessData.Departments)</span>
+                    </button>
+                    <button type="button" class="btn btn-xs category-pill @(activeTab == "sec" ? "pill-active" : "pill-inactive")" @onclick='() => SetActiveTab("sec")'>
+                        Section <span class="badge @(GetSelectedCount(accessData.Sections) > 0 ? "bg-primary" : "bg-secondary-subtle text-secondary") ms-1">@GetSelectedCount(accessData.Sections)</span>
+                    </button>
+                    <button type="button" class="btn btn-xs category-pill @(activeTab == "cat" ? "pill-active" : "pill-inactive")" @onclick='() => SetActiveTab("cat")'>
+                        Category <span class="badge @(GetSelectedCount(accessData.Categories) > 0 ? "bg-primary" : "bg-secondary-subtle text-secondary") ms-1">@GetSelectedCount(accessData.Categories)</span>
+                    </button>
+                    <button type="button" class="btn btn-xs category-pill @(activeTab == "grade" ? "pill-active" : "pill-inactive")" @onclick='() => SetActiveTab("grade")'>
+                        Grade <span class="badge @(GetSelectedCount(accessData.Grades) > 0 ? "bg-primary" : "bg-secondary-subtle text-secondary") ms-1">@GetSelectedCount(accessData.Grades)</span>
+                    </button>
+                    <button type="button" class="btn btn-xs category-pill @(activeTab == "sup" ? "pill-active" : "pill-inactive")" @onclick='() => SetActiveTab("sup")'>
+                        Supervisor <span class="badge @(GetSelectedCount(accessData.Supervisors) > 0 ? "bg-primary" : "bg-secondary-subtle text-secondary") ms-1">@GetSelectedCount(accessData.Supervisors)</span>
+                    </button>
+                    <button type="button" class="btn btn-xs category-pill @(activeTab == "job" ? "pill-active" : "pill-inactive")" @onclick='() => SetActiveTab("job")'>
+                        Job Title <span class="badge @(GetSelectedCount(accessData.JobTitles) > 0 ? "bg-primary" : "bg-secondary-subtle text-secondary") ms-1">@GetSelectedCount(accessData.JobTitles)</span>
+                    </button>
+                    <button type="button" class="btn btn-xs category-pill @(activeTab == "factory" ? "pill-active" : "pill-inactive")" @onclick='() => SetActiveTab("factory")'>
+                        Factory <span class="badge @(GetSelectedCount(accessData.Factories) > 0 ? "bg-primary" : "bg-secondary-subtle text-secondary") ms-1">@GetSelectedCount(accessData.Factories)</span>
+                    </button>
+                    <button type="button" class="btn btn-xs category-pill @(activeTab == "grp" ? "pill-active" : "pill-inactive")" @onclick='() => SetActiveTab("grp")'>
+                        Group <span class="badge @(GetSelectedCount(accessData.Groups) > 0 ? "bg-primary" : "bg-secondary-subtle text-secondary") ms-1">@GetSelectedCount(accessData.Groups)</span>
+                    </button>
+                    <button type="button" class="btn btn-xs category-pill @(activeTab == "email" ? "pill-active" : "pill-inactive")" @onclick='() => SetActiveTab("email")'>
+                        Email <span class="badge @(GetSelectedCount(accessData.Emails) > 0 ? "bg-primary" : "bg-secondary-subtle text-secondary") ms-1">@GetSelectedCount(accessData.Emails)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Toolbar inside Tab (Actions, Search, and View Switcher) -->
+        <div class="p-2 px-3 bg-light border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button class="btn btn-xs btn-outline-primary extra-small py-1 px-2" @onclick="SelectAllInActiveTab" title="Select all items in active category">
+                    <i class="bi bi-check-all me-1"></i>Select All
+                </button>
+                <button class="btn btn-xs btn-outline-secondary extra-small py-1 px-2" @onclick="UnselectAllInActiveTab" title="Clear all selections in active category">
+                    <i class="bi bi-dash-square me-1"></i>Clear All
+                </button>
+                <span class="extra-small text-muted ms-1">
+                    Showing <strong>@FilteredItems.Count()</strong> item(s) &bull; <strong class="text-primary">@GetSelectedCount(FilteredItems.ToList())</strong> selected
+                </span>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <!-- In-tab Search -->
+                <div class="input-group input-group-sm" style="max-width: 220px;">
+                    <span class="input-group-text bg-white border-end-0 py-0"><i class="bi bi-search text-muted extra-small"></i></span>
+                    <input type="text" class="form-control form-control-sm border-start-0 py-1 extra-small" 
+                           placeholder="Filter by ID or Name..." @bind="searchText" @bind:event="oninput" />
+                    @if (!string.IsNullOrEmpty(searchText))
+                    {
+                        <button class="btn btn-sm btn-outline-secondary border-start-0 bg-white py-0" @onclick='() => searchText = ""'>✕</button>
+                    }
+                </div>
+
+                <!-- View Mode Switcher: Auto (Adaptive Phone/Desktop) | Table | Cards -->
+                <div class="btn-group btn-group-sm shadow-xs" role="group">
+                    <button type="button" class="btn btn-xs @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary")" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Cards on Mobile, Grid on Desktop)">
+                        <i class="bi bi-phone"></i>
+                    </button>
+                    <button type="button" class="btn btn-xs @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary")" @onclick='() => viewMode = "table"' title="Grid Table View">
+                        <i class="bi bi-table"></i>
+                    </button>
+                    <button type="button" class="btn btn-xs @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary")" @onclick='() => viewMode = "cards"' title="Cards View">
+                        <i class="bi bi-grid-fill"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN DATA DISPLAY (WEB 桌面端 宽屏表格 / ANDROID 手机端 自适应卡片) -->
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                    <div class="extra-small text-muted mt-2">Loading user access data...</div>
+                </div>
+            }
+            else if (!FilteredItems.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-2 d-block mb-1 opacity-50"></i>
+                    <span class="extra-small">No records found matching current criteria.</span>
+                </div>
+            }
+            else
+            {
+                <!-- 1. WEB 桌面端（宽屏表格）：BADGE ID / DEPT ID | NAME | REMARK / EMAIL -->
+                @if (viewMode == "table" || viewMode == "auto")
+                {
+                    <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                        <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+                            <table class="table table-hover table-sm align-middle mb-0 custom-access-table">
+                                <thead class="table-light sticky-top shadow-xs">
+                                    <tr>
+                                        <th style="width: 46px;" class="text-center">
+                                            <input type="checkbox" class="form-check-input" 
+                                                   checked="@IsAllActiveSelected" 
+                                                   @onchange="ToggleSelectAllOnPage" 
+                                                   title="Select / Unselect all on this list" />
+                                        </th>
+                                        <th style="width: 25%;">@IdColumnHeader</th>
+                                        <th style="width: 40%;">@NameColumnHeader</th>
+                                        <th style="width: 35%;">@RemarkColumnHeader</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in FilteredItems)
+                                    {
+                                        var isRowSelected = item.IsSelected;
+                                        <tr class="@(isRowSelected ? "table-primary-subtle" : "") cursor-pointer" @onclick="() => ToggleItem(item)">
+                                            <td class="text-center" @onclick:stopPropagation>
+                                                <input type="checkbox" class="form-check-input" @bind="item.IsSelected" />
+                                            </td>
+                                            <td><span class="fw-semibold font-monospace extra-small">@item.Id</span></td>
+                                            <td><span class="extra-small text-dark fw-semibold">@item.Name</span></td>
+                                            <td>
+                                                <span class="extra-small text-muted">
+                                                    @(activeTab == "email" ? (!string.IsNullOrEmpty(item.Extra) ? item.Extra : "-") : (!string.IsNullOrEmpty(item.Remark) ? item.Remark : "-"))
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+
+                <!-- 2. ANDROID 手机端（自适应为卡片，告别左右滑动 - 匹配 Image 4 规格） -->
+                @if (viewMode == "cards" || viewMode == "auto")
+                {
+                    <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") p-2">
+                        <div class="row g-2">
+                            @foreach (var item in FilteredItems)
+                            {
+                                var isCardSelected = item.IsSelected;
+                                string remarkDisplay = activeTab == "email" ? (!string.IsNullOrEmpty(item.Extra) ? item.Extra : "") : (!string.IsNullOrEmpty(item.Remark) ? item.Remark : "");
+
+                                <div class="col-12 col-md-6 col-xl-4">
+                                    <div class="card border rounded-3 p-3 shadow-xs access-card-item @(isCardSelected ? "card-selected" : "")" 
+                                         @onclick="() => ToggleItem(item)">
+                                        
+                                        <!-- Top Line: [ID]  Name      [REMARK / TAG] -->
+                                        <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                            <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">
+                                                <input type="checkbox" class="form-check-input flex-shrink-0" 
+                                                       checked="@item.IsSelected" 
+                                                       @onchange="() => ToggleItem(item)" 
+                                                       @onclick:stopPropagation="true" />
+                                                <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@item.Id]</span>
+                                                <span class="fw-bold text-dark text-truncate" style="font-size: 0.95rem;">@item.Name</span>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(remarkDisplay) && remarkDisplay != "-")
+                                            {
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold text-uppercase flex-shrink-0 text-truncate" 
+                                                      style="font-size: 0.72rem; letter-spacing: 0.3px; max-width: 140px;" title="@remarkDisplay">
+                                                    [@remarkDisplay]
+                                                </span>
+                                            }
+                                        </div>
+
+                                        <!-- Line 2: 🏷️ ID / Granted Status -->
+                                        <div class="d-flex align-items-center text-muted small mb-1.5">
+                                            <i class="bi bi-tag-fill text-secondary me-2 fs-6" style="width: 16px;"></i>
+                                            <span class="text-secondary fw-semibold" style="width: 95px;">@IdColumnHeader :</span>
+                                            <span class="text-dark font-monospace fw-bold">@item.Id</span>
+                                            @if (item.IsSelected)
+                                            {
+                                                <span class="badge bg-success-subtle text-success ms-auto border border-success-subtle py-0.5 px-2 fw-semibold" style="font-size: 0.72rem;">
+                                                    <i class="bi bi-check2 me-1"></i>Granted
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-light text-muted ms-auto border py-0.5 px-2" style="font-size: 0.72rem;">
+                                                    Not Granted
+                                                </span>
+                                            }
+                                        </div>
+
+                                        <!-- Line 3: ✉️ / 📝 Remark / Email -->
+                                        @if (activeTab == "email")
+                                        {
+                                            <div class="d-flex align-items-center text-muted small">
+                                                <i class="bi bi-envelope-fill text-primary me-2 fs-6" style="width: 16px;"></i>
+                                                <span class="text-secondary fw-semibold" style="width: 95px;">Email :</span>
+                                                @if (!string.IsNullOrEmpty(item.Extra))
+                                                {
+                                                    <a href="mailto:@item.Extra" class="text-dark text-decoration-none text-truncate font-monospace small" @onclick:stopPropagation="true">
+                                                        @item.Extra
+                                                    </a>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </div>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(item.Remark) && item.Remark != "-")
+                                        {
+                                            <div class="d-flex align-items-center text-muted small">
+                                                <i class="bi bi-info-circle-fill text-info me-2 fs-6" style="width: 16px;"></i>
+                                                <span class="text-secondary fw-semibold" style="width: 95px;">Remark :</span>
+                                                <span class="text-dark small text-truncate">@item.Remark</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Card Footer -->
+        <div class="card-footer bg-light py-2 px-3 border-top d-flex align-items-center justify-content-end">
+            <button class="btn btn-sm btn-primary py-1 px-4 extra-small d-flex align-items-center gap-1 shadow-sm" 
+                    @onclick="SaveUserAccessAsync" disabled="@(isLoading || isSaving || string.IsNullOrEmpty(selectedUserId))">
+                @if (isSaving)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <i class="bi bi-floppy-fill me-1"></i>
+                    <span>Save Changes</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .user-access-container {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
+    .access-icon-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(217, 119, 6, 0.25);
+    }
+
+    .extra-small {
+        font-size: 0.8125rem;
+    }
+
+    .shadow-xs {
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .cursor-pointer {
+        cursor: pointer;
+    }
+
+    .tracking-wider {
+        letter-spacing: 0.05em;
+    }
+
+    /* Modern Responsive Category Pills (All 9 Categories visible, zero hidden) */
+    .category-pills-bar {
+        background-color: #f8fafc !important;
+    }
+
+    .category-pill {
+        font-size: 0.8125rem !important;
+        padding: 0.32rem 0.65rem !important;
+        border-radius: 6px !important;
+        font-weight: 500 !important;
+        transition: all 0.15s ease-in-out !important;
+        white-space: nowrap !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        line-height: 1.25 !important;
+        cursor: pointer !important;
+    }
+
+    .category-pill.pill-active {
+        background-color: #1d4ed8 !important;
+        color: #ffffff !important;
+        border: 1px solid #1d4ed8 !important;
+        box-shadow: 0 2px 4px rgba(29, 78, 216, 0.25) !important;
+        font-weight: 700 !important;
+    }
+
+    .category-pill.pill-active .badge {
+        background-color: #ffffff !important;
+        color: #1d4ed8 !important;
+        font-weight: 700 !important;
+    }
+
+    .category-pill.pill-inactive {
+        background-color: #ffffff !important;
+        color: #334155 !important;
+        border: 1px solid #cbd5e1 !important;
+    }
+
+    .category-pill.pill-inactive:hover {
+        background-color: #f1f5f9 !important;
+        border-color: #94a3b8 !important;
+        color: #1d4ed8 !important;
+    }
+
+    .custom-nav-tabs {
+        -ms-overflow-style: none; /* IE/Edge */
+        scrollbar-width: none; /* Firefox */
+    }
+
+    .custom-nav-tabs::-webkit-scrollbar {
+        display: none; /* Chrome, Safari, Edge */
+    }
+
+    .custom-nav-tabs .nav-link {
+        font-size: 0.825rem;
+        padding: 0.45rem 0.85rem;
+        color: #4b5563;
+        white-space: nowrap;
+        border: none;
+        border-bottom: 2px solid transparent;
+        transition: all 0.15s ease-in-out;
+    }
+
+    .custom-nav-tabs .nav-link:hover {
+        color: #1d4ed8;
+        border-bottom-color: #93c5fd;
+    }
+
+    .custom-nav-tabs .nav-link.active {
+        color: #1d4ed8;
+        font-weight: 600;
+        background: transparent;
+        border-bottom: 2px solid #2563eb;
+    }
+
+    .custom-access-table thead th {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #4b5563;
+        font-weight: 700;
+        padding: 0.5rem 0.75rem;
+        border-top: none;
+    }
+
+    .custom-access-table tbody td {
+        padding: 0.42rem 0.75rem;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .table-primary-subtle {
+        background-color: rgba(37, 99, 235, 0.06) !important;
+    }
+
+    /* Android Mobile Card Styling matching Image 4 */
+    .access-card-item {
+        background-color: #ffffff;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    .access-card-item:hover {
+        background-color: #f8fafc;
+        border-color: #cbd5e1 !important;
+        transform: translateY(-1px);
+    }
+
+    .access-card-item.card-selected {
+        background-color: #eff6ff !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15) !important;
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    private List<EmployeeLookupModel> usersList = new();
+    private string selectedUserId = string.Empty;
+    private LeaveUserAccessData accessData = new();
+    private string activeTab = "dept";
+    private string viewMode = "auto"; // "auto", "table", "cards"
+    private string searchText = string.Empty;
+    private bool isLoading = false;
+    private bool isSaving = false;
+    private string? statusMessage;
+    private bool isSuccess = true;
+
+    private int TotalSelectedCount =>
+        GetSelectedCount(accessData.Departments) +
+        GetSelectedCount(accessData.Sections) +
+        GetSelectedCount(accessData.Categories) +
+        GetSelectedCount(accessData.Grades) +
+        GetSelectedCount(accessData.Supervisors) +
+        GetSelectedCount(accessData.JobTitles) +
+        GetSelectedCount(accessData.Factories) +
+        GetSelectedCount(accessData.Groups) +
+        GetSelectedCount(accessData.Emails);
+
+    private string IdColumnHeader => activeTab switch
+    {
+        "dept" => "DEPT_ID",
+        "sec" => "SECTION_ID",
+        "cat" => "CATEGORY_ID",
+        "grade" => "GRADE_ID",
+        "sup" => "SUPER_ID",
+        "job" => "JOB_ID",
+        "factory" => "FACTORY_ID",
+        "grp" => "GROUP ID",
+        "email" => "ID",
+        _ => "ID"
+    };
+
+    private string NameColumnHeader => activeTab switch
+    {
+        "grp" => "DSC / DESCRIPTION",
+        "email" => "NAME",
+        _ => "NAME"
+    };
+
+    private string RemarkColumnHeader => activeTab switch
+    {
+        "email" => "EMAIL ADDRESS",
+        _ => "REMARK"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+        // Load default master lists
+        await LoadAccessDataAsync(selectedUserId);
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        try
+        {
+            usersList = await ApiClient.GetLeaveAccessUsersAsync();
+            if (usersList.Any() && string.IsNullOrEmpty(selectedUserId))
+            {
+                selectedUserId = usersList.First().EmpId;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Failed to load user list: " + ex.Message;
+            isSuccess = false;
+        }
+    }
+
+    private async Task OnUserChangedAsync(ChangeEventArgs e)
+    {
+        selectedUserId = e.Value?.ToString() ?? "";
+        await LoadAccessDataAsync(selectedUserId);
+    }
+
+    private async Task RefreshUserAccessAsync()
+    {
+        await LoadAccessDataAsync(selectedUserId);
+        statusMessage = "Access permissions refreshed successfully.";
+        isSuccess = true;
+    }
+
+    private async Task LoadAccessDataAsync(string userId)
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            var res = await ApiClient.GetLeaveUserAccessAsync(userId);
+            if (res != null)
+            {
+                accessData = res;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error loading user access data: " + ex.Message;
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+        searchText = string.Empty;
+    }
+
+    private void OnTabDropdownChanged(ChangeEventArgs e)
+    {
+        var tab = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(tab))
+        {
+            SetActiveTab(tab);
+        }
+    }
+
+    private List<LeaveUserAccessItem> GetCurrentTabList() => activeTab switch
+    {
+        "dept" => accessData.Departments,
+        "sec" => accessData.Sections,
+        "cat" => accessData.Categories,
+        "grade" => accessData.Grades,
+        "sup" => accessData.Supervisors,
+        "job" => accessData.JobTitles,
+        "factory" => accessData.Factories,
+        "grp" => accessData.Groups,
+        "email" => accessData.Emails,
+        _ => accessData.Departments
+    };
+
+    private IEnumerable<LeaveUserAccessItem> FilteredItems
+    {
+        get
+        {
+            var list = GetCurrentTabList();
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                return list;
+            }
+
+            var q = searchText.Trim();
+            return list.Where(x => 
+                (x.Id?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.Name?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.Remark?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.Extra?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+    }
+
+    private int GetSelectedCount(List<LeaveUserAccessItem> list) => list.Count(x => x.IsSelected);
+
+    private bool IsAllActiveSelected
+    {
+        get
+        {
+            var items = FilteredItems.ToList();
+            return items.Any() && items.All(x => x.IsSelected);
+        }
+    }
+
+    private void ToggleItem(LeaveUserAccessItem item)
+    {
+        item.IsSelected = !item.IsSelected;
+    }
+
+    private void SelectAllInActiveTab()
+    {
+        foreach (var item in FilteredItems)
+        {
+            item.IsSelected = true;
+        }
+    }
+
+    private void UnselectAllInActiveTab()
+    {
+        foreach (var item in FilteredItems)
+        {
+            item.IsSelected = false;
+        }
+    }
+
+    private void ToggleSelectAllOnPage(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        foreach (var item in FilteredItems)
+        {
+            item.IsSelected = isChecked;
+        }
+    }
+
+    private async Task SaveUserAccessAsync()
+    {
+        if (string.IsNullOrWhiteSpace(selectedUserId))
+        {
+            statusMessage = "Please select a user before saving.";
+            isSuccess = false;
+            return;
+        }
+
+        isSaving = true;
+        statusMessage = null;
+
+        try
+        {
+            var req = new SaveLeaveUserAccessRequest
+            {
+                UserId = selectedUserId,
+                SelectedItems = new List<SelectedAccessItem>()
+            };
+
+            void AppendSelected(List<LeaveUserAccessItem> list)
+            {
+                foreach (var item in list.Where(x => x.IsSelected))
+                {
+                    req.SelectedItems.Add(new SelectedAccessItem
+                    {
+                        FormId = item.FormId,
+                        Id = item.Id,
+                        Remarks = item.Remark
+                    });
+                }
+            }
+
+            AppendSelected(accessData.Departments);
+            AppendSelected(accessData.Sections);
+            AppendSelected(accessData.Categories);
+            AppendSelected(accessData.Grades);
+            AppendSelected(accessData.Supervisors);
+            AppendSelected(accessData.JobTitles);
+            AppendSelected(accessData.Factories);
+            AppendSelected(accessData.Groups);
+            AppendSelected(accessData.Emails);
+
+            var (ok, msg) = await ApiClient.SaveLeaveUserAccessAsync(req);
+            isSuccess = ok;
+            statusMessage = ok ? $"Successfully updated Leave access for user '{selectedUserId}' ({req.SelectedItems.Count} items assigned)." : msg;
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Save operation failed: " + ex.Message;
+            isSuccess = false;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

@@ -51,6 +51,7 @@ public class AdminUserModel
     public string CoNo { get; set; } = string.Empty;
     public string IsAttn { get; set; } = string.Empty;
     public string PasswordPayslip { get; set; } = string.Empty;
+    public string Department { get; set; } = string.Empty;
 }
 
 public class UserGroupModel

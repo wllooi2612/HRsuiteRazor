@@ -392,86 +392,116 @@
                             <span class="fw-bold extra-small text-dark text-uppercase">1. Leave Balance Detail</span>
                         </div>
                         <div class="card-body p-3">
+                            <div class="balance-settings-list mb-3">
+                                <!-- 1. Select Leave (Enable) -->
+                                <div class="balance-setting-row py-2 px-2 border-bottom d-flex align-items-center justify-content-start flex-wrap gap-3" tabindex="0">
+                                    <div class="setting-control d-flex align-items-center" style="min-width: 200px; flex-shrink: 0;">
+                                        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                                            <input class="form-check-input cursor-pointer" type="checkbox" id="chkDisplay" 
+                                                   style="width: 2.2em; height: 1.15em;"
+                                                   checked="@(editItem.Display == "Y")" 
+                                                   @onchange='(e) => editItem.Display = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small fw-semibold text-dark cursor-pointer mb-0" for="chkDisplay">
+                                                Select Leave (Enable)
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="setting-hint">
+                                        Leave ID active under this group
+                                    </div>
+                                </div>
+
+                                <!-- 2. Leave Balance Count -->
+                                <div class="balance-setting-row py-2 px-2 border-bottom d-flex align-items-center justify-content-start flex-wrap gap-3" tabindex="0">
+                                    <div class="setting-control d-flex align-items-center" style="min-width: 200px; flex-shrink: 0;">
+                                        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                                            <input class="form-check-input cursor-pointer" type="checkbox" id="chkBalCount" 
+                                                   style="width: 2.2em; height: 1.15em;"
+                                                   checked="@(editItem.BalCount == "Y")" 
+                                                   @onchange='(e) => editItem.BalCount = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small fw-semibold text-dark cursor-pointer mb-0" for="chkBalCount">
+                                                Leave Balance Count
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="setting-hint">
+                                        Include in balance count &amp; deduction
+                                    </div>
+                                </div>
+
+                                <!-- 3. Compulsory Attach -->
+                                <div class="balance-setting-row py-2 px-2 border-bottom d-flex align-items-center justify-content-start flex-wrap gap-3" tabindex="0">
+                                    <div class="setting-control d-flex align-items-center" style="min-width: 200px; flex-shrink: 0;">
+                                        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                                            <input class="form-check-input cursor-pointer" type="checkbox" id="chkCompulsoryAttach" 
+                                                   style="width: 2.2em; height: 1.15em;"
+                                                   checked="@(editItem.CompulsoryAttach == "Y")" 
+                                                   @onchange='(e) => editItem.CompulsoryAttach = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small fw-semibold text-dark cursor-pointer mb-0" for="chkCompulsoryAttach">
+                                                Compulsory Attach
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="setting-hint">
+                                        Require document file upload
+                                    </div>
+                                </div>
+
+                                <!-- 4. Stop HalfDay -->
+                                <div class="balance-setting-row py-2 px-2 border-bottom d-flex align-items-center justify-content-start flex-wrap gap-3" tabindex="0">
+                                    <div class="setting-control d-flex align-items-center" style="min-width: 200px; flex-shrink: 0;">
+                                        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                                            <input class="form-check-input cursor-pointer" type="checkbox" id="chkStopHalfDay" 
+                                                   style="width: 2.2em; height: 1.15em;"
+                                                   checked="@(editItem.StopHalfDay == "Y")" 
+                                                   @onchange='(e) => editItem.StopHalfDay = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small fw-semibold text-dark cursor-pointer mb-0" for="chkStopHalfDay">
+                                                Stop HalfDay
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="setting-hint">
+                                        Disallow half-day leave applications
+                                    </div>
+                                </div>
+
+                                <!-- 5. Follow Esystem -->
+                                <div class="balance-setting-row py-2 px-2 border-bottom d-flex align-items-center justify-content-start flex-wrap gap-3" tabindex="0">
+                                    <div class="setting-control d-flex align-items-center" style="min-width: 200px; flex-shrink: 0;">
+                                        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                                            <input class="form-check-input cursor-pointer" type="checkbox" id="chkFollowEsystem" 
+                                                   style="width: 2.2em; height: 1.15em;"
+                                                   checked="@(editItem.FollowEsystem == "Y")" 
+                                                   @onchange='(e) => editItem.FollowEsystem = ((bool)e.Value!) ? "Y" : "N"' />
+                                            <label class="form-check-label extra-small fw-semibold text-dark cursor-pointer mb-0" for="chkFollowEsystem">
+                                                Follow Esystem
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="setting-hint">
+                                        Follow Esystem holidays/rules
+                                    </div>
+                                </div>
+
+                                <!-- 6. Indirect Leave ID -->
+                                <div class="balance-setting-row py-2 px-2 border-bottom d-flex align-items-center justify-content-start flex-wrap gap-3" tabindex="0">
+                                    <div class="setting-control" style="width: 240px; flex-shrink: 0;">
+                                        <label class="form-label extra-small fw-semibold text-dark mb-1" for="selIndirect">Indirect Leave ID:</label>
+                                        <select id="selIndirect" class="form-select form-select-sm" @bind="editItem.IndirectLeaveID">
+                                            <option value="">-- None / Standard --</option>
+                                            @foreach (var lt in availableLeaveTypes)
+                                            {
+                                                <option value="@lt.Code">@lt.Code - @lt.Name</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="setting-hint align-self-end mb-1">
+                                        Converts to payroll leave (e.g. AL / L01P)
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="row g-3">
-                                <!-- Select Leave (Display) -->
-                                <div class="col-12 col-md-6 col-lg-4">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="chkDisplay" 
-                                               checked="@(editItem.Display == "Y")" 
-                                               @onchange='(e) => editItem.Display = ((bool)e.Value!) ? "Y" : "N"' />
-                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkDisplay">
-                                            Select Leave (Enable)
-                                        </label>
-                                    </div>
-                                    <div class="extra-small text-muted ms-4">Leave ID active under this group</div>
-                                </div>
-
-                                <!-- Leave Balance Count -->
-                                <div class="col-12 col-md-6 col-lg-4">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="chkBalCount" 
-                                               checked="@(editItem.BalCount == "Y")" 
-                                               @onchange='(e) => editItem.BalCount = ((bool)e.Value!) ? "Y" : "N"' />
-                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkBalCount">
-                                            Leave Balance Count
-                                        </label>
-                                    </div>
-                                    <div class="extra-small text-muted ms-4">Include in balance count &amp; deduction</div>
-                                </div>
-
-                                <!-- Compulsory Attach -->
-                                <div class="col-12 col-md-6 col-lg-4">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="chkCompulsoryAttach" 
-                                               checked="@(editItem.CompulsoryAttach == "Y")" 
-                                               @onchange='(e) => editItem.CompulsoryAttach = ((bool)e.Value!) ? "Y" : "N"' />
-                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkCompulsoryAttach">
-                                            Compulsory Attach
-                                        </label>
-                                    </div>
-                                    <div class="extra-small text-muted ms-4">Require document file upload</div>
-                                </div>
-
-                                <!-- Stop HalfDay -->
-                                <div class="col-12 col-md-6 col-lg-4">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="chkStopHalfDay" 
-                                               checked="@(editItem.StopHalfDay == "Y")" 
-                                               @onchange='(e) => editItem.StopHalfDay = ((bool)e.Value!) ? "Y" : "N"' />
-                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkStopHalfDay">
-                                            Stop HalfDay
-                                        </label>
-                                    </div>
-                                    <div class="extra-small text-muted ms-4">Disallow half-day leave applications</div>
-                                </div>
-
-                                <!-- Follow Esystem -->
-                                <div class="col-12 col-md-6 col-lg-4">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="chkFollowEsystem" 
-                                               checked="@(editItem.FollowEsystem == "Y")" 
-                                               @onchange='(e) => editItem.FollowEsystem = ((bool)e.Value!) ? "Y" : "N"' />
-                                        <label class="form-check-label extra-small fw-semibold text-dark" for="chkFollowEsystem">
-                                            Follow Esystem
-                                        </label>
-                                    </div>
-                                    <div class="extra-small text-muted ms-4">Follow Esystem holidays/rules</div>
-                                </div>
-
-                                <!-- Indirect Leave ID -->
-                                <div class="col-12 col-md-6 col-lg-4">
-                                    <label class="form-label extra-small fw-semibold text-dark mb-1">Indirect Leave ID:</label>
-                                    <select class="form-select form-select-sm" @bind="editItem.IndirectLeaveID">
-                                        <option value="">-- None / Standard --</option>
-                                        @foreach (var lt in availableLeaveTypes)
-                                        {
-                                            <option value="@lt.Code">@lt.Code - @lt.Name</option>
-                                        }
-                                    </select>
-                                    <div class="extra-small text-muted mt-1">Converts to payroll leave (e.g. AL / L01P)</div>
-                                </div>
-
-                                <!-- Including Days -->
                                 <div class="col-12">
                                     <label class="form-label extra-small fw-semibold text-dark mb-1">
                                         Including Days <span class="text-muted fw-normal">(Tick days that count towards leave duration)</span>:
@@ -988,5 +1018,41 @@
 
     .row-active-leave {
         background-color: rgba(240, 253, 250, 0.45);
+    }
+
+    /* Setting row hover & hint display */
+    .balance-setting-row {
+        position: relative;
+        transition: background-color 0.15s ease;
+        border-color: #f1f5f9 !important;
+        border-radius: 6px;
+        outline: none;
+    }
+
+    .balance-setting-row:hover {
+        background-color: #f8fafc;
+    }
+
+    .balance-setting-row .setting-hint {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateX(4px);
+        transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+        pointer-events: none;
+        user-select: none;
+        font-size: 0.72rem;
+        color: #dc2626 !important;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+
+    /* Display when mouse hovers over row/input, or when focused via touch/tab */
+    .balance-setting-row:hover .setting-hint,
+    .balance-setting-row:focus .setting-hint,
+    .balance-setting-row:focus-within .setting-hint,
+    .balance-setting-row:active .setting-hint {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(0);
     }
 </style>

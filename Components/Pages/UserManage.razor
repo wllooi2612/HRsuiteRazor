@@ -103,12 +103,15 @@
                     <i class="bi bi-funnel-fill"></i>
                 </button>
 
-                <!-- View Switcher (Grid / Cards) -->
+                <!-- View Switcher (Auto / Grid / Cards) -->
                 <div class="btn-group btn-group-sm shadow-sm" role="group">
-                    <button type="button" class="btn @(viewMode == "table" ? "btn-primary" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "table"' title="Grid Table View">
+                    <button type="button" class="btn @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Cards on Mobile, Grid on Desktop)">
+                        <i class="bi bi-phone"></i>
+                    </button>
+                    <button type="button" class="btn @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "table"' title="Grid Table View">
                         <i class="bi bi-table"></i>
                     </button>
-                    <button type="button" class="btn @(viewMode == "cards" ? "btn-primary" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "cards"' title="Mobile Cards View">
+                    <button type="button" class="btn @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "cards"' title="Cards View">
                         <i class="bi bi-grid-fill"></i>
                     </button>
                 </div>
@@ -121,318 +124,245 @@
         </div>
     </div>
 
-    <!-- MAIN DATA DISPLAY (GRID / TABLE VIEW) -->
-    @if (viewMode == "table")
+    <!-- MAIN DATA DISPLAY (WEB 桌面端 宽屏表格 / ANDROID 手机端 自适应卡片) -->
+    @if (viewMode == "table" || viewMode == "auto")
     {
-        <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
-            <div class="table-responsive enterprise-table-container">
-                <table class="table table-hover table-sm align-middle enterprise-table mb-0">
-                    <thead class="table-header-custom sticky-top">
-                        <!-- Main Header Row -->
-                        <tr>
-                            <th class="col-action text-center">#</th>
-                            <th class="col-checkbox text-center">
-                                <input type="checkbox" class="form-check-input" checked="@IsAllSelected" @onchange="ToggleSelectAll" title="Select All" />
-                            </th>
-                            <th class="col-cono text-center">CoNo</th>
-                            <th class="col-id">User ID</th>
-                            <th class="col-name">Name</th>
-                            <th class="col-empid text-center">EmpID</th>
-                            <th class="col-active text-center">IsActive</th>
-                            <th class="col-ot text-center">OT Grp ID</th>
-                            <th class="col-leave text-center">Leave Grp ID</th>
-                            <th class="col-attn text-center">Attn Grp ID</th>
-                            <th class="col-payslip text-center">Payslip Grp ID</th>
-                            <th class="col-claim text-center">Claim Grp ID</th>
-                            <th class="col-ea text-center">EA Form Grp ID</th>
-                            <th class="col-staff text-center">Staff Grp ID</th>
-                            <th class="col-email">Email</th>
-                        </tr>
-
-                        <!-- Interactive Per-Column Filter Row (from Legacy ASP.NET) -->
-                        @if (showFilters)
-                        {
-                            <tr class="filter-row bg-light">
-                                <th class="text-center"><small class="text-muted">Filter</small></th>
-                                <th></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterCoNo" @bind:event="oninput" placeholder="CoNo" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterId" @bind:event="oninput" placeholder="ID" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterName" @bind:event="oninput" placeholder="Name" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterEmpId" @bind:event="oninput" placeholder="EmpID" /></th>
-                                <th>
-                                    <select class="form-select form-select-xs" @bind="colFilterActive">
-                                        <option value="">All</option>
-                                        <option value="Y">Y</option>
-                                        <option value="N">N</option>
-                                    </select>
+        <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+            <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+                <div class="table-responsive enterprise-table-container">
+                    <table class="table table-hover table-sm align-middle enterprise-table mb-0">
+                        <thead class="table-header-custom sticky-top">
+                            <!-- Main Header Row: BADGE ID | USER ID | NAME | DEPARTMENT | EMAIL -->
+                            <tr>
+                                <th class="col-action text-center" style="width: 55px;">#</th>
+                                <th class="col-checkbox text-center" style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" checked="@IsAllSelected" @onchange="ToggleSelectAll" title="Select All" />
                                 </th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterOT" @bind:event="oninput" placeholder="OT Grp" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterLeave" @bind:event="oninput" placeholder="Leave Grp" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterAttn" @bind:event="oninput" placeholder="Attn Grp" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterPayslip" @bind:event="oninput" placeholder="Payslip Grp" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterClaim" @bind:event="oninput" placeholder="Claim Grp" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterEA" @bind:event="oninput" placeholder="EA Grp" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterStaff" @bind:event="oninput" placeholder="Staff Grp" /></th>
-                                <th><input type="text" class="form-control form-control-xs" @bind="colFilterEmail" @bind:event="oninput" placeholder="Email" /></th>
+                                <th class="col-badge text-center" style="width: 120px;">BADGE ID</th>
+                                <th class="col-id" style="width: 130px;">USER ID</th>
+                                <th class="col-name">NAME</th>
+                                <th class="col-dept text-center" style="width: 160px;">DEPARTMENT</th>
+                                <th class="col-email">EMAIL</th>
+                                <th class="col-status text-center" style="width: 90px;">STATUS</th>
                             </tr>
-                        }
-                    </thead>
-                    <tbody>
-                        @if (isLoading)
-                        {
-                            <tr>
-                                <td colspan="15" class="text-center py-5">
-                                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
-                                    <div class="text-muted small mt-2">Loading user records from MySQL via Web API...</div>
-                                </td>
-                            </tr>
-                        }
-                        else if (FilteredUsers.Count == 0)
-                        {
-                            <tr>
-                                <td colspan="15" class="text-center py-5 text-muted">
-                                    <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
-                                    <span>No users match the search criteria.</span>
-                                </td>
-                            </tr>
-                        }
-                        else
-                        {
-                            @foreach (var user in FilteredUsers)
+
+                            <!-- Interactive Per-Column Filter Row -->
+                            @if (showFilters)
                             {
-                                bool isSelected = selectedUserIds.Contains(user.ID);
-                                bool isHighlighted = (activeUser?.ID == user.ID);
-
-                                <tr class="user-row @(isHighlighted ? "row-highlighted" : "") @(isSelected ? "row-selected" : "")" @onclick="() => SelectRow(user)">
-                                    <!-- Edit Link -->
-                                    <td class="text-center col-action" @onclick:stopPropagation="true">
-                                        <a href="admin/users/edit/@user.ID" class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold text-decoration-none" @onclick="() => StartEditUser(user, syncUrl: false)">
-                                            Edit
-                                        </a>
-                                    </td>
-
-                                    <!-- Selection Checkbox -->
-                                    <td class="text-center col-checkbox" @onclick:stopPropagation="true">
-                                        <input type="checkbox" class="form-check-input" checked="@isSelected" @onchange="(e) => ToggleUserSelection(user.ID, e)" />
-                                    </td>
-
-                                    <!-- CoNo -->
-                                    <td class="text-center col-cono text-muted font-monospace">@(string.IsNullOrEmpty(user.CoNo) ? "ID" : user.CoNo)</td>
-
-                                    <!-- User ID -->
-                                    <td class="col-id">
-                                        <span class="badge bg-secondary font-monospace fw-bold">@user.ID</span>
-                                    </td>
-
-                                    <!-- Full Name -->
-                                    <td class="col-name fw-semibold text-dark">@user.Name</td>
-
-                                    <!-- EmpID -->
-                                    <td class="text-center col-empid font-monospace text-muted">@(string.IsNullOrEmpty(user.EmpId) ? "-" : user.EmpId)</td>
-
-                                    <!-- IsActive Checkbox Display -->
-                                    <td class="text-center col-active" @onclick:stopPropagation="true">
-                                        <input type="checkbox" class="form-check-input" checked="@(user.IsActive == "Y")" @onchange="() => ToggleUserActiveStatus(user)" title="Toggle Active Status" />
-                                    </td>
-
-                                    <!-- OT Grp ID Badge -->
-                                    <td class="text-center col-ot">
-                                        @if (!string.IsNullOrEmpty(user.OTUserGroupID))
-                                        {
-                                            <span class="badge badge-group bg-warning-subtle text-dark border border-warning">@user.OTUserGroupID</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
-                                    </td>
-
-                                    <!-- Leave Grp ID Badge -->
-                                    <td class="text-center col-leave">
-                                        @if (!string.IsNullOrEmpty(user.LeaveUserGroupID))
-                                        {
-                                            <span class="badge badge-group bg-success-subtle text-success border border-success">@user.LeaveUserGroupID</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
-                                    </td>
-
-                                    <!-- Attn Grp ID Badge -->
-                                    <td class="text-center col-attn">
-                                        @if (!string.IsNullOrEmpty(user.AttnUserGroupID))
-                                        {
-                                            <span class="badge badge-group bg-primary-subtle text-primary border border-primary">@user.AttnUserGroupID</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
-                                    </td>
-
-                                    <!-- Payslip Grp ID Badge -->
-                                    <td class="text-center col-payslip">
-                                        @if (!string.IsNullOrEmpty(user.PayslipUserGroupID))
-                                        {
-                                            <span class="badge badge-group bg-purple-subtle text-purple border border-purple">@user.PayslipUserGroupID</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
-                                    </td>
-
-                                    <!-- Claim Grp ID Badge -->
-                                    <td class="text-center col-claim">
-                                        @if (!string.IsNullOrEmpty(user.ClaimUserGroupID))
-                                        {
-                                            <span class="badge badge-group bg-info-subtle text-info border border-info">@user.ClaimUserGroupID</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
-                                    </td>
-
-                                    <!-- EA Form Grp ID Badge -->
-                                    <td class="text-center col-ea">
-                                        @if (!string.IsNullOrEmpty(user.EAFORMGroupID))
-                                        {
-                                            <span class="badge badge-group bg-secondary-subtle text-secondary border">@user.EAFORMGroupID</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
-                                    </td>
-
-                                    <!-- Staff Grp ID Badge -->
-                                    <td class="text-center col-staff">
-                                        @if (!string.IsNullOrEmpty(user.UserGroupID))
-                                        {
-                                            <span class="badge badge-group bg-dark-subtle text-dark border">@user.UserGroupID</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
-                                    </td>
-
-                                    <!-- Email -->
-                                    <td class="col-email">
-                                        @if (!string.IsNullOrEmpty(user.Email))
-                                        {
-                                            <a href="mailto:@user.Email" class="text-decoration-none text-muted font-monospace small" @onclick:stopPropagation="true">
-                                                <i class="bi bi-envelope me-1"></i>@user.Email
-                                            </a>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
+                                <tr class="filter-row bg-light">
+                                    <th class="text-center"><small class="text-muted">Filter</small></th>
+                                    <th></th>
+                                    <th><input type="text" class="form-control form-control-xs text-center" @bind="colFilterEmpId" @bind:event="oninput" placeholder="Badge ID" /></th>
+                                    <th><input type="text" class="form-control form-control-xs" @bind="colFilterId" @bind:event="oninput" placeholder="User ID" /></th>
+                                    <th><input type="text" class="form-control form-control-xs" @bind="colFilterName" @bind:event="oninput" placeholder="Name" /></th>
+                                    <th><input type="text" class="form-control form-control-xs text-center" @bind="colFilterDept" @bind:event="oninput" placeholder="Dept" /></th>
+                                    <th><input type="text" class="form-control form-control-xs" @bind="colFilterEmail" @bind:event="oninput" placeholder="Email" /></th>
+                                    <th>
+                                        <select class="form-select form-select-xs" @bind="colFilterActive">
+                                            <option value="">All</option>
+                                            <option value="Y">Active</option>
+                                            <option value="N">Inactive</option>
+                                        </select>
+                                    </th>
+                                </tr>
+                            }
+                        </thead>
+                        <tbody>
+                            @if (isLoading)
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-5">
+                                        <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                        <div class="text-muted small mt-2">Loading user records from MySQL via Web API...</div>
                                     </td>
                                 </tr>
                             }
-                        }
-                    </tbody>
-                </table>
-            </div>
+                            else if (FilteredUsers.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                                        <span>No users match the search criteria.</span>
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var user in FilteredUsers)
+                                {
+                                    bool isSelected = selectedUserIds.Contains(user.ID);
+                                    bool isHighlighted = (activeUser?.ID == user.ID);
+                                    string badgeId = GetUserBadgeId(user);
+                                    string dept = GetUserDepartment(user);
 
-            <!-- Table Footer Status -->
-            <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
-                <div>
-                    Showing <strong>@FilteredUsers.Count</strong> of <strong>@usersList.Count</strong> users
-                    @if (SelectedCount > 0)
-                    {
-                        <span class="ms-3 badge bg-primary">@SelectedCount Selected</span>
-                    }
+                                    <tr class="user-row @(isHighlighted ? "row-highlighted" : "") @(isSelected ? "row-selected" : "")" @onclick="() => SelectRow(user)">
+                                        <!-- Edit Link -->
+                                        <td class="text-center col-action" @onclick:stopPropagation="true">
+                                            <a href="admin/users/edit/@user.ID" class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold text-decoration-none" @onclick="() => StartEditUser(user, syncUrl: false)">
+                                                Edit
+                                            </a>
+                                        </td>
+
+                                        <!-- Selection Checkbox -->
+                                        <td class="text-center col-checkbox" @onclick:stopPropagation="true">
+                                            <input type="checkbox" class="form-check-input" checked="@isSelected" @onchange="(e) => ToggleUserSelection(user.ID, e)" />
+                                        </td>
+
+                                        <!-- BADGE ID -->
+                                        <td class="text-center col-badge">
+                                            <span class="font-monospace fw-bold text-dark">@badgeId</span>
+                                        </td>
+
+                                        <!-- USER ID -->
+                                        <td class="col-id">
+                                            <span class="badge bg-secondary font-monospace fw-bold">@user.ID</span>
+                                        </td>
+
+                                        <!-- NAME -->
+                                        <td class="col-name fw-semibold text-dark">@user.Name</td>
+
+                                        <!-- DEPARTMENT -->
+                                        <td class="text-center col-dept">
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold text-uppercase">
+                                                @dept
+                                            </span>
+                                        </td>
+
+                                        <!-- EMAIL -->
+                                        <td class="col-email">
+                                            @if (!string.IsNullOrEmpty(user.Email))
+                                            {
+                                                <a href="mailto:@user.Email" class="text-decoration-none text-muted font-monospace small" @onclick:stopPropagation="true">
+                                                    <i class="bi bi-envelope me-1"></i>@user.Email
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+
+                                        <!-- STATUS -->
+                                        <td class="text-center col-status" @onclick:stopPropagation="true">
+                                            @if (user.IsActive == "Y")
+                                            {
+                                                <span class="badge bg-success" style="cursor: pointer;" @onclick="() => ToggleUserActiveStatus(user)" title="Click to toggle status">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger" style="cursor: pointer;" @onclick="() => ToggleUserActiveStatus(user)" title="Click to toggle status">Inactive</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
                 </div>
-                <div class="d-none d-md-block">
-                    <span>Source: MySQL 5.7 schema <code>myhrsuitelog.aspnet_users</code></span>
+
+                <!-- Table Footer Status -->
+                <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
+                    <div>
+                        Showing <strong>@FilteredUsers.Count</strong> of <strong>@usersList.Count</strong> users
+                        @if (SelectedCount > 0)
+                        {
+                            <span class="ms-3 badge bg-primary">@SelectedCount Selected</span>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
     }
-    else
+
+    <!-- ANDROID 手机端（自适应为卡片，告别左右滑动） -->
+    @if (viewMode == "cards" || viewMode == "auto")
     {
-        <!-- MOBILE / RESPONSIVE CARD VIEW -->
-        <div class="row g-3 mb-4">
-            @foreach (var user in FilteredUsers)
+        <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") mb-4">
+            @if (isLoading)
             {
-                bool isSelected = selectedUserIds.Contains(user.ID);
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                    <div class="text-muted small mt-2">Loading user records...</div>
+                </div>
+            }
+            else if (FilteredUsers.Count == 0)
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                    <span>No users match the search criteria.</span>
+                </div>
+            }
+            else
+            {
+                <div class="row g-2">
+                    @foreach (var user in FilteredUsers)
+                    {
+                        bool isSelected = selectedUserIds.Contains(user.ID);
+                        string badgeId = GetUserBadgeId(user);
+                        string dept = GetUserDepartment(user);
 
-                <div class="col-12 col-md-6 col-xl-4">
-                    <div class="card border-0 shadow-sm rounded-3 h-100 user-card @(isSelected ? "card-selected" : "")">
-                        <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom">
-                            <div class="d-flex align-items-center gap-2">
-                                <input type="checkbox" class="form-check-input" checked="@isSelected" @onchange="(e) => ToggleUserSelection(user.ID, e)" />
-                                <span class="badge bg-secondary font-monospace">@user.ID</span>
-                                <span class="badge bg-light text-dark border">CoNo: @(string.IsNullOrEmpty(user.CoNo) ? "ID" : user.CoNo)</span>
-                            </div>
-                            <div>
-                                @if (user.IsActive == "Y")
-                                {
-                                    <span class="badge bg-success-subtle text-success border border-success">Active</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger-subtle text-danger border border-danger">Inactive</span>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="card-body p-3">
-                            <h6 class="fw-bold text-dark mb-1">@user.Name</h6>
-                            <div class="small text-muted mb-2">
-                                <i class="bi bi-person-vcard me-1"></i> Emp ID: <strong>@(string.IsNullOrEmpty(user.EmpId) ? "-" : user.EmpId)</strong>
-                            </div>
-                            @if (!string.IsNullOrEmpty(user.Email))
-                            {
-                                <div class="small text-muted mb-3 text-truncate">
-                                    <i class="bi bi-envelope me-1"></i> @user.Email
-                                </div>
-                            }
-
-                            <!-- Group Badges Grid -->
-                            <div class="group-badges-container p-2 bg-light rounded-2 small mb-3">
-                                <div class="row g-1 text-center" style="font-size: 0.72rem;">
-                                    <div class="col-4">
-                                        <div class="text-muted fw-semibold">OT</div>
-                                        <div class="badge bg-warning-subtle text-dark border border-warning w-100 text-truncate">@(string.IsNullOrEmpty(user.OTUserGroupID) ? "-" : user.OTUserGroupID)</div>
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <div class="card border rounded-3 p-3 shadow-sm user-card-item @(isSelected ? "card-selected" : "")" style="background-color: #ffffff;" @onclick="() => SelectRow(user)">
+                                <!-- Top Line: [E1001]  Looi Engineer       [ENGINEERING] -->
+                                <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                    <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                        <input type="checkbox" class="form-check-input me-1 flex-shrink-0" checked="@isSelected" @onchange="(e) => ToggleUserSelection(user.ID, e)" @onclick:stopPropagation="true" />
+                                        <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@badgeId]</span>
+                                        <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.95rem;">@user.Name</span>
                                     </div>
-                                    <div class="col-4">
-                                        <div class="text-muted fw-semibold">Leave</div>
-                                        <div class="badge bg-success-subtle text-success border border-success w-100 text-truncate">@(string.IsNullOrEmpty(user.LeaveUserGroupID) ? "-" : user.LeaveUserGroupID)</div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="text-muted fw-semibold">Attn</div>
-                                        <div class="badge bg-primary-subtle text-primary border border-primary w-100 text-truncate">@(string.IsNullOrEmpty(user.AttnUserGroupID) ? "-" : user.AttnUserGroupID)</div>
-                                    </div>
-                                    <div class="col-4 mt-1">
-                                        <div class="text-muted fw-semibold">Payslip</div>
-                                        <div class="badge bg-purple-subtle text-purple border border-purple w-100 text-truncate">@(string.IsNullOrEmpty(user.PayslipUserGroupID) ? "-" : user.PayslipUserGroupID)</div>
-                                    </div>
-                                    <div class="col-4 mt-1">
-                                        <div class="text-muted fw-semibold">Claim</div>
-                                        <div class="badge bg-info-subtle text-info border border-info w-100 text-truncate">@(string.IsNullOrEmpty(user.ClaimUserGroupID) ? "-" : user.ClaimUserGroupID)</div>
-                                    </div>
-                                    <div class="col-4 mt-1">
-                                        <div class="text-muted fw-semibold">EA Form</div>
-                                        <div class="badge bg-secondary-subtle text-secondary border w-100 text-truncate">@(string.IsNullOrEmpty(user.EAFORMGroupID) ? "-" : user.EAFORMGroupID)</div>
+                                    <div class="flex-shrink-0 d-flex align-items-center gap-1">
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.3px;">
+                                            [@dept]
+                                        </span>
+                                        <a href="admin/users/edit/@user.ID" class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold text-decoration-none ms-1" @onclick="() => StartEditUser(user, syncUrl: false)" @onclick:stopPropagation="true">
+                                            Edit
+                                        </a>
                                     </div>
                                 </div>
+
+                                <!-- Line 2: 👤 User ID : looi -->
+                                <div class="d-flex align-items-center text-muted small mb-1.5">
+                                    <i class="bi bi-person-fill text-secondary me-2 fs-6" style="width: 16px;"></i>
+                                    <span class="text-secondary fw-semibold" style="width: 72px;">User ID :</span>
+                                    <span class="text-dark font-monospace fw-bold">@user.ID</span>
+                                    @if (user.IsActive == "Y")
+                                    {
+                                        <span class="badge bg-success-subtle text-success ms-auto border border-success-subtle py-0.5 px-1.5" style="font-size: 0.68rem;">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger ms-auto border border-danger-subtle py-0.5 px-1.5" style="font-size: 0.68rem;">Inactive</span>
+                                    }
+                                </div>
+
+                                <!-- Line 3: ✉️ Email   : looi@xinyi.com -->
+                                <div class="d-flex align-items-center text-muted small">
+                                    <i class="bi bi-envelope-fill text-primary me-2 fs-6" style="width: 16px;"></i>
+                                    <span class="text-secondary fw-semibold" style="width: 72px;">Email   :</span>
+                                    @if (!string.IsNullOrEmpty(user.Email))
+                                    {
+                                        <a href="mailto:@user.Email" class="text-dark text-decoration-none text-truncate" @onclick:stopPropagation="true">
+                                            @user.Email
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </div>
                             </div>
                         </div>
+                    }
+                </div>
 
-                        <div class="card-footer bg-white border-top p-2 d-flex justify-content-end gap-1">
-                            <a href="admin/users/edit/@user.ID" class="btn btn-sm btn-outline-primary py-0 px-2 text-decoration-none" @onclick="() => StartEditUser(user, syncUrl: false)">
-                                <i class="bi bi-pencil-square me-1"></i> Edit
-                            </a>
-                            <button class="btn btn-sm btn-outline-warning py-0 px-2" @onclick="() => ResetPassword(user)">
-                                <i class="bi bi-key me-1"></i> Reset Pwd
-                            </button>
-                        </div>
+                <!-- Cards Footer Status -->
+                <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border rounded-bottom-3 mt-2">
+                    <div>
+                        Showing <strong>@FilteredUsers.Count</strong> of <strong>@usersList.Count</strong> users
+                        @if (SelectedCount > 0)
+                        {
+                            <span class="ms-3 badge bg-primary">@SelectedCount Selected</span>
+                        }
                     </div>
                 </div>
             }
@@ -702,7 +632,7 @@
     [SupplyParameterFromQuery]
     public string? Edit { get; set; }
 
-    private string viewMode = "table"; // "table" or "cards"
+    private string viewMode = "auto"; // "auto", "table" or "cards"
     private bool showFilters = false;
     private bool isLoading = true;
     private bool isSubmitting = false;
@@ -718,20 +648,14 @@
     private string globalSearchText = "";
     private string? filterStatus = null;
 
-    // Per-column filters (matching old DevExpress grid)
+    // Per-column filters (matching BADGE ID, USER ID, NAME, DEPARTMENT, EMAIL, STATUS)
     private string colFilterCoNo = "";
+    private string colFilterEmpId = "";
     private string colFilterId = "";
     private string colFilterName = "";
-    private string colFilterEmpId = "";
-    private string colFilterActive = "";
-    private string colFilterOT = "";
-    private string colFilterLeave = "";
-    private string colFilterAttn = "";
-    private string colFilterPayslip = "";
-    private string colFilterClaim = "";
-    private string colFilterEA = "";
-    private string colFilterStaff = "";
+    private string colFilterDept = "";
     private string colFilterEmail = "";
+    private string colFilterActive = "";
 
     // Page Views
     private bool isFormView = false;
@@ -760,6 +684,24 @@
     private int SelectedCount => selectedUserIds.Count;
     private bool IsAllSelected => usersList.Count > 0 && selectedUserIds.Count == FilteredUsers.Count;
 
+    private string GetUserBadgeId(AdminUserModel u)
+    {
+        if (!string.IsNullOrWhiteSpace(u.EmpId))
+            return u.EmpId;
+        return u.ID;
+    }
+
+    private string GetUserDepartment(AdminUserModel u)
+    {
+        if (!string.IsNullOrWhiteSpace(u.Department))
+            return u.Department;
+        if (!string.IsNullOrWhiteSpace(u.UserGroupID))
+            return u.UserGroupID;
+        if (!string.IsNullOrWhiteSpace(u.LeaveUserGroupID))
+            return u.LeaveUserGroupID;
+        return "IT";
+    }
+
     private List<AdminUserModel> FilteredUsers
     {
         get
@@ -770,25 +712,19 @@
                  u.ID.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase) ||
                  u.Name.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase) ||
                  (u.EmpId != null && u.EmpId.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase)) ||
+                 GetUserDepartment(u).Contains(globalSearchText, StringComparison.OrdinalIgnoreCase) ||
                  (u.Email != null && u.Email.Contains(globalSearchText, StringComparison.OrdinalIgnoreCase))) &&
 
                 // Top Status pill
                 (string.IsNullOrEmpty(filterStatus) || u.IsActive == filterStatus) &&
 
-                // Column-level filters
-                (string.IsNullOrEmpty(colFilterCoNo) || (u.CoNo != null && u.CoNo.Contains(colFilterCoNo, StringComparison.OrdinalIgnoreCase))) &&
+                // Column-level filters matching the 5 columns
+                (string.IsNullOrEmpty(colFilterEmpId) || GetUserBadgeId(u).Contains(colFilterEmpId, StringComparison.OrdinalIgnoreCase)) &&
                 (string.IsNullOrEmpty(colFilterId) || u.ID.Contains(colFilterId, StringComparison.OrdinalIgnoreCase)) &&
                 (string.IsNullOrEmpty(colFilterName) || u.Name.Contains(colFilterName, StringComparison.OrdinalIgnoreCase)) &&
-                (string.IsNullOrEmpty(colFilterEmpId) || (u.EmpId != null && u.EmpId.Contains(colFilterEmpId, StringComparison.OrdinalIgnoreCase))) &&
-                (string.IsNullOrEmpty(colFilterActive) || u.IsActive == colFilterActive) &&
-                (string.IsNullOrEmpty(colFilterOT) || (u.OTUserGroupID != null && u.OTUserGroupID.Contains(colFilterOT, StringComparison.OrdinalIgnoreCase))) &&
-                (string.IsNullOrEmpty(colFilterLeave) || (u.LeaveUserGroupID != null && u.LeaveUserGroupID.Contains(colFilterLeave, StringComparison.OrdinalIgnoreCase))) &&
-                (string.IsNullOrEmpty(colFilterAttn) || (u.AttnUserGroupID != null && u.AttnUserGroupID.Contains(colFilterAttn, StringComparison.OrdinalIgnoreCase))) &&
-                (string.IsNullOrEmpty(colFilterPayslip) || (u.PayslipUserGroupID != null && u.PayslipUserGroupID.Contains(colFilterPayslip, StringComparison.OrdinalIgnoreCase))) &&
-                (string.IsNullOrEmpty(colFilterClaim) || (u.ClaimUserGroupID != null && u.ClaimUserGroupID.Contains(colFilterClaim, StringComparison.OrdinalIgnoreCase))) &&
-                (string.IsNullOrEmpty(colFilterEA) || (u.EAFORMGroupID != null && u.EAFORMGroupID.Contains(colFilterEA, StringComparison.OrdinalIgnoreCase))) &&
-                (string.IsNullOrEmpty(colFilterStaff) || (u.UserGroupID != null && u.UserGroupID.Contains(colFilterStaff, StringComparison.OrdinalIgnoreCase))) &&
-                (string.IsNullOrEmpty(colFilterEmail) || (u.Email != null && u.Email.Contains(colFilterEmail, StringComparison.OrdinalIgnoreCase)))
+                (string.IsNullOrEmpty(colFilterDept) || GetUserDepartment(u).Contains(colFilterDept, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrEmpty(colFilterEmail) || (u.Email != null && u.Email.Contains(colFilterEmail, StringComparison.OrdinalIgnoreCase))) &&
+                (string.IsNullOrEmpty(colFilterActive) || u.IsActive == colFilterActive)
             ).ToList();
         }
     }
@@ -1329,6 +1265,24 @@
 
     .animate-fade-in {
         animation: fadeIn 0.2s ease-in-out;
+    }
+
+    /* Mobile Card Styles */
+    .user-card-item {
+        border-color: #cbd5e1 !important;
+        background-color: #ffffff;
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.15s ease;
+    }
+
+    .user-card-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .user-card-item.card-selected {
+        border-color: #3b82f6 !important;
+        background-color: #f0f7ff !important;
     }
 
     @@keyframes fadeIn {

@@ -76,6 +76,19 @@
                     <i class="bi bi-square fs-6"></i>
                 </button>
 
+                <!-- View Switcher (Auto / Grid / Cards) -->
+                <div class="btn-group btn-group-sm shadow-sm" role="group">
+                    <button type="button" class="btn @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Cards on Mobile, Grid on Desktop)">
+                        <i class="bi bi-phone"></i>
+                    </button>
+                    <button type="button" class="btn @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "table"' title="Grid Table View">
+                        <i class="bi bi-table"></i>
+                    </button>
+                    <button type="button" class="btn @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary") icon-toolbar-btn" @onclick='() => viewMode = "cards"' title="Cards View">
+                        <i class="bi bi-grid-fill"></i>
+                    </button>
+                </div>
+
                 <!-- Refresh Button -->
                 <button class="btn btn-sm btn-outline-secondary icon-toolbar-btn shadow-sm" @onclick="ReloadPermissionsAsync" title="Refresh Pages & Rights">
                     <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
@@ -84,105 +97,192 @@
         </div>
     </div>
 
-    <!-- MAIN DATA DISPLAY (GRID / TABLE VIEW) -->
-    <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
-        <div class="table-responsive enterprise-table-container">
-            <table class="table table-hover table-sm align-middle enterprise-table mb-0">
-                <thead class="table-header-custom sticky-top">
-                    <tr>
-                        <th class="col-checkbox text-center" style="width: 45px;">
-                            <input type="checkbox" class="form-check-input" checked="@IsAllSelected" @onchange="ToggleSelectAll" title="Toggle Select All" disabled="@(string.IsNullOrEmpty(selectedGroupKey))" />
-                        </th>
-                        <th class="text-center" style="width: 50px;">#</th>
-                        <th class="col-name">Page Name</th>
-                        <th class="col-formid text-center" style="width: 100px;">Form ID</th>
-                        <th class="col-group text-center" style="width: 140px;">System Group</th>
-                        <th class="col-status text-center" style="width: 130px;">Access Right</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (string.IsNullOrEmpty(selectedGroupKey))
-                    {
-                        <tr>
-                            <td colspan="6" class="text-center py-5 text-muted">
-                                <i class="bi bi-arrow-up-circle fs-2 text-warning opacity-75 d-block mb-2"></i>
-                                <span>Please select a <strong>User Group</strong> above to view and configure page access rights.</span>
-                            </td>
-                        </tr>
-                    }
-                    else if (isLoading)
-                    {
-                        <tr>
-                            <td colspan="6" class="text-center py-5">
-                                <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
-                                <div class="text-muted small mt-2">Loading page access rights from MySQL via Web API...</div>
-                            </td>
-                        </tr>
-                    }
-                    else if (FilteredPages.Count == 0)
-                    {
-                        <tr>
-                            <td colspan="6" class="text-center py-5 text-muted">
-                                <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
-                                <span>No pages found matching the filter criteria.</span>
-                            </td>
-                        </tr>
-                    }
-                    else
-                    {
-                        var index = 1;
-                        @foreach (var p in FilteredPages)
-                        {
-                            var isChecked = p.IsSelected;
-                            <tr class="@(isChecked ? "row-selected" : "")" @onclick="() => TogglePage(p)" style="cursor: pointer;">
-                                <td class="text-center col-checkbox" @onclick:stopPropagation="true">
-                                    <input type="checkbox" class="form-check-input" checked="@p.IsSelected" @onchange="() => TogglePage(p)" />
-                                </td>
-                                <td class="text-center text-muted small">@index</td>
-                                <td class="col-name fw-semibold text-dark">
-                                    <i class="bi bi-file-earmark-text text-secondary me-2"></i>
-                                    @p.Name
-                                </td>
-                                <td class="col-formid text-center">
-                                    <span class="badge bg-secondary font-monospace">@p.FormID</span>
-                                </td>
-                                <td class="col-group text-center">
-                                    <span class="badge @GetGroupBadgeClass(p.GroupID)">@p.GroupID</span>
-                                </td>
-                                <td class="col-status text-center" @onclick:stopPropagation="true">
-                                    <button class="btn btn-xs @(p.IsSelected ? "btn-success" : "btn-outline-danger")" @onclick="() => TogglePage(p)" title="Click to toggle access">
-                                        @if (p.IsSelected)
-                                        {
-                                            <i class="bi bi-check-circle-fill me-1"></i><span>Granted (Y)</span>
-                                        }
-                                        else
-                                        {
-                                            <i class="bi bi-x-circle me-1"></i><span>Denied (N)</span>
-                                        }
-                                    </button>
-                                </td>
+    <!-- MAIN DATA DISPLAY (WEB 桌面端 宽屏表格 / ANDROID 手机端 自适应卡片) -->
+    @if (viewMode == "table" || viewMode == "auto")
+    {
+        <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+            <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+                <div class="table-responsive enterprise-table-container">
+                    <table class="table table-hover table-sm align-middle enterprise-table mb-0">
+                        <thead class="table-header-custom sticky-top">
+                            <tr>
+                                <th class="col-checkbox text-center" style="width: 45px;">
+                                    <input type="checkbox" class="form-check-input" checked="@IsAllSelected" @onchange="ToggleSelectAll" title="Toggle Select All" disabled="@(string.IsNullOrEmpty(selectedGroupKey))" />
+                                </th>
+                                <th class="text-center" style="width: 50px;">#</th>
+                                <th class="col-name">Page Name</th>
+                                <th class="col-formid text-center" style="width: 100px;">Form ID</th>
+                                <th class="col-group text-center" style="width: 140px;">System Group</th>
+                                <th class="col-status text-center" style="width: 130px;">Access Right</th>
                             </tr>
-                            index++;
-                        }
-                    }
-                </tbody>
-            </table>
-        </div>
+                        </thead>
+                        <tbody>
+                            @if (string.IsNullOrEmpty(selectedGroupKey))
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center py-5 text-muted">
+                                        <i class="bi bi-arrow-up-circle fs-2 text-warning opacity-75 d-block mb-2"></i>
+                                        <span>Please select a <strong>User Group</strong> above to view and configure page access rights.</span>
+                                    </td>
+                                </tr>
+                            }
+                            else if (isLoading)
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center py-5">
+                                        <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                        <div class="text-muted small mt-2">Loading page access rights from MySQL via Web API...</div>
+                                    </td>
+                                </tr>
+                            }
+                            else if (FilteredPages.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                                        <span>No pages found matching the filter criteria.</span>
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                var index = 1;
+                                @foreach (var p in FilteredPages)
+                                {
+                                    var isChecked = p.IsSelected;
+                                    <tr class="@(isChecked ? "row-selected" : "")" @onclick="() => TogglePage(p)" style="cursor: pointer;">
+                                        <td class="text-center col-checkbox" @onclick:stopPropagation="true">
+                                            <input type="checkbox" class="form-check-input" checked="@p.IsSelected" @onchange="() => TogglePage(p)" />
+                                        </td>
+                                        <td class="text-center text-muted small">@index</td>
+                                        <td class="col-name fw-semibold text-dark">
+                                            <i class="bi bi-file-earmark-text text-secondary me-2"></i>
+                                            @p.Name
+                                        </td>
+                                        <td class="col-formid text-center">
+                                            <span class="badge bg-secondary font-monospace">@p.FormID</span>
+                                        </td>
+                                        <td class="col-group text-center">
+                                            <span class="badge @GetGroupBadgeClass(p.GroupID)">@p.GroupID</span>
+                                        </td>
+                                        <td class="col-status text-center" @onclick:stopPropagation="true">
+                                            <button class="btn btn-xs @(p.IsSelected ? "btn-success" : "btn-outline-danger")" @onclick="() => TogglePage(p)" title="Click to toggle access">
+                                                @if (p.IsSelected)
+                                                {
+                                                    <i class="bi bi-check-circle-fill me-1"></i><span>Granted (Y)</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-x-circle me-1"></i><span>Denied (N)</span>
+                                                }
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    index++;
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
 
-        <!-- Table Footer Status (Matching UserManage) -->
-        <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
-            <div>
-                @if (!string.IsNullOrEmpty(selectedGroupKey))
-                {
-                    <span>Showing <strong>@FilteredPages.Count</strong> of <strong>@pagesList.Count</strong> pages &bull; <strong>@GrantedCount</strong> Granted, <strong>@(pagesList.Count - GrantedCount)</strong> Denied</span>
-                }
-                else
-                {
-                    <span>No group selected</span>
-                }
+                <!-- Table Footer Status (Matching UserManage) -->
+                <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border-top">
+                    <div>
+                        @if (!string.IsNullOrEmpty(selectedGroupKey))
+                        {
+                            <span>Showing <strong>@FilteredPages.Count</strong> of <strong>@pagesList.Count</strong> pages &bull; <strong>@GrantedCount</strong> Granted, <strong>@(pagesList.Count - GrantedCount)</strong> Denied</span>
+                        }
+                        else
+                        {
+                            <span>No group selected</span>
+                        }
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
+    }
+
+    <!-- ANDROID 手机端（自适应为卡片，告别左右滑动） -->
+    @if (viewMode == "cards" || viewMode == "auto")
+    {
+        <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") mb-4">
+            @if (string.IsNullOrEmpty(selectedGroupKey))
+            {
+                <div class="text-center py-5 text-muted border rounded-3 bg-white p-4">
+                    <i class="bi bi-arrow-up-circle fs-2 text-warning opacity-75 d-block mb-2"></i>
+                    <span>Please select a <strong>User Group</strong> above to view and configure page access rights.</span>
+                </div>
+            }
+            else if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                    <div class="text-muted small mt-2">Loading page access rights...</div>
+                </div>
+            }
+            else if (FilteredPages.Count == 0)
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                    <span>No pages found matching the filter criteria.</span>
+                </div>
+            }
+            else
+            {
+                <div class="row g-2">
+                    @foreach (var p in FilteredPages)
+                    {
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <div class="card border rounded-3 p-3 shadow-sm user-card-item @(p.IsSelected ? "card-selected" : "")" style="background-color: #ffffff;" @onclick="() => TogglePage(p)">
+                                <!-- Top Line: [Checkbox] [FormID] Page Name        [GroupID] [Granted/Denied] -->
+                                <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                    <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                        <input type="checkbox" class="form-check-input me-1 flex-shrink-0" checked="@p.IsSelected" @onchange="() => TogglePage(p)" @onclick:stopPropagation="true" />
+                                        <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@p.FormID]</span>
+                                        <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.95rem;">@p.Name</span>
+                                    </div>
+                                    <div class="flex-shrink-0 d-flex align-items-center gap-1">
+                                        <span class="badge @GetGroupBadgeClass(p.GroupID)" style="font-size: 0.72rem; letter-spacing: 0.3px;">
+                                            [@p.GroupID]
+                                        </span>
+                                        <button class="btn btn-xs @(p.IsSelected ? "btn-success" : "btn-outline-danger") ms-1 py-0 px-2 fw-semibold" @onclick="() => TogglePage(p)" @onclick:stopPropagation="true">
+                                            @(p.IsSelected ? "Granted" : "Denied")
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Line 2: 🛡️ Access Right & Form ID -->
+                                <div class="d-flex align-items-center text-muted small">
+                                    <i class="bi bi-shield-lock-fill text-secondary me-2 fs-6" style="width: 16px;"></i>
+                                    <span class="text-secondary fw-semibold" style="width: 60px;">Access :</span>
+                                    @if (p.IsSelected)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle py-0.5 px-2" style="font-size: 0.7rem;">
+                                            <i class="bi bi-check-circle-fill me-1"></i>Granted (Y)
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0.5 px-2" style="font-size: 0.7rem;">
+                                            <i class="bi bi-x-circle me-1"></i>Denied (N)
+                                        </span>
+                                    }
+                                    <span class="ms-auto text-muted small">Form #@p.FormID</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Cards Footer Status -->
+                <div class="card-footer bg-light d-flex justify-content-between align-items-center py-2 px-3 small text-muted border rounded-bottom-3 mt-2">
+                    <div>
+                        <span>Showing <strong>@FilteredPages.Count</strong> of <strong>@pagesList.Count</strong> pages &bull; <strong>@GrantedCount</strong> Granted, <strong>@(pagesList.Count - GrantedCount)</strong> Denied</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 </div>
 
 <!-- Confirm Save Modal -->
@@ -228,6 +328,7 @@
 }
 
 @code {
+    private string viewMode = "auto"; // "auto", "table", "cards"
     private List<UserGroupModel> groupsList = new();
     private List<PermissionPageModel> pagesList = new();
 
@@ -557,6 +658,24 @@
 
     .animate-fade-in {
         animation: fadeIn 0.2s ease-in-out;
+    }
+
+    /* Mobile Card Styles */
+    .user-card-item {
+        border-color: #cbd5e1 !important;
+        background-color: #ffffff;
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.15s ease;
+    }
+
+    .user-card-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .user-card-item.card-selected {
+        border-color: #f59e0b !important;
+        background-color: #fffbeb !important;
     }
 
     @@keyframes fadeIn {
