@@ -21,6 +21,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <EnableDefaultCssItems>false</EnableDefaultCssItems>
         <Nullable>enable</Nullable>
+        <ValidateXcodeVersion>false</ValidateXcodeVersion>
+        <_IgnoreXcodeVersionCheck>true</_IgnoreXcodeVersionCheck>
 
         <!-- Display name -->
         <ApplicationTitle>HRsuiteRazor.Mobile</ApplicationTitle>
