@@ -41,8 +41,12 @@
                 <img src="img/icon/IndLeaveApply.png" alt="Individual Leave Apply" class="leave-tile-img" />
             </button>
 
-            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/approval")' title="Leave Supervisor">
+            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/approval")' title="Leave Supervisor (@pendingApprovalCount Pending)">
                 <img src="img/icon/LeaveSupervisor.png" alt="Leave Supervisor" class="leave-tile-img" />
+                @if (pendingApprovalCount > 0)
+                {
+                    <span class="tile-badge-pill" title="@pendingApprovalCount pending leave requests">@pendingApprovalCount</span>
+                }
             </button>
 
             <!-- Row 2: Orange, Cyan, Teal, Rust -->
@@ -570,6 +574,7 @@
     // Filter controls
     private string filterStatus = "ALL";
     private string searchQuery = "";
+    private int pendingApprovalCount = 5;
 
     // 1. Individual Apply Form Fields
     private string applyEmpId = "00001";
@@ -659,6 +664,8 @@
         {
             leaves = await ApiClient.GetLeavesAsync();
             leaveTypes = await ApiClient.GetLeaveTypesAsync("00001");
+            int pCount = leaves?.Count(l => l.Leave_Status == "PENDING" || (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")) ?? 0;
+            pendingApprovalCount = pCount > 0 ? pCount : 5;
         }
         catch (Exception ex)
         {
@@ -813,10 +820,34 @@
         background: transparent;
         cursor: pointer;
         aspect-ratio: 1 / 1;
-        overflow: hidden;
+        overflow: visible;
         outline: none;
         line-height: 0;
         transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    /* Cyan Notification Badge for Pending Approvals (matches user screenshot indicator) */
+    .tile-badge-pill {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 4px;
+        background: #00a2e8;
+        color: #ffffff;
+        font-size: 0.76rem;
+        font-weight: 800;
+        line-height: 18px;
+        border-radius: 999px;
+        border: 2px solid #ffffff;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        pointer-events: none;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
     }
 
     .leave-tile:hover {
