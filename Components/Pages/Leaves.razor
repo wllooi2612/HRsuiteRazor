@@ -5,6 +5,7 @@
 @inject HrApiClient ApiClient
 @inject NavigationManager NavManager
 @inject IJSRuntime JS
+@implements IDisposable
 
 <PageTitle>Leave Portal - HRsuite</PageTitle>
 
@@ -574,7 +575,7 @@
     // Filter controls
     private string filterStatus = "ALL";
     private string searchQuery = "";
-    private int pendingApprovalCount = 5;
+    private int pendingApprovalCount = 0;
 
     // 1. Individual Apply Form Fields
     private string applyEmpId = "00001";
@@ -604,7 +605,19 @@
 
     protected override async Task OnInitializedAsync()
     {
+        ApiClient.OnLeaveStatusChanged += HandleLeaveStatusChanged;
         await LoadDataAsync();
+    }
+
+    private async void HandleLeaveStatusChanged()
+    {
+        await LoadDataAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ApiClient.OnLeaveStatusChanged -= HandleLeaveStatusChanged;
     }
 
     private void SelectTile(string tab)
@@ -664,8 +677,7 @@
         {
             leaves = await ApiClient.GetLeavesAsync();
             leaveTypes = await ApiClient.GetLeaveTypesAsync("00001");
-            int pCount = leaves?.Count(l => l.Leave_Status == "PENDING" || (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")) ?? 0;
-            pendingApprovalCount = pCount > 0 ? pCount : 5;
+            pendingApprovalCount = leaves?.Count(l => l.Leave_Status == "PENDING" || (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")) ?? 0;
         }
         catch (Exception ex)
         {

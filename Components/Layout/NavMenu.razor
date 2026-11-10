@@ -88,7 +88,10 @@
                     <!-- Leave Supervisor -->
                     <NavLink class='@($"tree-child-link has-badge {(IsSupervisorActive() ? "active" : "")}")' href="leaves/approval">
                         <span>Leave Supervisor</span>
-                        <span class="tree-badge-pill" title="@pendingLeavesCount pending leave requests">@pendingLeavesCount</span>
+                        @if (pendingLeavesCount > 0)
+                        {
+                            <span class="tree-badge-pill" title="@pendingLeavesCount pending leave requests">@pendingLeavesCount</span>
+                        }
                     </NavLink>
 
                     <!-- Leave Administrator -->
@@ -186,13 +189,19 @@
     private string currentUrl = "";
     private string lastSection = "";
 
-    private int pendingLeavesCount = 5;
+    private int pendingLeavesCount = 0;
 
     protected override void OnInitialized()
     {
         currentUrl = NavManager.Uri;
         CheckUrl(currentUrl, isInitial: true);
         NavManager.LocationChanged += HandleLocationChanged;
+        ApiClient.OnLeaveStatusChanged += HandleLeaveStatusChanged;
+    }
+
+    private async void HandleLeaveStatusChanged()
+    {
+        await RefreshPendingCountAsync();
     }
 
     protected override async Task OnInitializedAsync()
@@ -213,14 +222,12 @@
     {
         try
         {
-            var leaves = await ApiClient.GetLeavesAsync();
-            int count = leaves?.Count(l => l.Leave_Status == "PENDING" || (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")) ?? 0;
-            pendingLeavesCount = count > 0 ? count : 5;
+            pendingLeavesCount = await ApiClient.GetPendingLeaveCountAsync();
             await InvokeAsync(StateHasChanged);
         }
         catch
         {
-            pendingLeavesCount = 5;
+            pendingLeavesCount = 0;
         }
     }
 
@@ -319,5 +326,6 @@
     public void Dispose()
     {
         NavManager.LocationChanged -= HandleLocationChanged;
+        ApiClient.OnLeaveStatusChanged -= HandleLeaveStatusChanged;
     }
 }

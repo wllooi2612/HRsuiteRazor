@@ -186,11 +186,56 @@ public class HrApiClient
         }
     }
 
+    public event Action? OnLeaveStatusChanged;
+
+    public void NotifyLeaveStatusChanged()
+    {
+        OnLeaveStatusChanged?.Invoke();
+    }
+
+    public async Task<int> GetPendingLeaveCountAsync(string? supervisorId = null)
+    {
+        try
+        {
+            string url = string.IsNullOrEmpty(supervisorId)
+                ? "api/Leave/pending-count"
+                : $"api/Leave/pending-count?supervisorId={Uri.EscapeDataString(supervisorId)}";
+            var res = await _http.GetFromJsonAsync<JsonElement>(url);
+            if (res.TryGetProperty("count", out var c))
+            {
+                return c.GetInt32();
+            }
+            if (res.TryGetProperty("Count", out var c2))
+            {
+                return c2.GetInt32();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("api/Leave/pending-count fallback to counting leaves list: {Msg}", ex.Message);
+        }
+
+        // Fallback: calculate from GetLeavesAsync()
+        try
+        {
+            var leaves = await GetLeavesAsync();
+            return leaves.Count(l => l.Leave_Status == "PENDING" || (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED"));
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     public async Task<bool> ApplyLeaveAsync(LeaveApplyModel model)
     {
         try
         {
             var res = await _http.PostAsJsonAsync("api/Leave/apply", model);
+            if (res.IsSuccessStatusCode)
+            {
+                NotifyLeaveStatusChanged();
+            }
             return res.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -205,6 +250,10 @@ public class HrApiClient
         try
         {
             var res = await _http.PostAsJsonAsync("api/Leave/approve", model);
+            if (res.IsSuccessStatusCode)
+            {
+                NotifyLeaveStatusChanged();
+            }
             return res.IsSuccessStatusCode;
         }
         catch (Exception ex)

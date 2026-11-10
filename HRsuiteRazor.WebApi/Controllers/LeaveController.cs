@@ -553,6 +553,41 @@ public class LeaveController : ControllerBase
         }
     }
 
+    [HttpGet("pending-count")]
+    public IActionResult GetPendingCount([FromQuery] string? supervisorId)
+    {
+        string connStr = _configuration.GetConnectionString("MyhrsuiteConnectionString") ?? "";
+        try
+        {
+            using (var conn = new MySqlConnection(connStr))
+            {
+                conn.Open();
+                using (var cmd = conn.CreateCommand())
+                {
+                    if (string.IsNullOrEmpty(supervisorId))
+                    {
+                        cmd.CommandText = "SELECT COUNT(DISTINCT LeaveNo) FROM aspnet_leaverecord WHERE UPPER(LEAVE_STATUS) = 'PENDING'";
+                    }
+                    else
+                    {
+                        cmd.CommandText = @"
+                            SELECT COUNT(DISTINCT LeaveNo) 
+                            FROM aspnet_leaverecord 
+                            WHERE UPPER(LEAVE_STATUS) = 'PENDING' 
+                              AND (app1 = @SuperID OR app2 = @SuperID OR app3 = @SuperID OR app4 = @SuperID)";
+                        cmd.Parameters.AddWithValue("@SuperID", supervisorId);
+                    }
+                    var count = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+                    return Ok(new { count });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Error counting pending leaves.", Details = ex.Message });
+        }
+    }
+
     [HttpGet("pending")]
     public IActionResult GetPendingApprovals([FromQuery] string supervisorId)
     {
