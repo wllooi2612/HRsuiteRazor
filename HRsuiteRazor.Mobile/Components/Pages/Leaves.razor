@@ -40,7 +40,7 @@
                 <img src="img/icon/IndLeaveApply.png" alt="Individual Leave Apply" class="leave-tile-img" />
             </button>
 
-            <button type="button" class="leave-tile @(activeTab == "supervisor" ? "active" : "")" @onclick='() => SelectTile("supervisor")' title="Leave Supervisor">
+            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/approval")' title="Leave Supervisor">
                 <img src="img/icon/LeaveSupervisor.png" alt="Leave Supervisor" class="leave-tile-img" />
             </button>
 
@@ -243,79 +243,6 @@
     }
 
 
-    <!-- 4. LEAVE SUPERVISOR APPROVAL QUEUE -->
-    @if (activeTab == "supervisor")
-    {
-        <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
-            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background-color: #941818 !important;">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-person-check-fill"></i>
-                    <h6 class="mb-0 fw-bold">Leave Supervisor Approval Queue</h6>
-                    <span class="badge bg-light text-danger fw-bold ms-2">@(leaves?.Count(l => l.Leave_Status != "APPROVE" && l.Leave_Status != "REJECT") ?? 0) Pending</span>
-                </div>
-                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 extra-small">
-                        <thead class="table-light">
-                            <tr>
-                                <th>#</th>
-                                <th>Leave No</th>
-                                <th>Employee</th>
-                                <th>Leave Type</th>
-                                <th>Date Range</th>
-                                <th>Days</th>
-                                <th>Reason</th>
-                                <th>Status</th>
-                                <th class="text-end">Supervisor Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @{
-                                var pendingLeaves = leaves?.Where(l => l.Leave_Status != "APPROVE" && l.Leave_Status != "REJECT").ToList();
-                            }
-                            @if (pendingLeaves?.Count > 0)
-                            {
-                                int sIdx = 1;
-                                @foreach (var l in pendingLeaves)
-                                {
-                                    <tr>
-                                        <td class="text-muted">@sIdx</td>
-                                        <td><code>@l.LeaveNo</code></td>
-                                        <td><span class="badge bg-light text-dark border">@l.Emp_ID</span> <strong>@l.EmpName</strong></td>
-                                        <td><span class="badge bg-primary-subtle text-primary border">@l.Leave_Type</span></td>
-                                        <td>@l.Leave_Date_From.ToString("yyyy-MM-dd") to @l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
-                                        <td><strong>@l.TotalDays</strong> day(s)</td>
-                                        <td class="text-truncate" style="max-width: 150px;" title="@l.Leave_Reason">@(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)</td>
-                                        <td><span class="badge bg-warning-subtle text-warning border border-warning">Pending Review</span></td>
-                                        <td class="text-end text-nowrap">
-                                            <button class="btn btn-success btn-xs px-2 me-1" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "APPROVE")' title="Approve Leave">
-                                                <i class="bi bi-check-lg me-1"></i>Approve
-                                            </button>
-                                            <button class="btn btn-outline-danger btn-xs px-2" @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "REJECT")' title="Reject Leave">
-                                                <i class="bi bi-x-lg me-1"></i>Reject
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    sIdx++;
-                                }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="9" class="text-center py-4 text-muted">
-                                        <i class="bi bi-check2-circle text-success fs-3 d-block mb-1"></i>
-                                        All supervisor leave approval queues are clear!
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    }
 
     <!-- 5. CREATE USER ACCESS -->
     @if (activeTab == "create_access")
@@ -624,6 +551,12 @@
         if (Tab == "calendar")
         {
             NavManager.NavigateTo("leaves/calendar", replace: true);
+            return;
+        }
+
+        if (Tab == "supervisor" || Tab == "approval")
+        {
+            NavManager.NavigateTo("leaves/approval", replace: true);
             return;
         }
 

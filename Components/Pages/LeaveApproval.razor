@@ -1,0 +1,344 @@
+@page "/leaves/approval"
+@page "/leaves/supervisor"
+@page "/eleaveapproval"
+@page "/eleaveapprove"
+@page "/eLeave/eLeaveApproval.aspx"
+@page "/eLeave/eLeaveApprove.aspx"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>Leave Supervisor Approval - HRsuite</PageTitle>
+
+<div class="leave-approval-page-container pb-5">
+    <!-- Top Header Bar with Standardized Action Buttons -->
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" 
+                    @onclick='() => NavManager.NavigateTo("leaves")' title="Back to Leave Portal">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <h5 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="approval-icon-badge" style="width: 32px; height: 32px; font-size: 1.1rem; background: linear-gradient(135deg, #941818 0%, #681111 100%); color: white; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-person-check-fill"></i>
+                </span>
+                <span>Leave Supervisor Approval</span>
+            </h5>
+            <span class="badge bg-danger-subtle text-danger border border-danger px-2 py-0.5 rounded-pill extra-small ms-1">
+                @PendingCount Pending
+            </span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3 extra-small d-inline-flex align-items-center gap-1 shadow-sm" 
+                    @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh Approval Queue">
+                <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                <span>Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Alert Notification -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3 rounded-3" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-5"></i>
+            <div class="flex-grow-1 extra-small">@statusMessage</div>
+            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Filter & Search Controls Bar -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+        <div class="card-body p-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <!-- Search Box -->
+            <div class="search-box" style="width: 280px; min-width: 200px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0 py-1"><i class="bi bi-search text-muted small"></i></span>
+                    <input type="text" class="form-control border-start-0 bg-light py-1" 
+                           placeholder="Search Leave No, Emp ID, Name, Reason..." 
+                           @bind="searchQuery" @bind:event="oninput" />
+                    @if (!string.IsNullOrEmpty(searchQuery))
+                    {
+                        <button class="btn btn-sm btn-outline-secondary bg-light border-start-0 py-1" @onclick='() => searchQuery = ""'>✕</button>
+                    }
+                </div>
+            </div>
+
+            <!-- Status Filter Pills -->
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted small me-1">Status:</span>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "PENDING" ? "btn-danger text-white" : "btn-light text-dark border")" 
+                        @onclick='() => filterStatus = "PENDING"'>
+                    Pending (@PendingCount)
+                </button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "ALL" ? "btn-dark text-white" : "btn-light text-dark border")" 
+                        @onclick='() => filterStatus = "ALL"'>
+                    All (@(leaves?.Count ?? 0))
+                </button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "APPROVE" ? "btn-success text-white" : "btn-light text-dark border")" 
+                        @onclick='() => filterStatus = "APPROVE"'>
+                    Approved
+                </button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "REJECT" ? "btn-secondary text-white" : "btn-light text-dark border")" 
+                        @onclick='() => filterStatus = "REJECT"'>
+                    Rejected
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approval Queue Card & Table (WITHOUT 11 tiles) -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+        <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between" style="background-color: #941818 !important;">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-list-check"></i>
+                <h6 class="mb-0 fw-bold">Supervisor Approval Queue (eLeaveApproval)</h6>
+            </div>
+            <span class="badge bg-light text-dark fw-bold">@FilteredLeaves.Count record(s)</span>
+        </div>
+
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-danger" role="status"></div>
+                    <p class="text-muted extra-small mt-2">Loading approval queue from Web API...</p>
+                </div>
+            }
+            else if (FilteredLeaves.Count == 0)
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-check2-circle text-success fs-1 d-block mb-2"></i>
+                    <h6 class="fw-bold text-dark mb-1">Queue is Clear!</h6>
+                    <p class="extra-small text-muted mb-0">No leave requests matching your current filter.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 extra-small">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Leave No</th>
+                                <th>Employee</th>
+                                <th>Leave Type</th>
+                                <th>Date Range</th>
+                                <th>Days</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th class="text-end" style="width: 170px;">Supervisor Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                int sIdx = 1;
+                            }
+                            @foreach (var l in FilteredLeaves)
+                            {
+                                <tr>
+                                    <td class="text-muted">@sIdx</td>
+                                    <td><code>@l.LeaveNo</code></td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="badge bg-light text-dark border">@l.Emp_ID</span>
+                                            <strong class="text-dark">@l.EmpName</strong>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">@l.Leave_Type</span>
+                                    </td>
+                                    <td>@l.Leave_Date_From.ToString("yyyy-MM-dd") to @l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
+                                    <td><strong>@l.TotalDays</strong> day(s)</td>
+                                    <td class="text-truncate" style="max-width: 160px;" title="@l.Leave_Reason">
+                                        @(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)
+                                    </td>
+                                    <td>
+                                        @if (l.Leave_Status == "APPROVE" || l.Leave_Status == "APPROVED")
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success">Approved</span>
+                                        }
+                                        else if (l.Leave_Status == "REJECT" || l.Leave_Status == "REJECTED")
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger border border-danger">Rejected</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning-subtle text-warning border border-warning">Pending Review</span>
+                                        }
+                                    </td>
+                                    <td class="text-end text-nowrap">
+                                        @if (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")
+                                        {
+                                            <div class="d-inline-flex gap-1">
+                                                <button class="btn btn-success btn-xs px-2" 
+                                                        @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "APPROVE")'
+                                                        disabled="@isProcessing"
+                                                        title="Approve this Leave Request">
+                                                    <i class="bi bi-check-lg me-1"></i>Approve
+                                                </button>
+                                                <button class="btn btn-outline-danger btn-xs px-2" 
+                                                        @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "REJECT")'
+                                                        disabled="@isProcessing"
+                                                        title="Reject this Leave Request">
+                                                    <i class="bi bi-x-lg me-1"></i>Reject
+                                                </button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted extra-small"><i class="bi bi-lock-fill me-1"></i>Processed</span>
+                                        }
+                                    </td>
+                                </tr>
+                                sIdx++;
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+        <div class="card-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+            <span class="extra-small text-muted">Showing <strong>@FilteredLeaves.Count</strong> of <strong>@(leaves?.Count ?? 0)</strong> total records</span>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 extra-small" @onclick='() => NavManager.NavigateTo("leaves")'>
+                Back to Portal
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .approval-icon-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 4px rgba(148, 24, 24, 0.2);
+    }
+
+    .btn-xs {
+        padding: 2px 6px;
+        font-size: 0.72rem;
+        line-height: 1.2;
+        border-radius: 4px;
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    private List<LeaveRequest>? leaves;
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private string? statusMessage;
+    private bool isSuccess;
+
+    private string filterStatus = "PENDING";
+    private string searchQuery = "";
+
+    private int PendingCount => leaves?.Count(l => l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED") ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        try
+        {
+            leaves = await ApiClient.GetLeavesAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error loading approval queue: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private List<LeaveRequest> FilteredLeaves
+    {
+        get
+        {
+            if (leaves == null) return new List<LeaveRequest>();
+
+            var q = leaves.AsEnumerable();
+
+            if (filterStatus == "PENDING")
+            {
+                q = q.Where(l => l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED");
+            }
+            else if (filterStatus == "APPROVE")
+            {
+                q = q.Where(l => l.Leave_Status == "APPROVE" || l.Leave_Status == "APPROVED");
+            }
+            else if (filterStatus == "REJECT")
+            {
+                q = q.Where(l => l.Leave_Status == "REJECT" || l.Leave_Status == "REJECTED");
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                var term = searchQuery.Trim().ToLower();
+                q = q.Where(l => (l.EmpName?.ToLower().Contains(term) ?? false) ||
+                                 (l.Emp_ID?.ToLower().Contains(term) ?? false) ||
+                                 (l.LeaveNo?.ToLower().Contains(term) ?? false) ||
+                                 (l.Leave_Reason?.ToLower().Contains(term) ?? false));
+            }
+
+            return q.ToList();
+        }
+    }
+
+    private async Task ProcessApprovalAsync(string leaveNo, string empId, string action)
+    {
+        isProcessing = true;
+        try
+        {
+            var model = new ApproveActionModel
+            {
+                LeaveNo = leaveNo,
+                EmpId = empId,
+                Action = action,
+                Remarks = $"Actioned via HRsuite Leave Supervisor ({action})",
+                SupervisorId = "Admin"
+            };
+
+            bool ok = await ApiClient.ApproveLeaveAsync(model);
+            if (ok)
+            {
+                statusMessage = $"Leave #{leaveNo} for employee [{empId}] was successfully {action}D!";
+                isSuccess = true;
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = $"Failed to {action} leave #{leaveNo} via Web API.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Exception processing approval: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}
