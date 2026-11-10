@@ -44,26 +44,67 @@ public class LeaveController : ControllerBase
         {
             // 1. Fetch MySQL dw_leave lookup first
             var mysqlLeaves = new Dictionary<string, (string Name, string Cdlvepay)>(StringComparer.OrdinalIgnoreCase);
-            using (var conn = new OdbcConnection(mysqlConnStr))
+            try
             {
-                conn.Open();
-                using (var cmd = conn.CreateCommand())
+                using (var conn = new OdbcConnection(mysqlConnStr))
                 {
-                    cmd.CommandText = "SELECT Leave_ID, Name, cdlvepay FROM dw_leave";
-                    using (var reader = cmd.ExecuteReader())
+                    conn.Open();
+                    using (var cmd = conn.CreateCommand())
                     {
-                        while (reader.Read())
+                        cmd.CommandText = "SELECT Leave_ID, Name, cdlvepay FROM dw_leave";
+                        using (var reader = cmd.ExecuteReader())
                         {
-                            string code = reader["Leave_ID"]?.ToString()?.Trim() ?? "";
-                            string name = reader["Name"]?.ToString()?.Trim() ?? "";
-                            string cdlvepay = reader["cdlvepay"]?.ToString()?.Trim() ?? "";
-                            if (!string.IsNullOrEmpty(code))
+                            while (reader.Read())
                             {
-                                mysqlLeaves[code] = (name, cdlvepay);
+                                string code = reader["Leave_ID"]?.ToString()?.Trim() ?? "";
+                                string name = reader["Name"]?.ToString()?.Trim() ?? "";
+                                string cdlvepay = reader["cdlvepay"]?.ToString()?.Trim() ?? "";
+                                if (!string.IsNullOrEmpty(code))
+                                {
+                                    mysqlLeaves[code] = (name, cdlvepay);
+                                }
                             }
                         }
                     }
                 }
+            }
+            catch
+            {
+                // Fallback: try querying via MySQL connection if ODBC is unavailable (e.g. Linux / Railway)
+                try
+                {
+                    string tmsMySql = GetTmsMySqlConnectionString();
+                    using var conn = new MySqlConnection(tmsMySql);
+                    conn.Open();
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "SELECT Leave_ID, Name, cdlvepay FROM dw_leave";
+                    using var reader = cmd.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        string code = reader["Leave_ID"]?.ToString()?.Trim() ?? "";
+                        string name = reader["Name"]?.ToString()?.Trim() ?? "";
+                        string cdlvepay = reader["cdlvepay"]?.ToString()?.Trim() ?? "";
+                        if (!string.IsNullOrEmpty(code))
+                        {
+                            mysqlLeaves[code] = (name, cdlvepay);
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (mysqlLeaves.Count == 0)
+            {
+                mysqlLeaves["AL"] = ("Annual Leave", "AL");
+                mysqlLeaves["MC"] = ("Medical Leave", "MC");
+                mysqlLeaves["EL"] = ("Emergency Leave", "EL");
+                mysqlLeaves["HL"] = ("Hospitalisation Leave", "HL");
+                mysqlLeaves["RL"] = ("Replacement Leave", "RL");
+                mysqlLeaves["UL"] = ("Unpaid Leave", "UL");
+                mysqlLeaves["ML"] = ("Maternity Leave", "ML");
+                mysqlLeaves["PL"] = ("Paternity Leave", "PL");
+                mysqlLeaves["CL"] = ("Compassionate Leave", "CL");
+                mysqlLeaves["MR"] = ("Marriage Leave", "MR");
             }
 
             // If userId is not provided, return the default list from MySQL with 0 balances
@@ -144,54 +185,68 @@ public class LeaveController : ControllerBase
 
             // 4. For each allowed leave, calculate balances
             using (var connSql = new MySqlConnection(sqlConnStr))
-            using (var connMy = new OdbcConnection(mysqlConnStr))
             {
                 connSql.Open();
-                connMy.Open();
-
-                foreach (var item in allowedLeaves)
+                OdbcConnection? connMy = null;
+                try
                 {
-                    if (!mysqlLeaves.TryGetValue(item.LeaveID, out var mw))
-                        continue;
+                    connMy = new OdbcConnection(mysqlConnStr);
+                    connMy.Open();
+                }
+                catch
+                {
+                    connMy = null;
+                }
 
-                    string cdlvepay = mw.Cdlvepay;
-                    string leaveName = mw.Name;
-
-                    decimal balance = 0;
-                    decimal taken = 0;
-                    decimal entitle = 0;
-                    decimal yeartot = 0;
-                    decimal b_forward = 0;
-                    decimal adjust = 0;
-                    decimal exceed = 0;
-                    decimal exdbfmth = 0;
-                    decimal expadj = 0;
-
-                    // Fetch MySQL entitle info
-                    if (!string.IsNullOrEmpty(cdlvepay))
+                try
+                {
+                    foreach (var item in allowedLeaves)
                     {
-                        using (var cmd = connMy.CreateCommand())
+                        if (!mysqlLeaves.TryGetValue(item.LeaveID, out var mw))
+                            continue;
+
+                        string cdlvepay = mw.Cdlvepay;
+                        string leaveName = mw.Name;
+
+                        decimal balance = 0;
+                        decimal taken = 0;
+                        decimal entitle = 0;
+                        decimal yeartot = 0;
+                        decimal b_forward = 0;
+                        decimal adjust = 0;
+                        decimal exceed = 0;
+                        decimal exdbfmth = 0;
+                        decimal expadj = 0;
+
+                        // Fetch MySQL entitle info
+                        if (connMy != null && !string.IsNullOrEmpty(cdlvepay))
                         {
-                            cmd.CommandText = "SELECT balance, taken, entitle, yeartot, b_forward, Adjust, exceed, exdbfmth, EXPADJ FROM entitle WHERE employeeid = ? AND leaveid = ?";
-                            cmd.Parameters.Add(new OdbcParameter("employeeid", userId));
-                            cmd.Parameters.Add(new OdbcParameter("leaveid", cdlvepay));
-                            using (var reader = cmd.ExecuteReader())
+                            try
                             {
-                                if (reader.Read())
+                                using (var cmd = connMy.CreateCommand())
                                 {
-                                    balance = reader["balance"] != DBNull.Value ? Convert.ToDecimal(reader["balance"]) : 0;
-                                    taken = reader["taken"] != DBNull.Value ? Convert.ToDecimal(reader["taken"]) : 0;
-                                    entitle = reader["entitle"] != DBNull.Value ? Convert.ToDecimal(reader["entitle"]) : 0;
-                                    yeartot = reader["yeartot"] != DBNull.Value ? Convert.ToDecimal(reader["yeartot"]) : 0;
-                                    b_forward = reader["b_forward"] != DBNull.Value ? Convert.ToDecimal(reader["b_forward"]) : 0;
-                                    adjust = reader["Adjust"] != DBNull.Value ? Convert.ToDecimal(reader["Adjust"]) : 0;
-                                    exceed = reader["exceed"] != DBNull.Value ? Convert.ToDecimal(reader["exceed"]) : 0;
-                                    exdbfmth = reader["exdbfmth"] != DBNull.Value ? Convert.ToDecimal(reader["exdbfmth"]) : 0;
-                                    expadj = reader["EXPADJ"] != DBNull.Value ? Convert.ToDecimal(reader["EXPADJ"]) : 0;
+                                    cmd.CommandText = "SELECT balance, taken, entitle, yeartot, b_forward, Adjust, exceed, exdbfmth, EXPADJ FROM entitle WHERE employeeid = ? AND leaveid = ?";
+                                    cmd.Parameters.Add(new OdbcParameter("employeeid", userId));
+                                    cmd.Parameters.Add(new OdbcParameter("leaveid", cdlvepay));
+                                    using (var reader = cmd.ExecuteReader())
+                                    {
+                                        if (reader.Read())
+                                        {
+                                            balance = reader["balance"] != DBNull.Value ? Convert.ToDecimal(reader["balance"]) : 0;
+                                            taken = reader["taken"] != DBNull.Value ? Convert.ToDecimal(reader["taken"]) : 0;
+                                            entitle = reader["entitle"] != DBNull.Value ? Convert.ToDecimal(reader["entitle"]) : 0;
+                                            yeartot = reader["yeartot"] != DBNull.Value ? Convert.ToDecimal(reader["yeartot"]) : 0;
+                                            b_forward = reader["b_forward"] != DBNull.Value ? Convert.ToDecimal(reader["b_forward"]) : 0;
+                                            adjust = reader["Adjust"] != DBNull.Value ? Convert.ToDecimal(reader["Adjust"]) : 0;
+                                            exceed = reader["exceed"] != DBNull.Value ? Convert.ToDecimal(reader["exceed"]) : 0;
+                                            exdbfmth = reader["exdbfmth"] != DBNull.Value ? Convert.ToDecimal(reader["exdbfmth"]) : 0;
+                                            expadj = reader["EXPADJ"] != DBNull.Value ? Convert.ToDecimal(reader["EXPADJ"]) : 0;
+                                        }
+                                    }
                                 }
                             }
+                            catch { }
                         }
-                    }
 
                     // Count pending from aspnet_leaverecord & aspnet_pre_leaverecord
                     decimal pending = 0;
@@ -254,20 +309,24 @@ public class LeaveController : ControllerBase
 
                         foreach (var indId in indirectLeaveIds)
                         {
-                            if (mysqlLeaves.TryGetValue(indId, out var indMw) && !string.IsNullOrEmpty(indMw.Cdlvepay))
+                            if (connMy != null && mysqlLeaves.TryGetValue(indId, out var indMw) && !string.IsNullOrEmpty(indMw.Cdlvepay))
                             {
-                                using (var cmd = connMy.CreateCommand())
+                                try
                                 {
-                                    cmd.CommandText = "SELECT balance FROM entitle WHERE employeeid = ? AND leaveid = ?";
-                                    cmd.Parameters.Clear();
-                                    cmd.Parameters.Add(new OdbcParameter("employeeid", userId));
-                                    cmd.Parameters.Add(new OdbcParameter("leaveid", indMw.Cdlvepay));
-                                    object val = cmd.ExecuteScalar();
-                                    if (val != null && val != DBNull.Value)
+                                    using (var cmd = connMy.CreateCommand())
                                     {
-                                        balance2 += Convert.ToDecimal(val);
+                                        cmd.CommandText = "SELECT balance FROM entitle WHERE employeeid = ? AND leaveid = ?";
+                                        cmd.Parameters.Clear();
+                                        cmd.Parameters.Add(new OdbcParameter("employeeid", userId));
+                                        cmd.Parameters.Add(new OdbcParameter("leaveid", indMw.Cdlvepay));
+                                        object val = cmd.ExecuteScalar();
+                                        if (val != null && val != DBNull.Value)
+                                        {
+                                            balance2 += Convert.ToDecimal(val);
+                                        }
                                     }
                                 }
+                                catch { }
                             }
                         }
                     }
@@ -323,70 +382,74 @@ public class LeaveController : ControllerBase
                     decimal finalBalance = balance - balance2 - pending - pendingIndirect;
 
                     var subLeaves = new List<LeaveType>();
-                    if (item.LeaveID.Equals(replacementLeaveId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(cdlvepay))
+                    if (connMy != null && item.LeaveID.Equals(replacementLeaveId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(cdlvepay))
                     {
-                        using (var cmd = connMy.CreateCommand())
+                        try
                         {
-                            cmd.CommandText = "SELECT Recid, effdt, expdt, ent, bal FROM lverpl WHERE empid = ? AND lveid = ?";
-                            cmd.Parameters.Clear();
-                            cmd.Parameters.Add(new OdbcParameter("empid", userId));
-                            cmd.Parameters.Add(new OdbcParameter("lveid", cdlvepay));
-                            using (var reader = cmd.ExecuteReader())
+                            using (var cmd = connMy.CreateCommand())
                             {
-                                while (reader.Read())
+                                cmd.CommandText = "SELECT Recid, effdt, expdt, ent, bal FROM lverpl WHERE empid = ? AND lveid = ?";
+                                cmd.Parameters.Clear();
+                                cmd.Parameters.Add(new OdbcParameter("empid", userId));
+                                cmd.Parameters.Add(new OdbcParameter("lveid", cdlvepay));
+                                using (var reader = cmd.ExecuteReader())
                                 {
-                                    string recid = reader["Recid"]?.ToString() ?? "";
-                                    DateTime? effdt = reader["effdt"] != DBNull.Value ? Convert.ToDateTime(reader["effdt"]) : null;
-                                    DateTime? expdt = reader["expdt"] != DBNull.Value ? Convert.ToDateTime(reader["expdt"]) : null;
-                                    decimal ent = reader["ent"] != DBNull.Value ? Convert.ToDecimal(reader["ent"]) : 0;
-                                    decimal bal = reader["bal"] != DBNull.Value ? Convert.ToDecimal(reader["bal"]) : 0;
+                                    while (reader.Read())
+                                    {
+                                        string recid = reader["Recid"]?.ToString() ?? "";
+                                        DateTime? effdt = reader["effdt"] != DBNull.Value ? Convert.ToDateTime(reader["effdt"]) : null;
+                                        DateTime? expdt = reader["expdt"] != DBNull.Value ? Convert.ToDateTime(reader["expdt"]) : null;
+                                        decimal ent = reader["ent"] != DBNull.Value ? Convert.ToDecimal(reader["ent"]) : 0;
+                                        decimal bal = reader["bal"] != DBNull.Value ? Convert.ToDecimal(reader["bal"]) : 0;
 
-                                    // Calculate taken for this replacement credit from sol & sol_h
-                                    decimal rplTaken = 0;
-                                    using (var cmdSol = connMy.CreateCommand())
-                                    {
-                                        cmdSol.CommandText = "SELECT SUM(value) FROM sol WHERE employeeid = ? AND RPLID = ?";
-                                        cmdSol.Parameters.Clear();
-                                        cmdSol.Parameters.Add(new OdbcParameter("employeeid", userId));
-                                        cmdSol.Parameters.Add(new OdbcParameter("RPLID", recid));
-                                        var solVal = cmdSol.ExecuteScalar();
-                                        if (solVal != null && solVal != DBNull.Value)
+                                        // Calculate taken for this replacement credit from sol & sol_h
+                                        decimal rplTaken = 0;
+                                        using (var cmdSol = connMy.CreateCommand())
                                         {
-                                            rplTaken += Convert.ToDecimal(solVal);
+                                            cmdSol.CommandText = "SELECT SUM(value) FROM sol WHERE employeeid = ? AND RPLID = ?";
+                                            cmdSol.Parameters.Clear();
+                                            cmdSol.Parameters.Add(new OdbcParameter("employeeid", userId));
+                                            cmdSol.Parameters.Add(new OdbcParameter("RPLID", recid));
+                                            var solVal = cmdSol.ExecuteScalar();
+                                            if (solVal != null && solVal != DBNull.Value)
+                                            {
+                                                rplTaken += Convert.ToDecimal(solVal);
+                                            }
                                         }
-                                    }
-                                    using (var cmdSolH = connMy.CreateCommand())
-                                    {
-                                        cmdSolH.CommandText = "SELECT SUM(value) FROM sol_h WHERE employeeid = ? AND RPLID = ?";
-                                        cmdSolH.Parameters.Clear();
-                                        cmdSolH.Parameters.Add(new OdbcParameter("employeeid", userId));
-                                        cmdSolH.Parameters.Add(new OdbcParameter("RPLID", recid));
-                                        var solHVal = cmdSolH.ExecuteScalar();
-                                        if (solHVal != null && solHVal != DBNull.Value)
+                                        using (var cmdSolH = connMy.CreateCommand())
                                         {
-                                            rplTaken += Convert.ToDecimal(solHVal);
+                                            cmdSolH.CommandText = "SELECT SUM(value) FROM sol_h WHERE employeeid = ? AND RPLID = ?";
+                                            cmdSolH.Parameters.Clear();
+                                            cmdSolH.Parameters.Add(new OdbcParameter("employeeid", userId));
+                                            cmdSolH.Parameters.Add(new OdbcParameter("RPLID", recid));
+                                            var solHVal = cmdSolH.ExecuteScalar();
+                                            if (solHVal != null && solHVal != DBNull.Value)
+                                            {
+                                                rplTaken += Convert.ToDecimal(solHVal);
+                                            }
                                         }
-                                    }
 
-                                    subLeaves.Add(new LeaveType
-                                    {
-                                        Code = item.LeaveID,
-                                        Name = $"{leaveName} (Credit)",
-                                        Entitle = ent,
-                                        Taken = rplTaken,
-                                        Pending = 0,
-                                        Balance = bal,
-                                        YearTot = ent,
-                                        CarryForward = 0,
-                                        Adjust = 0,
-                                        EffectiveDate = effdt?.ToString("dd-MMM-yyyy"),
-                                        ExpiryDate = expdt?.ToString("dd-MMM-yyyy"),
-                                        IsReplacement = true
-                                        // SubLeaves is empty for child records
-                                    });
+                                        subLeaves.Add(new LeaveType
+                                        {
+                                            Code = item.LeaveID,
+                                            Name = $"{leaveName} (Credit)",
+                                            Entitle = ent,
+                                            Taken = rplTaken,
+                                            Pending = 0,
+                                            Balance = bal,
+                                            YearTot = ent,
+                                            CarryForward = 0,
+                                            Adjust = 0,
+                                            EffectiveDate = effdt?.ToString("dd-MMM-yyyy"),
+                                            ExpiryDate = expdt?.ToString("dd-MMM-yyyy"),
+                                            IsReplacement = true
+                                            // SubLeaves is empty for child records
+                                        });
+                                    }
                                 }
                             }
                         }
+                        catch { }
                     }
 
                     list.Add(new LeaveType
@@ -410,23 +473,23 @@ public class LeaveController : ControllerBase
                     });
                 }
             }
+            finally
+            {
+                connMy?.Dispose();
+            }
+        }
 
-            return Ok(list);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { Message = "Error retrieving leave balances.", Details = ex.Message });
-        }
+        return Ok(list);
     }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { Message = "Error retrieving leave balances.", Details = ex.Message });
+    }
+}
 
     [HttpGet("history")]
-    public IActionResult GetLeaveHistory([FromQuery] string userId)
+    public IActionResult GetLeaveHistory([FromQuery] string? userId)
     {
-        if (string.IsNullOrEmpty(userId))
-        {
-            return BadRequest(new { Message = "UserId is required." });
-        }
-
         string connStr = _configuration.GetConnectionString("MyhrsuiteConnectionString") ?? "";
         var list = new List<LeaveRequest>();
         try
@@ -437,16 +500,30 @@ public class LeaveController : ControllerBase
                 using (var cmd = conn.CreateCommand())
                 {
                     // Group individual day records into logical leave requests
-                    cmd.CommandText = @"
-                        SELECT r.LeaveNo, r.Emp_ID, MAX(u.Name) AS EmpName, MAX(r.Leave_ID) AS Leave_ID, 
-                               MIN(r.Leave_Date) AS DateFrom, MAX(r.Leave_Date) AS DateTo, 
-                               r.Leave_Status, MAX(r.leave_reason) AS Leave_Reason, MAX(r.applevel) AS AppLevel
-                        FROM aspnet_leaverecord r
-                        LEFT JOIN aspnet_users u ON r.Emp_ID = u.ID
-                        WHERE r.Emp_ID = @EmpID
-                        GROUP BY r.LeaveNo, r.Emp_ID, r.Leave_Status
-                        ORDER BY MIN(r.Leave_Date) DESC";
-                    cmd.Parameters.AddWithValue("@EmpID", userId);
+                    if (string.IsNullOrEmpty(userId))
+                    {
+                        cmd.CommandText = @"
+                            SELECT r.LeaveNo, r.Emp_ID, MAX(u.Name) AS EmpName, MAX(r.Leave_ID) AS Leave_ID, 
+                                   MIN(r.Leave_Date) AS DateFrom, MAX(r.Leave_Date) AS DateTo, 
+                                   r.Leave_Status, MAX(r.leave_reason) AS Leave_Reason, MAX(r.applevel) AS AppLevel
+                            FROM aspnet_leaverecord r
+                            LEFT JOIN aspnet_users u ON r.Emp_ID = u.ID
+                            GROUP BY r.LeaveNo, r.Emp_ID, r.Leave_Status
+                            ORDER BY MIN(r.Leave_Date) DESC";
+                    }
+                    else
+                    {
+                        cmd.CommandText = @"
+                            SELECT r.LeaveNo, r.Emp_ID, MAX(u.Name) AS EmpName, MAX(r.Leave_ID) AS Leave_ID, 
+                                   MIN(r.Leave_Date) AS DateFrom, MAX(r.Leave_Date) AS DateTo, 
+                                   r.Leave_Status, MAX(r.leave_reason) AS Leave_Reason, MAX(r.applevel) AS AppLevel
+                            FROM aspnet_leaverecord r
+                            LEFT JOIN aspnet_users u ON r.Emp_ID = u.ID
+                            WHERE r.Emp_ID = @EmpID
+                            GROUP BY r.LeaveNo, r.Emp_ID, r.Leave_Status
+                            ORDER BY MIN(r.Leave_Date) DESC";
+                        cmd.Parameters.AddWithValue("@EmpID", userId);
+                    }
 
                     using (var reader = cmd.ExecuteReader())
                     {
