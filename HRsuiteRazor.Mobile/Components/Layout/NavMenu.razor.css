@@ -183,6 +183,36 @@
     text-decoration: underline !important;
 }
 
+.clean-treeview ::deep .tree-child-link.has-badge,
+.tree-child-link.has-badge {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+
+.clean-treeview ::deep .tree-badge-pill,
+.tree-badge-pill {
+    background: #00a2e8;
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 7px;
+    border-radius: 999px;
+    margin-left: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+    text-decoration: none !important;
+}
+
+.clean-treeview ::deep .tree-child-link:hover .tree-badge-pill,
+.tree-child-link:hover .tree-badge-pill {
+    text-decoration: none !important;
+}
+
 /* Scrollable Container with Clean Gray Scrollbar */
 .nav-scrollable {
     background-color: #ffffff;

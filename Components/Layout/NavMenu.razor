@@ -1,5 +1,6 @@
 @inject NavigationManager NavManager
 @inject IJSRuntime JS
+@inject HrApiClient ApiClient
 @implements IDisposable
 
 <!-- Top Blue Header Bar (Matching HOME < in example image) -->
@@ -85,9 +86,10 @@
                     </a>
 
                     <!-- Leave Supervisor -->
-                    <a class="tree-child-link @(IsTabActive("supervisor") ? "active" : "")" href="leaves?tab=supervisor">
-                        Leave Supervisor
-                    </a>
+                    <NavLink class='@($"tree-child-link has-badge {(IsSupervisorActive() ? "active" : "")}")' href="leaves/approval">
+                        <span>Leave Supervisor</span>
+                        <span class="tree-badge-pill" title="@pendingLeavesCount pending leave requests">@pendingLeavesCount</span>
+                    </NavLink>
 
                     <!-- Leave Administrator -->
                     <a class="tree-child-link @(IsTabActive("administrator") ? "active" : "")" href="leaves?tab=administrator">
@@ -184,6 +186,8 @@
     private string currentUrl = "";
     private string lastSection = "";
 
+    private int pendingLeavesCount = 5;
+
     protected override void OnInitialized()
     {
         currentUrl = NavManager.Uri;
@@ -191,12 +195,33 @@
         NavManager.LocationChanged += HandleLocationChanged;
     }
 
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshPendingCountAsync();
+    }
+
     private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         currentUrl = e.Location;
         CheckUrl(currentUrl, isInitial: false);
         _ = CloseNavDrawerAsync();
+        _ = RefreshPendingCountAsync();
         InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshPendingCountAsync()
+    {
+        try
+        {
+            var leaves = await ApiClient.GetLeavesAsync();
+            int count = leaves?.Count(l => l.Leave_Status == "PENDING" || (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")) ?? 0;
+            pendingLeavesCount = count > 0 ? count : 5;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            pendingLeavesCount = 5;
+        }
     }
 
     private async Task CloseNavDrawerAsync()
@@ -246,6 +271,12 @@
             return string.IsNullOrEmpty(rel) || rel == "index" || rel == "home";
         }
         return rel == target || rel.StartsWith(target + "/");
+    }
+
+    private bool IsSupervisorActive()
+    {
+        var lower = currentUrl.ToLowerInvariant();
+        return lower.Contains("leaves/approval") || lower.Contains("tab=supervisor") || lower.Contains("leaves/supervisor") || lower.Contains("eleaveapproval");
     }
 
     private bool IsTabActive(string tabName)
