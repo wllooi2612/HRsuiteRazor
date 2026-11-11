@@ -1,4 +1,4 @@
-@page "/leaves/view"
+﻿@page "/leaves/view"
 @page "/leaves/view-leave"
 @page "/leaves/records"
 @page "/eleaveview"
@@ -343,7 +343,7 @@
 
         try
         {
-            leaves = await ApiClient.GetLeaveHistoryAsync();
+            leaves = await ApiClient.GetLeavesAsync();
         }
         catch (Exception ex)
         {
@@ -413,12 +413,13 @@
 
         try
         {
-            var req = new LeaveApprovalRequest
+            var req = new ApproveActionModel
             {
                 LeaveNo = leaveNo,
-                ApproverId = "SUPERVISOR",
+                EmpId = empId,
                 Action = action,
-                Remarks = $"Processed via Leave View ({action})"
+                Remarks = $"Processed via Leave View ({action})",
+                SupervisorId = "SUPERVISOR"
             };
 
             var ok = await ApiClient.ApproveLeaveAsync(req);
