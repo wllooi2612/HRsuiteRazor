@@ -4,6 +4,7 @@
 @page "/eleaveapprove"
 @page "/eLeave/eLeaveApproval.aspx"
 @page "/eLeave/eLeaveApprove.aspx"
+@page "/eLeave/eLeavePostApprove.aspx"
 @rendermode InteractiveServer
 @inject HrApiClient ApiClient
 @inject NavigationManager NavManager
@@ -11,27 +12,39 @@
 
 <PageTitle>Leave Supervisor Approval - HRsuite</PageTitle>
 
-<div class="leave-approval-page-container pb-5">
+<div class="leave-approval-legacy-container pb-5">
     <!-- Top Header Bar with Standardized Action Buttons -->
-    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2">
             <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" 
                     @onclick='() => NavManager.NavigateTo("leaves")' title="Back to Leave Portal">
                 <i class="bi bi-arrow-left"></i>
             </button>
-            <h5 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
-                <span class="approval-icon-badge" style="width: 32px; height: 32px; font-size: 1.1rem; background: linear-gradient(135deg, #941818 0%, #681111 100%); color: white; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;">
+            <h6 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="approval-icon-badge" style="width: 28px; height: 28px; font-size: 0.95rem; background: linear-gradient(135deg, #941818 0%, #681111 100%); color: white; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;">
                     <i class="bi bi-person-check-fill"></i>
                 </span>
-                <span>Leave Supervisor Approval</span>
-            </h5>
-            <span class="badge bg-danger-subtle text-danger border border-danger px-2 py-0.5 rounded-pill extra-small ms-1">
-                @PendingCount Pending
-            </span>
+                <span>Leave Supervisor (@(activeTab == "approve" ? "Approve Leave" : "Cancel Approved Leave"))</span>
+            </h6>
+            @if (PendingCount > 0)
+            {
+                <span class="badge bg-danger text-white rounded-pill extra-small ms-1">
+                    @PendingCount Pending
+                </span>
+            }
+            @if (isSuperAdmin)
+            {
+                <span class="badge bg-danger text-white extra-small fw-bold px-2 py-1 shadow-sm ms-2" title="Full Super Admin Access">
+                    <i class="bi bi-shield-lock-fill me-1"></i>SUPER ADMIN
+                </span>
+            }
         </div>
 
         <div class="d-flex align-items-center gap-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3 extra-small d-inline-flex align-items-center gap-1 shadow-sm" 
+            <span class="extra-small text-muted d-none d-sm-inline">
+                Selected: <strong>@selectedLeaveNos.Count</strong> | Total: <strong>@FilteredLeaves.Count</strong>
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 extra-small d-inline-flex align-items-center gap-1 shadow-sm" style="height: 28px;"
                     @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh Approval Queue">
                 <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
                 <span>Refresh</span>
@@ -42,187 +55,1169 @@
     <!-- Status Alert Notification -->
     @if (!string.IsNullOrEmpty(statusMessage))
     {
-        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3 rounded-3" role="alert">
-            <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-5"></i>
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-2 shadow-sm py-1 px-3 rounded-2" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-6"></i>
             <div class="flex-grow-1 extra-small">@statusMessage</div>
-            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+            <button type="button" class="btn-close py-2" @onclick='() => statusMessage = null'></button>
         </div>
     }
 
-    <!-- Filter & Search Controls Bar -->
-    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
-        <div class="card-body p-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <!-- Search Box -->
-            <div class="search-box" style="width: 280px; min-width: 200px;">
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-light border-end-0 py-1"><i class="bi bi-search text-muted small"></i></span>
-                    <input type="text" class="form-control border-start-0 bg-light py-1" 
-                           placeholder="Search Leave No, Emp ID, Name, Reason..." 
-                           @bind="searchQuery" @bind:event="oninput" />
-                    @if (!string.IsNullOrEmpty(searchQuery))
-                    {
-                        <button class="btn btn-sm btn-outline-secondary bg-light border-start-0 py-1" @onclick='() => searchQuery = ""'>✕</button>
-                    }
-                </div>
-            </div>
+    <!-- 1. Two Main Legacy Tabs (Approve Leave & Cancel Approved Leave) -->
+    <div class="legacy-tabs-bar">
+        <button type="button" 
+                class="legacy-tab-btn @(activeTab == "approve" ? "active" : "")" 
+                @onclick='() => SetTab("approve")'>
+            Approve Leave
+        </button>
+        <button type="button" 
+                class="legacy-tab-btn @(activeTab == "cancel" ? "active" : "")" 
+                @onclick='() => SetTab("cancel")'>
+            Cancel Approved Leave
+        </button>
+    </div>
 
-            <!-- Status Filter Pills -->
-            <div class="d-flex align-items-center gap-1">
-                <span class="text-muted small me-1">Status:</span>
-                <button class="btn btn-xs rounded-pill @(filterStatus == "PENDING" ? "btn-danger text-white" : "btn-light text-dark border")" 
-                        @onclick='() => filterStatus = "PENDING"'>
-                    Pending (@PendingCount)
-                </button>
-                <button class="btn btn-xs rounded-pill @(filterStatus == "ALL" ? "btn-dark text-white" : "btn-light text-dark border")" 
-                        @onclick='() => filterStatus = "ALL"'>
-                    All (@(leaves?.Count ?? 0))
-                </button>
-                <button class="btn btn-xs rounded-pill @(filterStatus == "APPROVE" ? "btn-success text-white" : "btn-light text-dark border")" 
-                        @onclick='() => filterStatus = "APPROVE"'>
-                    Approved
-                </button>
-                <button class="btn btn-xs rounded-pill @(filterStatus == "REJECT" ? "btn-secondary text-white" : "btn-light text-dark border")" 
-                        @onclick='() => filterStatus = "REJECT"'>
-                    Rejected
-                </button>
-            </div>
+    <!-- 2. Action Buttons Toolbar (Exact Match to eLeaveApprove.aspx / eLeavePostApprove.aspx) -->
+    <div class="legacy-toolbar">
+        <!-- Filter Leave Record -->
+        <button type="button" class="legacy-btn" @onclick="ToggleFilters" title="Toggle column filters">
+            <i class="bi bi-funnel me-1 text-secondary"></i>Filter Leave Record
+        </button>
+
+        <!-- Refresh -->
+        <button type="button" class="legacy-btn" @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh table data">
+            <i class="bi bi-arrow-clockwise me-1 text-secondary @(isLoading ? "spin" : "")"></i>Refresh
+        </button>
+
+        @if (activeTab == "approve")
+        {
+            <!-- Approve Leave (Batch) -->
+            <button type="button" class="legacy-btn btn-highlight" 
+                    @onclick="ApproveSelectedAsync" 
+                    disabled="@(selectedLeaveNos.Count == 0 || isProcessing)" 
+                    title="Approve checked leave records">
+                <i class="bi bi-check2-circle me-1 text-success fw-bold"></i>Approve Leave
+                @if (selectedLeaveNos.Count > 0)
+                {
+                    <span class="badge bg-success ms-1">@selectedLeaveNos.Count</span>
+                }
+            </button>
+
+            <!-- UnApproved Leave (Batch Reject) -->
+            <button type="button" class="legacy-btn" 
+                    @onclick="UnApproveSelectedAsync" 
+                    disabled="@(selectedLeaveNos.Count == 0 || isProcessing)" 
+                    title="Reject / Unapprove checked leave records">
+                <i class="bi bi-x-circle me-1 text-danger"></i>UnApproved Leave
+            </button>
+        }
+        else
+        {
+            <!-- Cancel Approved Leave (Batch) -->
+            <button type="button" class="legacy-btn btn-highlight" 
+                    @onclick="CancelSelectedApprovedAsync" 
+                    disabled="@(selectedLeaveNos.Count == 0 || isProcessing)" 
+                    title="Cancel checked approved leave records">
+                <i class="bi bi-slash-circle me-1 text-danger fw-bold"></i>Cancel Approved Leave
+                @if (selectedLeaveNos.Count > 0)
+                {
+                    <span class="badge bg-danger ms-1">@selectedLeaveNos.Count</span>
+                }
+            </button>
+        }
+
+        <!-- Show Leave Detail -->
+        <button type="button" class="legacy-btn" 
+                @onclick="ShowSelectedDetail" 
+                disabled="@(selectedLeaveNos.Count != 1)" 
+                title="View full details of the single selected leave record">
+            <i class="bi bi-card-text me-1 text-primary"></i>Show Leave Detail
+        </button>
+
+        <div class="legacy-toolbar-sep"></div>
+
+        <!-- Export Excel (xls) -->
+        <button type="button" class="legacy-btn" @onclick="() => ExportToCsv(xlsx: false)" title="Export to Excel (xls)">
+            <i class="bi bi-file-earmark-excel me-1 text-success"></i>Export Excel(xls)..
+        </button>
+
+        <!-- Export Excel (xlsx) -->
+        <button type="button" class="legacy-btn" @onclick="() => ExportToCsv(xlsx: true)" title="Export to Excel (xlsx)">
+            <i class="bi bi-file-earmark-excel me-1 text-success"></i>Export Excel(xlsx)..
+        </button>
+
+        <!-- Export PDF -->
+        <button type="button" class="legacy-btn" @onclick="ExportToPdf" title="Print / Export to PDF">
+            <i class="bi bi-file-earmark-pdf me-1 text-danger"></i>Export PDF..
+        </button>
+
+        <!-- View Switcher (Auto / Grid / Cards - following UserManage.razor) -->
+        <div class="btn-group btn-group-sm ms-auto shadow-sm" role="group">
+            <button type="button" class="btn btn-sm py-0 px-2 @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-secondary")" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Cards on Mobile, Grid on Desktop)">
+                <i class="bi bi-phone"></i>
+            </button>
+            <button type="button" class="btn btn-sm py-0 px-2 @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-secondary")" @onclick='() => viewMode = "table"' title="Grid Table View">
+                <i class="bi bi-table"></i>
+            </button>
+            <button type="button" class="btn btn-sm py-0 px-2 @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-secondary")" @onclick='() => viewMode = "cards"' title="Cards View">
+                <i class="bi bi-grid-fill"></i>
+            </button>
         </div>
     </div>
 
-    <!-- Approval Queue Card & Table (WITHOUT 11 tiles) -->
-    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
-        <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between" style="background-color: #941818 !important;">
+    <!-- Legacy Date Filter & Mode Panel (Matching eLeaveApprove.aspx) -->
+    @if (showDateFilterPanel)
+    {
+        <div class="legacy-date-filter-panel mb-2 p-2 bg-light border rounded d-flex align-items-center flex-wrap gap-2 shadow-sm">
             <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-list-check"></i>
-                <h6 class="mb-0 fw-bold">Supervisor Approval Queue (eLeaveApproval)</h6>
+                <span class="fw-bold extra-small text-secondary"><i class="bi bi-funnel-fill me-1 text-primary"></i>Date Mode:</span>
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input cursor-pointer" type="radio" name="dateFilterType" id="allRecordsRadio" 
+                           checked="@(filterAtype == "Y")" 
+                           @onchange='() => { filterAtype = "Y"; }' />
+                    <label class="form-check-label extra-small cursor-pointer user-select-none" for="allRecordsRadio">Show All Records</label>
+                </div>
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input cursor-pointer" type="radio" name="dateFilterType" id="dateRangeRadio" 
+                           checked="@(filterAtype == "N")" 
+                           @onchange='() => { filterAtype = "N"; }' />
+                    <label class="form-check-label extra-small cursor-pointer user-select-none" for="dateRangeRadio">Filter by Date</label>
+                </div>
             </div>
-            <span class="badge bg-light text-dark fw-bold">@FilteredLeaves.Count record(s)</span>
-        </div>
 
-        <div class="card-body p-0">
-            @if (isLoading)
+            @if (filterAtype == "N")
             {
-                <div class="text-center py-5">
-                    <div class="spinner-border text-danger" role="status"></div>
-                    <p class="text-muted extra-small mt-2">Loading approval queue from Web API...</p>
+                <div class="d-flex align-items-center gap-1 ms-sm-2">
+                    <label class="extra-small text-muted mb-0">From:</label>
+                    <input type="date" class="form-control form-control-sm py-0 px-2 extra-small" style="width: 135px; height: 26px;" 
+                           @bind="filterDateFromVal" />
+                    <label class="extra-small text-muted mb-0 ms-1">To:</label>
+                    <input type="date" class="form-control form-control-sm py-0 px-2 extra-small" style="width: 135px; height: 26px;" 
+                           @bind="filterDateToVal" />
                 </div>
             }
-            else if (FilteredLeaves.Count == 0)
+
+            <button type="button" class="btn btn-sm btn-primary py-0 px-3 extra-small shadow-sm d-inline-flex align-items-center gap-1" style="height: 26px;"
+                    @onclick="LoadDataAsync" disabled="@isLoading">
+                <i class="bi bi-search"></i>
+                <span>Search</span>
+            </button>
+
+            @if (isSuperAdmin)
             {
-                <div class="text-center py-5 text-muted">
-                    <i class="bi bi-check2-circle text-success fs-1 d-block mb-2"></i>
-                    <h6 class="fw-bold text-dark mb-1">Queue is Clear!</h6>
-                    <p class="extra-small text-muted mb-0">No leave requests matching your current filter.</p>
+                <div class="ms-auto d-none d-md-block">
+                    <span class="badge bg-danger text-white extra-small fw-bold px-2 py-1 shadow-sm">
+                        <i class="bi bi-shield-lock-fill me-1"></i>YOU ARE SUPER ADMIN NOW.
+                    </span>
                 </div>
             }
-            else
-            {
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 extra-small">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 40px;">#</th>
-                                <th>Leave No</th>
-                                <th>Employee</th>
-                                <th>Leave Type</th>
-                                <th>Date Range</th>
-                                <th>Days</th>
-                                <th>Reason</th>
-                                <th>Status</th>
-                                <th class="text-end" style="width: 170px;">Supervisor Action</th>
+        </div>
+    }
+
+    <!-- 3. Group Box Fieldset "Leave Record" -->
+    <fieldset class="legacy-fieldset">
+        <legend class="legacy-legend">Leave Record</legend>
+
+        <!-- DESKTOP / TABLE VIEW (Wide screen or viewMode == 'table') -->
+        @if (viewMode == "table" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                <div class="legacy-grid-scroll @(activeTab == "approve" ? "grid-cyan" : "grid-olive")">
+                    <table class="legacy-grid-table @(activeTab == "approve" ? "theme-cyan" : "theme-olive")">
+                        <thead>
+                            <!-- Header Row 1: Column Titles -->
+                            <tr class="header-row">
+                                <th class="col-num">#</th>
+                                <th class="col-chk">
+                                    <input type="checkbox" checked="@isAllSelected" @onchange="ToggleSelectAll" title="Select / Unselect All" />
+                                </th>
+                                <th class="col-file">File1</th>
+                                <th class="col-file">File2</th>
+                                <th class="col-file">File3</th>
+                                <th class="col-id">ID</th>
+                                <th class="col-name">NAME</th>
+                                <th class="col-date">Date From</th>
+                                <th class="col-date">Date To</th>
+                                <th class="col-leaveid">Leave ID</th>
+                                <th class="col-day">Leave Day</th>
+                                <th class="col-time">Time In</th>
+                                <th class="col-s">s1</th>
+                                <th class="col-time">Time Out</th>
+                                <th class="col-s">s2</th>
+                                <th class="col-status">Status</th>
+                                <th class="col-dept">Dept</th>
+                                <th class="col-sec">Section</th>
+                                <th class="col-shift">Shift Grp</th>
+                                <th class="col-type">Type</th>
+                                <th class="col-leave">Leave</th>
+                                <th class="col-reason">Reason</th>
+                                <th class="col-super">Super ID</th>
+                                <th class="col-created">Created Date</th>
+                                <th class="col-app">App1</th>
+                                <th class="col-pass">1Pass</th>
+                                <th class="col-app">App2</th>
+                                <th class="col-pass">2Pass</th>
+                                <th class="col-app">App3</th>
+                                <th class="col-pass">3Pass</th>
+                                <th class="col-app">App4</th>
+                                <th class="col-pass">4Pass</th>
+                                <th class="col-remarks">Remarks</th>
                             </tr>
-                        </thead>
-                        <tbody>
-                            @{
-                                int sIdx = 1;
-                            }
-                            @foreach (var l in FilteredLeaves)
+
+                            <!-- Header Row 2: Inline Column Filters (Toggleable) -->
+                            @if (showFilters)
                             {
-                                <tr>
-                                    <td class="text-muted">@sIdx</td>
-                                    <td><code>@l.LeaveNo</code></td>
-                                    <td>
-                                        <div class="d-flex align-items-center gap-1">
-                                            <span class="badge bg-light text-dark border">@l.Emp_ID</span>
-                                            <strong class="text-dark">@l.EmpName</strong>
-                                        </div>
+                                <tr class="filter-row">
+                                    <td class="col-num"></td>
+                                    <td class="col-chk"></td>
+                                    <td class="col-file"></td>
+                                    <td class="col-file"></td>
+                                    <td class="col-file"></td>
+                                    <td class="col-id">
+                                        <input type="text" class="filter-input" @bind="filterEmpId" @bind:event="oninput" placeholder="ID" />
                                     </td>
-                                    <td>
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">@l.Leave_Type</span>
+                                    <td class="col-name">
+                                        <input type="text" class="filter-input" @bind="filterName" @bind:event="oninput" placeholder="Name" />
                                     </td>
-                                    <td>@l.Leave_Date_From.ToString("yyyy-MM-dd") to @l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
-                                    <td><strong>@l.TotalDays</strong> day(s)</td>
-                                    <td class="text-truncate" style="max-width: 160px;" title="@l.Leave_Reason">
-                                        @(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)
+                                    <td class="col-date">
+                                        <input type="text" class="filter-input" @bind="filterDateFrom" @bind:event="oninput" placeholder="From" />
                                     </td>
-                                    <td>
-                                        @if (l.Leave_Status == "APPROVE" || l.Leave_Status == "APPROVED")
-                                        {
-                                            <span class="badge bg-success-subtle text-success border border-success">Approved</span>
-                                        }
-                                        else if (l.Leave_Status == "REJECT" || l.Leave_Status == "REJECTED")
-                                        {
-                                            <span class="badge bg-danger-subtle text-danger border border-danger">Rejected</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge bg-warning-subtle text-warning border border-warning">Pending Review</span>
-                                        }
+                                    <td class="col-date">
+                                        <input type="text" class="filter-input" @bind="filterDateTo" @bind:event="oninput" placeholder="To" />
                                     </td>
-                                    <td class="text-end text-nowrap">
-                                        @if (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")
-                                        {
-                                            <div class="d-inline-flex gap-1">
-                                                <button class="btn btn-success btn-xs px-2" 
-                                                        @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "APPROVE")'
-                                                        disabled="@isProcessing"
-                                                        title="Approve this Leave Request">
-                                                    <i class="bi bi-check-lg me-1"></i>Approve
-                                                </button>
-                                                <button class="btn btn-outline-danger btn-xs px-2" 
-                                                        @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "REJECT")'
-                                                        disabled="@isProcessing"
-                                                        title="Reject this Leave Request">
-                                                    <i class="bi bi-x-lg me-1"></i>Reject
-                                                </button>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted extra-small"><i class="bi bi-lock-fill me-1"></i>Processed</span>
-                                        }
+                                    <td class="col-leaveid">
+                                        <input type="text" class="filter-input" @bind="filterLeaveId" @bind:event="oninput" placeholder="Type" />
+                                    </td>
+                                    <td class="col-day">
+                                        <input type="text" class="filter-input" @bind="filterDays" @bind:event="oninput" placeholder="Days" />
+                                    </td>
+                                    <td class="col-time">
+                                        <input type="text" class="filter-input" @bind="filterTimeIn" @bind:event="oninput" placeholder="In" />
+                                    </td>
+                                    <td class="col-s">
+                                        <input type="text" class="filter-input" @bind="filterS1" @bind:event="oninput" />
+                                    </td>
+                                    <td class="col-time">
+                                        <input type="text" class="filter-input" @bind="filterTimeOut" @bind:event="oninput" placeholder="Out" />
+                                    </td>
+                                    <td class="col-s">
+                                        <input type="text" class="filter-input" @bind="filterS2" @bind:event="oninput" />
+                                    </td>
+                                    <td class="col-status">
+                                        <input type="text" class="filter-input" @bind="filterStatusCol" @bind:event="oninput" placeholder="Status" />
+                                    </td>
+                                    <td class="col-dept">
+                                        <input type="text" class="filter-input" @bind="filterDept" @bind:event="oninput" placeholder="Dept" />
+                                    </td>
+                                    <td class="col-sec">
+                                        <input type="text" class="filter-input" @bind="filterSection" @bind:event="oninput" placeholder="Sec" />
+                                    </td>
+                                    <td class="col-shift">
+                                        <input type="text" class="filter-input" @bind="filterShiftGrp" @bind:event="oninput" placeholder="Shift" />
+                                    </td>
+                                    <td class="col-type">
+                                        <input type="text" class="filter-input" @bind="filterType" @bind:event="oninput" placeholder="Type" />
+                                    </td>
+                                    <td class="col-leave">
+                                        <input type="text" class="filter-input" @bind="filterLeaveName" @bind:event="oninput" placeholder="Leave" />
+                                    </td>
+                                    <td class="col-reason">
+                                        <input type="text" class="filter-input" @bind="filterReason" @bind:event="oninput" placeholder="Reason" />
+                                    </td>
+                                    <td class="col-super">
+                                        <input type="text" class="filter-input" @bind="filterSuperId" @bind:event="oninput" placeholder="Super" />
+                                    </td>
+                                    <td class="col-created">
+                                        <input type="text" class="filter-input" @bind="filterCreatedDate" @bind:event="oninput" placeholder="Created" />
+                                    </td>
+                                    <td class="col-app">
+                                        <input type="text" class="filter-input" @bind="filterApp1" @bind:event="oninput" placeholder="App1" />
+                                    </td>
+                                    <td class="col-pass">
+                                        <input type="text" class="filter-input" @bind="filterApp1Pass" @bind:event="oninput" placeholder="P1" />
+                                    </td>
+                                    <td class="col-app">
+                                        <input type="text" class="filter-input" @bind="filterApp2" @bind:event="oninput" placeholder="App2" />
+                                    </td>
+                                    <td class="col-pass">
+                                        <input type="text" class="filter-input" @bind="filterApp2Pass" @bind:event="oninput" placeholder="P2" />
+                                    </td>
+                                    <td class="col-app">
+                                        <input type="text" class="filter-input" @bind="filterApp3" @bind:event="oninput" placeholder="App3" />
+                                    </td>
+                                    <td class="col-pass">
+                                        <input type="text" class="filter-input" @bind="filterApp3Pass" @bind:event="oninput" placeholder="P3" />
+                                    </td>
+                                    <td class="col-app">
+                                        <input type="text" class="filter-input" @bind="filterApp4" @bind:event="oninput" placeholder="App4" />
+                                    </td>
+                                    <td class="col-pass">
+                                        <input type="text" class="filter-input" @bind="filterApp4Pass" @bind:event="oninput" placeholder="P4" />
+                                    </td>
+                                    <td class="col-remarks">
+                                        <input type="text" class="filter-input" @bind="filterRemarks" @bind:event="oninput" placeholder="Remarks" />
                                     </td>
                                 </tr>
-                                sIdx++;
+                            }
+                        </thead>
+                        <tbody>
+                            @if (isLoading)
+                            {
+                                <tr>
+                                    <td colspan="33" class="text-center py-4 text-muted">
+                                        <div class="spinner-border spinner-border-sm text-secondary mb-1"></div>
+                                        <div style="font-size: 0.75rem;">Loading leave records from database...</div>
+                                    </td>
+                                </tr>
+                            }
+                            else if (FilteredLeaves.Count == 0)
+                            {
+                                <!-- Exact Match: "No data to display" Centered Across Table -->
+                                <tr class="empty-row">
+                                    <td colspan="33" class="empty-cell">
+                                        No data to display
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                int rowIdx = 1;
+                                @foreach (var r in FilteredLeaves)
+                                {
+                                    bool isSelected = selectedLeaveNos.Contains(r.LeaveNo);
+                                    bool canSel = CanSelect(r);
+                                    <tr class="data-row @(isSelected ? "selected-row" : "") @(!canSel ? "row-disabled" : "")" 
+                                        @onclick='() => ToggleRowSelection(r)' 
+                                        @ondblclick='() => OpenDetailModal(r)'
+                                        title="@GetRowTooltip(r, canSel)">
+                                        <td class="col-num text-center">@rowIdx</td>
+                                        <td class="col-chk text-center" @onclick:stopPropagation="true">
+                                            @if (canSel)
+                                            {
+                                                <input type="checkbox" checked="@isSelected" @onchange='(e) => OnCheckboxChanged(r.LeaveNo, e)' />
+                                            }
+                                            else
+                                            {
+                                                <input type="checkbox" disabled checked="false" title="@GetRowTooltip(r, canSel)" />
+                                            }
+                                        </td>
+                                        <!-- File1, File2, File3 -->
+                                        <td class="col-file text-center">
+                                            @if (!string.IsNullOrEmpty(r.File1))
+                                            {
+                                                <a href="@r.File1" target="_blank" title="View Attachment 1" @onclick:stopPropagation="true"><i class="bi bi-paperclip text-primary"></i></a>
+                                            }
+                                        </td>
+                                        <td class="col-file text-center">
+                                            @if (!string.IsNullOrEmpty(r.File2))
+                                            {
+                                                <a href="@r.File2" target="_blank" title="View Attachment 2" @onclick:stopPropagation="true"><i class="bi bi-paperclip text-primary"></i></a>
+                                            }
+                                        </td>
+                                        <td class="col-file text-center">
+                                            @if (!string.IsNullOrEmpty(r.File3))
+                                            {
+                                                <a href="@r.File3" target="_blank" title="View Attachment 3" @onclick:stopPropagation="true"><i class="bi bi-paperclip text-primary"></i></a>
+                                            }
+                                        </td>
+                                        <!-- ID, Name -->
+                                        <td class="col-id">@r.Emp_ID</td>
+                                        <td class="col-name text-truncate" style="max-width: 180px;" title="@r.EmpName">@r.EmpName</td>
+                                        <!-- Date From, Date To -->
+                                        <td class="col-date">@r.Leave_Date_From.ToString("yyyy-MM-dd")</td>
+                                        <td class="col-date">@r.Leave_Date_To.ToString("yyyy-MM-dd")</td>
+                                        <!-- Leave ID, Leave Day -->
+                                        <td class="col-leaveid fw-semibold">@r.Leave_Type</td>
+                                        <td class="col-day text-center">@r.TotalDays.ToString("0.0")</td>
+                                        <!-- Time In, s1, Time Out, s2 -->
+                                        <td class="col-time text-center">@(string.IsNullOrEmpty(r.TimeIn) ? "0000" : r.TimeIn)</td>
+                                        <td class="col-s text-center">@r.s1</td>
+                                        <td class="col-time text-center">@(string.IsNullOrEmpty(r.TimeOut) ? "0000" : r.TimeOut)</td>
+                                        <td class="col-s text-center">@r.s2</td>
+                                        <!-- Status -->
+                                        <td class="col-status">
+                                            @if (r.Leave_Status == "APPROVE" || r.Leave_Status == "APPROVED")
+                                            {
+                                                <span class="status-tag status-approved">Approved</span>
+                                            }
+                                            else if (r.Leave_Status == "REJECT" || r.Leave_Status == "REJECTED")
+                                            {
+                                                <span class="status-tag status-rejected">Rejected</span>
+                                            }
+                                            else if (r.Leave_Status == "CANCEL" || r.Leave_Status == "CANCELLED")
+                                            {
+                                                <span class="status-tag status-cancelled">Cancelled</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="status-tag status-pending">Pending</span>
+                                            }
+                                        </td>
+                                        <!-- Dept, Section, Shift Grp, Type -->
+                                        <td class="col-dept">@r.Dept</td>
+                                        <td class="col-sec">@r.Section</td>
+                                        <td class="col-shift">@r.ShiftGrp</td>
+                                        <td class="col-type">@r.Type</td>
+                                        <td class="col-leave text-truncate" style="max-width: 140px;" title="@r.LeaveName">@r.LeaveName</td>
+                                        <td class="col-reason text-truncate" style="max-width: 260px;" title="@r.Leave_Reason">@r.Leave_Reason</td>
+                                        <td class="col-super text-truncate" style="max-width: 100px;" title="@r.SuperName">@r.SuperName</td>
+                                        <td class="col-created text-center">@(r.CreateDate.HasValue ? r.CreateDate.Value.ToString("yyyy-MM-dd") : "")</td>
+                                        <td class="col-app text-center">@r.App1</td>
+                                        <td class="col-pass text-center">
+                                            @if (r.App1Pass == "YES" || r.App1Pass == "Y")
+                                            {
+                                                <span class="text-success fw-bold">YES</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">@r.App1Pass</span>
+                                            }
+                                        </td>
+                                        <td class="col-app text-center">@r.App2</td>
+                                        <td class="col-pass text-center">
+                                            @if (r.App2Pass == "YES" || r.App2Pass == "Y")
+                                            {
+                                                <span class="text-success fw-bold">YES</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">@r.App2Pass</span>
+                                            }
+                                        </td>
+                                        <td class="col-app text-center">@r.App3</td>
+                                        <td class="col-pass text-center">
+                                            @if (r.App3Pass == "YES" || r.App3Pass == "Y")
+                                            {
+                                                <span class="text-success fw-bold">YES</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">@r.App3Pass</span>
+                                            }
+                                        </td>
+                                        <td class="col-app text-center">@r.App4</td>
+                                        <td class="col-pass text-center">
+                                            @if (r.App4Pass == "YES" || r.App4Pass == "Y")
+                                            {
+                                                <span class="text-success fw-bold">YES</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">@r.App4Pass</span>
+                                            }
+                                        </td>
+                                        <td class="col-remarks text-truncate" style="max-width: 160px;" title="@r.Remarks">@r.Remarks</td>
+                                    </tr>
+                                    rowIdx++;
+                                }
                             }
                         </tbody>
                     </table>
                 </div>
-            }
+            </div>
+        }
+
+        <!-- MOBILE / CARDS VIEW (Phone site or viewMode == 'cards' - following UserManage.razor) -->
+        @if (viewMode == "cards" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") p-2">
+                @if (isLoading)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                        <div class="text-muted small mt-2">Loading leave applications...</div>
+                    </div>
+                }
+                else if (FilteredLeaves.Count == 0)
+                {
+                    <div class="text-center py-4 text-muted bg-white border rounded p-3 mb-2">
+                        <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                        <span>No leave applications found.</span>
+                    </div>
+                }
+                else
+                {
+                    <!-- Mobile Select All Bar -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 px-2 py-1.5 @(activeTab == "approve" ? "bg-cyan-subtle border-cyan" : "bg-light border") rounded-2">
+                        <div class="form-check d-flex align-items-center gap-2 mb-0 ms-1">
+                            <input type="checkbox" class="form-check-input" id="mobileSelectAll" checked="@isAllSelected" @onchange="ToggleSelectAll" />
+                            <label class="form-check-label extra-small fw-semibold text-secondary user-select-none" for="mobileSelectAll">
+                                Select All (@FilteredLeaves.Count(CanSelect))
+                            </label>
+                        </div>
+                        @if (selectedLeaveNos.Count > 0)
+                        {
+                            <span class="badge bg-primary me-1">@selectedLeaveNos.Count selected</span>
+                        }
+                    </div>
+
+                    <div class="row g-2">
+                        @foreach (var r in FilteredLeaves)
+                        {
+                            bool isSelected = selectedLeaveNos.Contains(r.LeaveNo);
+                            bool canSel = CanSelect(r);
+
+                            <div class="col-12 col-sm-6 col-xl-4">
+                                <div class="card border rounded-3 p-3 shadow-sm leave-card-item @(isSelected ? "card-selected" : "") @(!canSel ? "card-disabled" : "")" 
+                                     @onclick="() => ToggleRowSelection(r)"
+                                     title="@GetRowTooltip(r, canSel)">
+                                    
+                                    <!-- Top Line: [Checkbox] [EMP_ID] Employee Name | [Leave Type Badge] [Status Tag] -->
+                                    <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                        <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                            @if (canSel)
+                                            {
+                                                <input type="checkbox" class="form-check-input me-1 flex-shrink-0 cursor-pointer" 
+                                                       checked="@isSelected" 
+                                                       @onchange="(e) => OnCheckboxChanged(r.LeaveNo, e)" 
+                                                       @onclick:stopPropagation="true" 
+                                                       title="Select application" />
+                                            }
+                                            else
+                                            {
+                                                <input type="checkbox" class="form-check-input me-1 flex-shrink-0" 
+                                                       disabled checked="false" 
+                                                       title="@GetRowTooltip(r, canSel)" />
+                                            }
+                                            <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.78rem;">[@r.Emp_ID]</span>
+                                            <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.92rem;" title="@r.EmpName">@r.EmpName</span>
+                                        </div>
+                                        <div class="flex-shrink-0 d-flex align-items-center gap-1">
+                                            <span class="badge @GetLeaveTypeBadgeClass(r.Leave_Type) fw-bold" style="font-size: 0.72rem;">@r.Leave_Type</span>
+                                            <span class="status-tag @GetStatusClass(r.Leave_Status)" style="font-size: 0.7rem;">@GetStatusText(r.Leave_Status)</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Line 2: Calendar Dates & Total Days Badge -->
+                                    <div class="d-flex align-items-center justify-content-between small text-muted mb-2">
+                                        <div class="d-flex align-items-center text-truncate">
+                                            <i class="bi bi-calendar-event text-primary me-2 flex-shrink-0"></i>
+                                            <span class="text-dark fw-semibold">
+                                                @(r.Leave_Date_From.Date == r.Leave_Date_To.Date 
+                                                    ? r.Leave_Date_From.ToString("yyyy-MM-dd") 
+                                                    : $"{r.Leave_Date_From:yyyy-MM-dd} → {r.Leave_Date_To:yyyy-MM-dd}")
+                                            </span>
+                                        </div>
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold flex-shrink-0 ms-2">
+                                            @r.TotalDays.ToString("0.0") Day@(r.TotalDays > 1 ? "s" : "")
+                                        </span>
+                                    </div>
+
+                                    <!-- Line 3: Created Date / Type -->
+                                    <div class="d-flex align-items-center text-muted small mb-1.5 flex-wrap">
+                                        <i class="bi bi-calendar-check text-secondary me-2 flex-shrink-0" style="width: 14px;"></i>
+                                        <span class="me-2">
+                                            <span class="text-secondary fw-semibold">Created Date:</span> 
+                                            <span class="text-dark">@(r.CreateDate.HasValue ? r.CreateDate.Value.ToString("yyyy-MM-dd") : "-")</span>
+                                        </span>
+                                        <span class="badge bg-light text-secondary border py-0.5 px-1.5" style="font-size: 0.68rem;">@r.Type</span>
+                                    </div>
+
+                                    <!-- Line 4: Department & Section -->
+                                    <div class="d-flex align-items-center text-muted small mb-2">
+                                        <i class="bi bi-building text-secondary me-2 flex-shrink-0" style="width: 14px;"></i>
+                                        <span class="text-truncate">
+                                            <span class="text-secondary fw-semibold">Dept:</span> <span class="text-dark">@(string.IsNullOrEmpty(r.Dept) ? "-" : r.Dept)</span>
+                                            @if (!string.IsNullOrEmpty(r.Section))
+                                            {
+                                                <span class="text-muted mx-1">|</span>
+                                                <span class="text-secondary fw-semibold">Sec:</span> <span class="text-dark">@r.Section</span>
+                                            }
+                                            @if (!string.IsNullOrEmpty(r.ShiftGrp))
+                                            {
+                                                <span class="text-muted mx-1">|</span>
+                                                <span class="badge bg-light text-dark border py-0 px-1">@r.ShiftGrp</span>
+                                            }
+                                        </span>
+                                    </div>
+
+                                    <!-- Line 5: Reason (if any) -->
+                                    @if (!string.IsNullOrWhiteSpace(r.Leave_Reason))
+                                    {
+                                        <div class="d-flex align-items-start small mb-2 bg-light p-2 rounded border">
+                                            <i class="bi bi-chat-left-text text-secondary me-2 mt-0.5 flex-shrink-0"></i>
+                                            <span class="text-dark text-break" style="font-size: 0.78rem;">@r.Leave_Reason</span>
+                                        </div>
+                                    }
+
+                                    <!-- Line 6: Attachments (if any) -->
+                                    @if (!string.IsNullOrEmpty(r.File1) || !string.IsNullOrEmpty(r.File2) || !string.IsNullOrEmpty(r.File3))
+                                    {
+                                        <div class="d-flex align-items-center gap-1 mb-2 small flex-wrap" @onclick:stopPropagation="true">
+                                            <span class="text-muted extra-small me-1"><i class="bi bi-paperclip"></i> Files:</span>
+                                            @if (!string.IsNullOrEmpty(r.File1))
+                                            {
+                                                <a href="@r.File1" target="_blank" class="badge bg-light text-primary border text-decoration-none">
+                                                    <i class="bi bi-file-earmark-arrow-down me-0.5"></i>File 1
+                                                </a>
+                                            }
+                                            @if (!string.IsNullOrEmpty(r.File2))
+                                            {
+                                                <a href="@r.File2" target="_blank" class="badge bg-light text-primary border text-decoration-none">
+                                                    <i class="bi bi-file-earmark-arrow-down me-0.5"></i>File 2
+                                                </a>
+                                            }
+                                            @if (!string.IsNullOrEmpty(r.File3))
+                                            {
+                                                <a href="@r.File3" target="_blank" class="badge bg-light text-primary border text-decoration-none">
+                                                    <i class="bi bi-file-earmark-arrow-down me-0.5"></i>File 3
+                                                </a>
+                                            }
+                                        </div>
+                                    }
+
+                                    <!-- Bottom Line: 1-Click Action Buttons -->
+                                    <div class="d-flex align-items-center justify-content-between pt-2 border-top gap-1" @onclick:stopPropagation="true">
+                                        <div class="d-flex align-items-center gap-1">
+                                            @if (activeTab == "approve")
+                                            {
+                                                <button type="button" class="btn btn-xs btn-success d-inline-flex align-items-center gap-1 py-1 px-2.5 fw-semibold shadow-sm" 
+                                                        @onclick='() => ProcessSingleActionAsync(r, "APPROVE")' 
+                                                        disabled="@(isProcessing || !canSel)" 
+                                                        title="Approve Leave Application">
+                                                    <i class="bi bi-check-lg"></i>
+                                                    <span>Approve</span>
+                                                </button>
+                                                <button type="button" class="btn btn-xs btn-outline-danger d-inline-flex align-items-center gap-1 py-1 px-2 fw-semibold" 
+                                                        @onclick='() => ProcessSingleActionAsync(r, "REJECT")' 
+                                                        disabled="@(isProcessing || !canSel)" 
+                                                        title="Reject / Unapprove Leave">
+                                                    <i class="bi bi-x-lg"></i>
+                                                    <span>Reject</span>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="btn btn-xs btn-danger d-inline-flex align-items-center gap-1 py-1 px-2.5 fw-semibold shadow-sm" 
+                                                        @onclick='() => ProcessSingleActionAsync(r, "CANCEL")' 
+                                                        disabled="@(isProcessing || !canSel)" 
+                                                        title="Cancel Approved Leave">
+                                                    <i class="bi bi-slash-circle"></i>
+                                                    <span>Cancel Leave</span>
+                                                </button>
+                                            }
+                                        </div>
+                                        <button type="button" class="btn btn-xs btn-outline-primary d-inline-flex align-items-center gap-1 py-1 px-2.5 fw-semibold" 
+                                                @onclick="() => OpenDetailModal(r)" 
+                                                title="View Full Application Details">
+                                            <i class="bi bi-card-text"></i>
+                                            <span>Detail</span>
+                                        </button>
+                                    </div>
+
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="legacy-grid-footer d-flex justify-content-between align-items-center">
+            <span>Total Records: <strong>@FilteredLeaves.Count</strong> (Selected: <strong>@selectedLeaveNos.Count</strong>)</span>
+            <span class="text-muted extra-small">eLeave - Supervisor Module</span>
         </div>
-        <div class="card-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center">
-            <span class="extra-small text-muted">Showing <strong>@FilteredLeaves.Count</strong> of <strong>@(leaves?.Count ?? 0)</strong> total records</span>
-            <button class="btn btn-sm btn-outline-secondary py-0 px-2 extra-small" @onclick='() => NavManager.NavigateTo("leaves")'>
-                Back to Portal
-            </button>
+    </fieldset>
+
+    @if (activeTab == "cancel")
+    {
+        <div class="legacy-cancel-remark mt-2 ps-1">
+            <span class="text-secondary" style="font-size: 0.76rem; font-family: Tahoma, 'Segoe UI', Arial, sans-serif;">
+                (Remarks : Approve Leave not&nbsp; allow cancel if&nbsp; Leave date over today date, and cancel leave only for leave no more than 1 days )
+            </span>
         </div>
-    </div>
+    }
+
+    <!-- 4. Leave Detail Modal Dialog (Triggered by "Show Leave Detail" or double clicking a row) -->
+    @if (detailModalRecord != null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.45); z-index: 1060;">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content shadow border">
+                    <div class="modal-header py-2 px-3 text-white" style="background-color: #2b579a;">
+                        <h6 class="modal-title fw-bold extra-small mb-0 d-flex align-items-center gap-2">
+                            <i class="bi bi-info-circle-fill"></i>
+                            <span>Leave Application Details - #@detailModalRecord.LeaveNo</span>
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white py-0" @onclick="() => detailModalRecord = null"></button>
+                    </div>
+                    <div class="modal-body p-3 extra-small">
+                        <div class="row g-2 mb-3">
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Leave No:</label>
+                                <div><code>@detailModalRecord.LeaveNo</code></div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Employee ID:</label>
+                                <div><strong>@detailModalRecord.Emp_ID</strong></div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="text-muted fw-bold">Employee Name:</label>
+                                <div><strong>@detailModalRecord.EmpName</strong></div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Leave Code:</label>
+                                <div><span class="badge bg-primary">@detailModalRecord.Leave_Type</span></div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Total Days:</label>
+                                <div><strong>@detailModalRecord.TotalDays</strong> day(s)</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Date From:</label>
+                                <div>@detailModalRecord.Leave_Date_From.ToString("yyyy-MM-dd")</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Date To:</label>
+                                <div>@detailModalRecord.Leave_Date_To.ToString("yyyy-MM-dd")</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Day Type:</label>
+                                <div>@detailModalRecord.Type</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Created Date:</label>
+                                <div>@(detailModalRecord.CreateDate.HasValue ? detailModalRecord.CreateDate.Value.ToString("yyyy-MM-dd") : "-")</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Status:</label>
+                                <div><strong>@detailModalRecord.Leave_Status</strong></div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Approval Level:</label>
+                                <div>@(string.IsNullOrEmpty(detailModalRecord.AppLevel) ? "Level 1" : detailModalRecord.AppLevel)</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="text-muted fw-bold">Leave Reason / Justification:</label>
+                            <div class="p-2 border rounded bg-light" style="min-height: 48px;">
+                                @(string.IsNullOrWhiteSpace(detailModalRecord.Leave_Reason) ? "No reason specified." : detailModalRecord.Leave_Reason)
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(detailModalRecord.File1) || !string.IsNullOrEmpty(detailModalRecord.File2))
+                        {
+                            <div class="mb-3">
+                                <label class="text-muted fw-bold">Attachments:</label>
+                                <div class="d-flex gap-2">
+                                    @if (!string.IsNullOrEmpty(detailModalRecord.File1))
+                                    {
+                                        <a href="@detailModalRecord.File1" target="_blank" class="btn btn-sm btn-outline-primary extra-small">
+                                            <i class="bi bi-paperclip me-1"></i>Attachment 1
+                                        </a>
+                                    }
+                                    @if (!string.IsNullOrEmpty(detailModalRecord.File2))
+                                    {
+                                        <a href="@detailModalRecord.File2" target="_blank" class="btn btn-sm btn-outline-primary extra-small">
+                                            <i class="bi bi-paperclip me-1"></i>Attachment 2
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (activeTab == "cancel")
+                        {
+                            <div class="alert alert-warning py-1 px-2 extra-small mb-2 d-flex align-items-center gap-1">
+                                <i class="bi bi-info-circle-fill text-warning"></i>
+                                <span>(Remarks : Approve Leave not allow cancel if Leave date over today date, and cancel leave only for leave no more than 1 days )</span>
+                            </div>
+                        }
+                    </div>
+                    <div class="modal-footer py-1 px-3 d-flex justify-content-between">
+                        <div>
+                            @if (activeTab == "approve" && detailModalRecord.Leave_Status != "APPROVE" && detailModalRecord.Leave_Status != "REJECT")
+                            {
+                                <button type="button" class="btn btn-sm btn-success extra-small px-3 me-1" @onclick='() => ProcessSingleActionAsync(detailModalRecord, "APPROVE")' disabled="@(isProcessing || !CanSelect(detailModalRecord))">
+                                    <i class="bi bi-check2 me-1"></i>Approve Leave
+                                </button>
+                                <button type="button" class="btn btn-sm btn-danger extra-small px-3" @onclick='() => ProcessSingleActionAsync(detailModalRecord, "REJECT")' disabled="@(isProcessing || !CanSelect(detailModalRecord))">
+                                    <i class="bi bi-x me-1"></i>UnApprove (Reject)
+                                </button>
+                            }
+                            else if (activeTab == "cancel" && (detailModalRecord.Leave_Status == "APPROVE" || detailModalRecord.Leave_Status == "APPROVED"))
+                            {
+                                <button type="button" class="btn btn-sm btn-danger extra-small px-3" @onclick='() => ProcessSingleActionAsync(detailModalRecord, "CANCEL")' disabled="@(isProcessing || !CanSelect(detailModalRecord))">
+                                    <i class="bi bi-slash-circle me-1"></i>Cancel Approved Leave
+                                </button>
+                            }
+                        </div>
+                        <button type="button" class="btn btn-sm btn-secondary extra-small px-3" @onclick="() => detailModalRecord = null">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 <style>
-    .approval-icon-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 4px rgba(148, 24, 24, 0.2);
+    .leave-approval-legacy-container {
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        color: #222222;
+        width: 100%;
     }
 
-    .btn-xs {
-        padding: 2px 6px;
-        font-size: 0.72rem;
-        line-height: 1.2;
-        border-radius: 4px;
+    /* 1. Legacy Tab Styling (Exact Match to eLeaveApprove.aspx / eLeavePostApprove.aspx) */
+    .legacy-tabs-bar {
+        display: flex;
+        align-items: flex-end;
+        border-bottom: 1px solid #7f9db9;
+        margin-bottom: 6px;
+        padding-left: 4px;
+        gap: 3px;
     }
+
+    .legacy-tab-btn {
+        background: #ece9d8;
+        border: 1px solid #7f9db9;
+        border-bottom: 1px solid #7f9db9;
+        border-radius: 4px 4px 0 0;
+        padding: 4px 18px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #333333;
+        cursor: pointer;
+        outline: none;
+        transition: background-color 0.12s ease;
+    }
+
+    .legacy-tab-btn:hover {
+        background: #f5f5f5;
+    }
+
+    .legacy-tab-btn.active {
+        background: #ffffff;
+        border-bottom: 1px solid #ffffff;
+        margin-bottom: -1px;
+        color: #000000;
+        font-weight: 700;
+        z-index: 2;
+    }
+
+    /* 2. Legacy Action Buttons Toolbar */
+    .legacy-toolbar {
+        background: #fbfbfb;
+        border: 1px solid #b5b5b5;
+        border-radius: 2px;
+        padding: 3px 6px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 6px;
+    }
+
+    .legacy-btn {
+        background: linear-gradient(to bottom, #ffffff 0%, #ece9d8 100%);
+        border: 1px solid #707070;
+        border-radius: 2px;
+        padding: 2px 10px;
+        font-size: 0.74rem;
+        font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+        font-weight: 500;
+        color: #111111;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1.35;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        outline: none;
+        transition: all 0.1s ease;
+    }
+
+    .legacy-btn:hover:not(:disabled) {
+        background: linear-gradient(to bottom, #f2f7fc 0%, #dce9f6 100%);
+        border-color: #337ab7;
+        color: #000000;
+    }
+
+    .legacy-btn:active:not(:disabled) {
+        background: #d8e5f2;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .legacy-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        background: #f4f4f4;
+        border-color: #cccccc;
+        color: #888888;
+    }
+
+    .legacy-btn.btn-highlight {
+        font-weight: 700;
+    }
+
+    .legacy-toolbar-sep {
+        width: 1px;
+        height: 18px;
+        background: #cccccc;
+        margin: 0 3px;
+    }
+
+    /* 3. Group Box FieldSet */
+    .legacy-fieldset {
+        border: 1px solid #8ba0b5;
+        border-radius: 2px;
+        padding: 6px;
+        margin: 0 0 12px 0;
+        background: #ffffff;
+    }
+
+    .legacy-legend {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #111111;
+        width: auto;
+        float: none;
+        padding: 0 6px;
+        margin-bottom: 2px;
+    }
+
+    /* 4. Legacy Grid Table (Exact Match to User Screenshot) */
+    .legacy-grid-scroll {
+        width: 100%;
+        overflow-x: auto;
+        border: 1px solid #7a9456;
+        min-height: 180px;
+        background: #ffffff;
+    }
+
+    .legacy-grid-scroll.grid-cyan {
+        border-color: #5aa2b0;
+    }
+
+    .legacy-grid-scroll.grid-olive {
+        border-color: #7a9456;
+    }
+
+    .legacy-grid-table {
+        width: 100%;
+        min-width: 2350px;
+        border-collapse: collapse;
+        font-size: 0.72rem;
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    }
+
+    /* Common Header Th */
+    .legacy-grid-table thead tr.header-row th {
+        font-weight: 700;
+        padding: 4px 6px;
+        text-align: left;
+        white-space: nowrap;
+        user-select: none;
+    }
+
+    .legacy-grid-table thead tr.filter-row td {
+        padding: 1px 2px;
+    }
+
+    .filter-input {
+        width: 100%;
+        height: 19px;
+        font-size: 0.70rem;
+        padding: 1px 3px;
+        background: #ffffff;
+        color: #111111;
+        outline: none;
+        box-sizing: border-box;
+    }
+
+    /* --- APPROVAL GRID PART: LIGHT CYAN THEME --- */
+    .legacy-grid-table.theme-cyan thead tr.header-row th {
+        background-color: #b2e3e8; /* Light Cyan */
+        color: #0c363d;
+        border: 1px solid #5aa2b0;
+    }
+
+    .legacy-grid-table.theme-cyan thead tr.filter-row td {
+        background-color: #d6f2f5; /* Very Light Cyan */
+        border: 1px solid #5aa2b0;
+    }
+
+    .legacy-grid-table.theme-cyan .filter-input {
+        border: 1px solid #72b3bf;
+    }
+
+    .legacy-grid-table.theme-cyan .filter-input:focus {
+        border-color: #0b687c;
+        background: #fffffa;
+    }
+
+    .legacy-grid-table.theme-cyan tbody tr.data-row:hover {
+        background-color: #e6f7f9;
+    }
+
+    /* --- CANCEL APPROVAL GRID PART: OLIVE GREEN THEME (UNCHANGED) --- */
+    .legacy-grid-table.theme-olive thead tr.header-row th,
+    .legacy-grid-table:not(.theme-cyan) thead tr.header-row th {
+        background-color: #b0c890;
+        color: #1e3010;
+        border: 1px solid #7a9456;
+    }
+
+    .legacy-grid-table.theme-olive thead tr.filter-row td,
+    .legacy-grid-table:not(.theme-cyan) thead tr.filter-row td {
+        background-color: #c8dcab;
+        border: 1px solid #7a9456;
+    }
+
+    .legacy-grid-table.theme-olive .filter-input,
+    .legacy-grid-table:not(.theme-cyan) .filter-input {
+        border: 1px solid #7a9456;
+    }
+
+    .legacy-grid-table.theme-olive .filter-input:focus,
+    .legacy-grid-table:not(.theme-cyan) .filter-input:focus {
+        border-color: #2b579a;
+        background: #fffffa;
+    }
+
+    .bg-cyan-subtle {
+        background-color: #eaf8fa !important;
+    }
+
+    .border-cyan {
+        border: 1px solid #b2e3e8 !important;
+    }
+
+    /* Table Body Cells */
+    .legacy-grid-table tbody td {
+        border: 1px solid #dcdcdc;
+        padding: 3px 6px;
+        white-space: nowrap;
+        vertical-align: middle;
+        font-size: 0.73rem;
+    }
+
+    .legacy-grid-table tbody tr.data-row {
+        background-color: #ffffff;
+        cursor: pointer;
+    }
+
+    .legacy-grid-table tbody tr.data-row:nth-child(even) {
+        background-color: #fbfcfa;
+    }
+
+    .legacy-grid-table tbody tr.data-row:hover {
+        background-color: #edf5ff;
+    }
+
+    .legacy-grid-table tbody tr.data-row.selected-row {
+        background-color: #d8e8f8 !important;
+    }
+
+    /* Faded / Disabled row styling */
+    .legacy-grid-table tbody tr.data-row.row-disabled {
+        opacity: 0.38 !important;
+        background-color: #f7f7f7 !important;
+        color: #8c8c8c !important;
+        cursor: not-allowed !important;
+        filter: grayscale(0.6);
+        transition: opacity 0.15s ease;
+    }
+
+    .legacy-grid-table tbody tr.data-row.row-disabled:nth-child(even) {
+        background-color: #f2f2f2 !important;
+    }
+
+    .legacy-grid-table tbody tr.data-row.row-disabled:hover {
+        background-color: #eeeeee !important;
+        opacity: 0.48 !important;
+    }
+
+    .legacy-grid-table tbody tr.data-row.row-disabled td {
+        color: #8c8c8c !important;
+        border-color: #e5e5e5 !important;
+    }
+
+    .legacy-grid-table tbody tr.data-row.row-disabled input[type="checkbox"] {
+        opacity: 0.25 !important;
+        cursor: not-allowed !important;
+        pointer-events: none !important;
+    }
+
+    .legacy-grid-table tbody tr.data-row.row-disabled .status-tag {
+        opacity: 0.55 !important;
+        filter: grayscale(0.8);
+    }
+
+    .leave-card-item.card-disabled {
+        opacity: 0.42 !important;
+        filter: grayscale(0.6);
+        background-color: #f8fafc !important;
+        cursor: not-allowed !important;
+        border-color: #e2e8f0 !important;
+    }
+
+    .leave-card-item.card-disabled input[type="checkbox"] {
+        opacity: 0.25 !important;
+        cursor: not-allowed !important;
+        pointer-events: none !important;
+    }
+
+    /* Empty Row "No data to display" Centered */
+    .empty-row {
+        background-color: #ffffff;
+    }
+
+    .empty-cell {
+        text-align: center;
+        padding: 24px 10px;
+        font-size: 0.78rem;
+        color: #555555;
+        font-style: italic;
+        background: #ffffff;
+    }
+
+    .legacy-grid-footer {
+        padding: 4px 6px;
+        font-size: 0.72rem;
+        color: #444444;
+        background: #fbfbfb;
+        border-top: 1px solid #e0e0e0;
+        margin-top: 4px;
+    }
+
+    /* Column Sizing Helpers */
+    .col-num { width: 35px; min-width: 35px; text-align: center; }
+    .col-chk { width: 32px; min-width: 32px; text-align: center; }
+    .col-file { width: 40px; min-width: 40px; text-align: center; }
+    .col-id { width: 80px; min-width: 80px; }
+    .col-name { width: 180px; min-width: 160px; }
+    .col-date { width: 95px; min-width: 90px; }
+    .col-leaveid { width: 75px; min-width: 70px; }
+    .col-day { width: 65px; min-width: 60px; text-align: center; }
+    .col-time { width: 65px; min-width: 60px; text-align: center; }
+    .col-s { width: 35px; min-width: 35px; text-align: center; }
+    .col-status { width: 85px; min-width: 80px; }
+    .col-dept { width: 80px; min-width: 75px; }
+    .col-sec { width: 80px; min-width: 75px; }
+    .col-shift { width: 80px; min-width: 75px; }
+    .col-type { width: 80px; min-width: 75px; }
+    .col-leave { width: 130px; min-width: 120px; }
+    .col-reason { width: 240px; min-width: 200px; }
+    .col-super { width: 90px; min-width: 80px; }
+    .col-created { width: 95px; min-width: 90px; text-align: center; }
+    .col-app { width: 65px; min-width: 60px; text-align: center; }
+    .col-pass { width: 50px; min-width: 45px; text-align: center; }
+    .col-remarks { width: 180px; min-width: 140px; }
+
+    /* Status Tags */
+    .status-tag {
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 1px 5px;
+        border-radius: 3px;
+        display: inline-block;
+    }
+
+    .status-approved { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status-rejected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status-cancelled { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+    .status-pending { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+
+    .extra-small { font-size: 0.75rem; }
 
     .spin {
         animation: spin 1s linear infinite;
@@ -231,6 +1226,31 @@
     @@keyframes spin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
+    }
+
+    /* Mobile Card Styles (matching UserManage.razor) */
+    .leave-card-item {
+        border-color: #cbd5e1 !important;
+        background-color: #ffffff;
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.15s ease;
+    }
+
+    .leave-card-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .leave-card-item.card-selected {
+        border-color: #3b82f6 !important;
+        background-color: #f0f7ff !important;
+    }
+
+    .btn-xs {
+        padding: 0.2rem 0.5rem;
+        font-size: 0.75rem;
+        line-height: 1.2;
+        border-radius: 0.25rem;
     }
 </style>
 
@@ -241,14 +1261,100 @@
     private string? statusMessage;
     private bool isSuccess;
 
-    private string filterStatus = "PENDING";
-    private string searchQuery = "";
+    // Tab state: "approve" or "cancel"
+    [SupplyParameterFromQuery(Name = "tab")]
+    public string? TabQuery { get; set; }
 
-    private int PendingCount => leaves?.Count(l => l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED") ?? 0;
+    private string activeTab = "approve";
+    private bool showFilters = true;
+    private bool showDateFilterPanel = true;
+    private string viewMode = "auto"; // "auto", "table", "cards" (matching UserManage.razor)
+
+    // Legacy date filters
+    private DateTime filterDateFromVal = DateTime.Today;
+    private DateTime filterDateToVal = DateTime.Today;
+    private string filterAtype = "Y"; // "Y" = Show all records, "N" = Filter by date
+    private bool isSuperAdmin = false;
+
+    // Checkbox selection set for LeaveNo
+    private HashSet<string> selectedLeaveNos = new();
+
+    // Detail Modal record
+    private LeaveRequest? detailModalRecord;
+
+    // Inline column filters
+    private string filterEmpId = "";
+    private string filterName = "";
+    private string filterDateFrom = "";
+    private string filterDateTo = "";
+    private string filterLeaveId = "";
+    private string filterDays = "";
+    private string filterTimeIn = "";
+    private string filterS1 = "";
+    private string filterTimeOut = "";
+    private string filterS2 = "";
+    private string filterStatusCol = "";
+    private string filterDept = "";
+    private string filterSection = "";
+    private string filterShiftGrp = "";
+    private string filterType = "";
+    private string filterLeaveName = "";
+    private string filterReason = "";
+    private string filterSuperId = "";
+    private string filterCreatedDate = "";
+    private string filterApp1 = "";
+    private string filterApp1Pass = "";
+    private string filterApp2 = "";
+    private string filterApp2Pass = "";
+    private string filterApp3 = "";
+    private string filterApp3Pass = "";
+    private string filterApp4 = "";
+    private string filterApp4Pass = "";
+    private string filterRemarks = "";
+
+    private int PendingCount => leaves?.Count(l => l.Leave_Status == "PENDING" || (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED" && l.Leave_Status != "CANCEL" && l.Leave_Status != "CANCELLED")) ?? 0;
 
     protected override async Task OnInitializedAsync()
     {
+        DetermineActiveTab();
         await LoadDataAsync();
+    }
+
+    protected override void OnParametersSet()
+    {
+        DetermineActiveTab();
+    }
+
+    private void DetermineActiveTab()
+    {
+        var uri = NavManager.Uri.ToLowerInvariant();
+        if (TabQuery == "cancel" || uri.Contains("postapprove") || uri.Contains("tab=cancel"))
+        {
+            activeTab = "cancel";
+        }
+        else
+        {
+            activeTab = "approve";
+        }
+    }
+
+    private async Task SetTab(string tab)
+    {
+        if (activeTab != tab)
+        {
+            activeTab = tab;
+            selectedLeaveNos.Clear();
+            statusMessage = null;
+            if (tab == "cancel")
+            {
+                NavManager.NavigateTo("leaves/approval?tab=cancel", replace: true);
+            }
+            else
+            {
+                NavManager.NavigateTo("leaves/approval", replace: true);
+            }
+            await LoadDataAsync();
+        }
     }
 
     private async Task LoadDataAsync()
@@ -257,11 +1363,31 @@
         statusMessage = null;
         try
         {
-            leaves = await ApiClient.GetLeavesAsync();
+            var supervisorId = ApiClient.CurrentUser?.ID ?? "admin";
+            string targetStatus = activeTab == "approve" ? "PENDING" : "CANCELLEAVE";
+
+            leaves = await ApiClient.GetSupervisorApprovalLeavesAsync(
+                targetStatus,
+                filterDateFromVal,
+                filterDateToVal,
+                filterAtype,
+                supervisorId);
+
+            // Check if supervisor is super admin for LEAVE
+            try
+            {
+                var appLevels = await ApiClient.GetLeaveApprovalLevelsAsync(supervisorId);
+                var myLevel = appLevels?.FirstOrDefault(l => string.Equals(l.ID, supervisorId, StringComparison.OrdinalIgnoreCase));
+                isSuperAdmin = myLevel?.SuperAdminLeave == "Y" || string.Equals(supervisorId, "admin", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                isSuperAdmin = string.Equals(supervisorId, "admin", StringComparison.OrdinalIgnoreCase);
+            }
         }
         catch (Exception ex)
         {
-            statusMessage = $"Error loading approval queue: {ex.Message}";
+            statusMessage = $"Error loading leaves: {ex.Message}";
             isSuccess = false;
         }
         finally
@@ -270,6 +1396,73 @@
         }
     }
 
+    private void ToggleFilters()
+    {
+        showFilters = !showFilters;
+        showDateFilterPanel = showFilters;
+    }
+
+    private bool CanSelect(LeaveRequest r)
+    {
+        if (r == null) return false;
+
+        if (activeTab == "cancel")
+        {
+            // 1. Must be in approved status
+            if (r.Leave_Status != "APPROVE" && r.Leave_Status != "APPROVED")
+                return false;
+
+            // 2. Remarks : cancel leave only for leave no more than 1 days (applies to ALL users including Super Admin)
+            if (r.TotalDays > 1.0m)
+                return false;
+
+            // 3. Permission check: if not super admin, must be authorized approver (CheckBoxOpen2)
+            if (!isSuperAdmin && !r.CheckBoxOpen2)
+                return false;
+
+            return true;
+        }
+        else
+        {
+            // Approve Leave tab:
+            // 1. Only pending leaves can be approved
+            if (r.Leave_Status != "PENDING" && r.Leave_Status != "PROCESS")
+                return false;
+
+            // 2. Approver level check: prior level approver must have approved (CheckBoxOpen)
+            if (!isSuperAdmin && !r.CheckBoxOpen)
+                return false;
+
+            return true;
+        }
+    }
+
+    private string GetRowTooltip(LeaveRequest r, bool canSel)
+    {
+        if (canSel)
+            return "Click to select/unselect record. Double-click to view details.";
+
+        if (activeTab == "cancel")
+        {
+            if (r.TotalDays > 1.0m)
+                return $"Not allowed to select: Leave duration is {r.TotalDays:0.0} days. Cancel leave is only allowed for leave no more than 1 day.";
+            if (r.Leave_Status != "APPROVE" && r.Leave_Status != "APPROVED")
+                return "Not allowed to select: Leave record is not in Approved status.";
+            if (!isSuperAdmin && !r.CheckBoxOpen2)
+                return "Not allowed to select: You are not authorized to cancel this leave record.";
+            return "Not allowed to select this record.";
+        }
+        else
+        {
+            if (r.Leave_Status != "PENDING" && r.Leave_Status != "PROCESS")
+                return "Not allowed to select: Leave record is not pending approval.";
+            if (!isSuperAdmin && !r.CheckBoxOpen)
+                return "Not allowed to select: Pending approval from prior level approver.";
+            return "Not allowed to select this record.";
+        }
+    }
+
+    // Filtered items based on active tab and column filters
     private List<LeaveRequest> FilteredLeaves
     {
         get
@@ -278,67 +1471,535 @@
 
             var q = leaves.AsEnumerable();
 
-            if (filterStatus == "PENDING")
+            // 1. Separate logic for the two tabs:
+            if (activeTab == "approve")
             {
-                q = q.Where(l => l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED");
+                // Tab 1 (Approve Leave): shows pending leaves
+                q = q.Where(l => l.Leave_Status == "PENDING" || 
+                                (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && 
+                                 l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED" && 
+                                 l.Leave_Status != "CANCEL" && l.Leave_Status != "CANCELLED"));
             }
-            else if (filterStatus == "APPROVE")
+            else
             {
+                // Tab 2 (Cancel Approved Leave): shows already approved leaves (ready to be cancelled)
                 q = q.Where(l => l.Leave_Status == "APPROVE" || l.Leave_Status == "APPROVED");
             }
-            else if (filterStatus == "REJECT")
+
+            // 2. Inline column filters
+            if (!string.IsNullOrWhiteSpace(filterEmpId))
             {
-                q = q.Where(l => l.Leave_Status == "REJECT" || l.Leave_Status == "REJECTED");
+                var term = filterEmpId.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.Emp_ID?.ToLowerInvariant().Contains(term) ?? false));
             }
 
-            if (!string.IsNullOrWhiteSpace(searchQuery))
+            if (!string.IsNullOrWhiteSpace(filterName))
             {
-                var term = searchQuery.Trim().ToLower();
-                q = q.Where(l => (l.EmpName?.ToLower().Contains(term) ?? false) ||
-                                 (l.Emp_ID?.ToLower().Contains(term) ?? false) ||
-                                 (l.LeaveNo?.ToLower().Contains(term) ?? false) ||
-                                 (l.Leave_Reason?.ToLower().Contains(term) ?? false));
+                var term = filterName.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.EmpName?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterDateFrom))
+            {
+                var term = filterDateFrom.Trim();
+                q = q.Where(l => l.Leave_Date_From.ToString("yyyy-MM-dd").Contains(term));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterDateTo))
+            {
+                var term = filterDateTo.Trim();
+                q = q.Where(l => l.Leave_Date_To.ToString("yyyy-MM-dd").Contains(term));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterLeaveId))
+            {
+                var term = filterLeaveId.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.Leave_Type?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterDays))
+            {
+                var term = filterDays.Trim();
+                q = q.Where(l => l.TotalDays.ToString().Contains(term));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterTimeIn))
+            {
+                var term = filterTimeIn.Trim();
+                q = q.Where(l => (l.TimeIn?.Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterS1))
+            {
+                var term = filterS1.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.s1?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterTimeOut))
+            {
+                var term = filterTimeOut.Trim();
+                q = q.Where(l => (l.TimeOut?.Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterS2))
+            {
+                var term = filterS2.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.s2?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterStatusCol))
+            {
+                var term = filterStatusCol.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.Leave_Status?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterDept))
+            {
+                var term = filterDept.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.Dept?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterSection))
+            {
+                var term = filterSection.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.Section?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterShiftGrp))
+            {
+                var term = filterShiftGrp.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.ShiftGrp?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterType))
+            {
+                var term = filterType.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.Type?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterLeaveName))
+            {
+                var term = filterLeaveName.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.LeaveName?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterReason))
+            {
+                var term = filterReason.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.Leave_Reason?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterSuperId))
+            {
+                var term = filterSuperId.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.SuperName?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterCreatedDate))
+            {
+                var term = filterCreatedDate.Trim();
+                q = q.Where(l => l.CreateDate.HasValue && l.CreateDate.Value.ToString("yyyy-MM-dd").Contains(term));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterApp1))
+            {
+                var term = filterApp1.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.App1?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterApp1Pass))
+            {
+                var term = filterApp1Pass.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.App1Pass?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterApp2))
+            {
+                var term = filterApp2.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.App2?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterApp2Pass))
+            {
+                var term = filterApp2Pass.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.App2Pass?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterApp3))
+            {
+                var term = filterApp3.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.App3?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterApp3Pass))
+            {
+                var term = filterApp3Pass.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.App3Pass?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterApp4))
+            {
+                var term = filterApp4.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.App4?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterApp4Pass))
+            {
+                var term = filterApp4Pass.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.App4Pass?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filterRemarks))
+            {
+                var term = filterRemarks.Trim().ToLowerInvariant();
+                q = q.Where(l => (l.Remarks?.ToLowerInvariant().Contains(term) ?? false));
             }
 
             return q.ToList();
         }
     }
 
-    private async Task ProcessApprovalAsync(string leaveNo, string empId, string action)
+    private bool isAllSelected => FilteredLeaves.Any(CanSelect) && FilteredLeaves.Where(CanSelect).All(l => selectedLeaveNos.Contains(l.LeaveNo));
+
+    private void ToggleSelectAll(ChangeEventArgs e)
     {
+        bool select = (bool)(e.Value ?? false);
+        if (select)
+        {
+            foreach (var r in FilteredLeaves.Where(CanSelect))
+            {
+                selectedLeaveNos.Add(r.LeaveNo);
+            }
+        }
+        else
+        {
+            selectedLeaveNos.Clear();
+        }
+    }
+
+    private void ToggleRowSelection(LeaveRequest r)
+    {
+        if (!CanSelect(r)) return;
+        if (selectedLeaveNos.Contains(r.LeaveNo))
+            selectedLeaveNos.Remove(r.LeaveNo);
+        else
+            selectedLeaveNos.Add(r.LeaveNo);
+    }
+
+    private void OnCheckboxChanged(string leaveNo, ChangeEventArgs e)
+    {
+        var r = FilteredLeaves.FirstOrDefault(x => x.LeaveNo == leaveNo);
+        if (r != null && !CanSelect(r)) return;
+        bool val = (bool)(e.Value ?? false);
+        if (val)
+            selectedLeaveNos.Add(leaveNo);
+        else
+            selectedLeaveNos.Remove(leaveNo);
+    }
+
+    private void ShowSelectedDetail()
+    {
+        if (selectedLeaveNos.Count == 1)
+        {
+            var no = selectedLeaveNos.First();
+            var target = leaves?.FirstOrDefault(l => l.LeaveNo == no);
+            if (target != null)
+            {
+                OpenDetailModal(target);
+            }
+        }
+    }
+
+    private void OpenDetailModal(LeaveRequest item)
+    {
+        detailModalRecord = item;
+    }
+
+    // Action 1: Batch Approve
+    private async Task ApproveSelectedAsync()
+    {
+        if (selectedLeaveNos.Count == 0) return;
+
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to APPROVE {selectedLeaveNos.Count} selected leave application(s)?");
+        if (!confirmed) return;
+
         isProcessing = true;
+        statusMessage = null;
         try
         {
-            var model = new ApproveActionModel
+            var supervisorId = ApiClient.CurrentUser?.ID ?? "admin";
+            var targetItems = leaves?.Where(l => selectedLeaveNos.Contains(l.LeaveNo)).ToList() ?? new();
+            var batchModels = targetItems.Select(item => new ApproveActionModel
             {
-                LeaveNo = leaveNo,
-                EmpId = empId,
-                Action = action,
-                Remarks = $"Actioned via HRsuite Leave Supervisor ({action})",
-                SupervisorId = "Admin"
-            };
+                LeaveNo = item.LeaveNo,
+                EmpId = item.Emp_ID,
+                Action = "APPROVE",
+                Remarks = "Approved via Supervisor Approval Batch",
+                SupervisorId = supervisorId
+            }).ToList();
 
-            bool ok = await ApiClient.ApproveLeaveAsync(model);
+            bool ok = await ApiClient.ApproveBatchLeavesAsync(batchModels);
             if (ok)
             {
-                statusMessage = $"Leave #{leaveNo} for employee [{empId}] was successfully {action}D!";
+                statusMessage = $"Successfully approved {batchModels.Count} leave request(s)!";
                 isSuccess = true;
+                selectedLeaveNos.Clear();
                 await LoadDataAsync();
             }
             else
             {
-                statusMessage = $"Failed to {action} leave #{leaveNo} via Web API.";
+                statusMessage = "Failed to approve selected leaves via Web API.";
                 isSuccess = false;
             }
         }
         catch (Exception ex)
         {
-            statusMessage = $"Exception processing approval: {ex.Message}";
+            statusMessage = $"Exception approving leaves: {ex.Message}";
             isSuccess = false;
         }
         finally
         {
             isProcessing = false;
         }
+    }
+
+    // Action 2: Batch UnApprove (Reject)
+    private async Task UnApproveSelectedAsync()
+    {
+        if (selectedLeaveNos.Count == 0) return;
+
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to REJECT / UNAPPROVE {selectedLeaveNos.Count} selected leave application(s)?");
+        if (!confirmed) return;
+
+        isProcessing = true;
+        statusMessage = null;
+        try
+        {
+            var supervisorId = ApiClient.CurrentUser?.ID ?? "admin";
+            var targetItems = leaves?.Where(l => selectedLeaveNos.Contains(l.LeaveNo)).ToList() ?? new();
+            var batchModels = targetItems.Select(item => new ApproveActionModel
+            {
+                LeaveNo = item.LeaveNo,
+                EmpId = item.Emp_ID,
+                Action = "REJECT",
+                Remarks = "Rejected / Unapproved via Supervisor Approval Batch",
+                SupervisorId = supervisorId
+            }).ToList();
+
+            bool ok = await ApiClient.ApproveBatchLeavesAsync(batchModels);
+            if (ok)
+            {
+                statusMessage = $"Successfully unapproved/rejected {batchModels.Count} leave request(s)!";
+                isSuccess = true;
+                selectedLeaveNos.Clear();
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = "Failed to reject selected leaves via Web API.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Exception unapproving leaves: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // Action 3: Batch Cancel Approved Leave
+    private async Task CancelSelectedApprovedAsync()
+    {
+        if (selectedLeaveNos.Count == 0) return;
+
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to CANCEL the {selectedLeaveNos.Count} selected approved leave request(s)? This will return the leave days to employee balance.\n\n(Remarks : Approve Leave not allow cancel if Leave date over today date, and cancel leave only for leave no more than 1 days )");
+        if (!confirmed) return;
+
+        isProcessing = true;
+        statusMessage = null;
+        try
+        {
+            var supervisorId = ApiClient.CurrentUser?.ID ?? "admin";
+            var targetItems = leaves?.Where(l => selectedLeaveNos.Contains(l.LeaveNo)).ToList() ?? new();
+
+            // Validate 1 day rule for cancel
+            if (!isSuperAdmin && targetItems.Any(l => l.TotalDays > 1.0m))
+            {
+                statusMessage = "Cannot cancel: Cancel leave is only allowed for leave of no more than 1 day.";
+                isSuccess = false;
+                return;
+            }
+            var batchModels = targetItems.Select(item => new ApproveActionModel
+            {
+                LeaveNo = item.LeaveNo,
+                EmpId = item.Emp_ID,
+                Action = "CANCEL",
+                Remarks = "Cancelled via Supervisor Cancel Approved Leave Module",
+                SupervisorId = supervisorId
+            }).ToList();
+
+            bool ok = await ApiClient.ApproveBatchLeavesAsync(batchModels);
+            if (ok)
+            {
+                statusMessage = $"Successfully cancelled {batchModels.Count} approved leave request(s)! Balance has been refunded.";
+                isSuccess = true;
+                selectedLeaveNos.Clear();
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = "Failed to cancel selected approved leaves via Web API.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Exception cancelling leaves: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // Action 4: Single Action from Modal
+    private async Task ProcessSingleActionAsync(LeaveRequest item, string action)
+    {
+        isProcessing = true;
+        try
+        {
+            if (action == "CANCEL" && !isSuperAdmin && item.TotalDays > 1.0m)
+            {
+                statusMessage = $"Cannot cancel leave #{item.LeaveNo}: Cancel leave is only allowed for leave no more than 1 day ({item.TotalDays} days applied).";
+                isSuccess = false;
+                return;
+            }
+
+            var supervisorId = ApiClient.CurrentUser?.ID ?? "admin";
+            var model = new ApproveActionModel
+            {
+                LeaveNo = item.LeaveNo,
+                EmpId = item.Emp_ID,
+                Action = action,
+                Remarks = $"Processed via Leave Supervisor Modal ({action})",
+                SupervisorId = supervisorId
+            };
+
+            bool ok = await ApiClient.ApproveLeaveAsync(model);
+            if (ok)
+            {
+                statusMessage = $"Leave #{item.LeaveNo} for employee [{item.Emp_ID}] was successfully {(action == "APPROVE" ? "APPROVED" : action == "CANCEL" ? "CANCELLED" : "REJECTED")}!";
+                isSuccess = true;
+                detailModalRecord = null;
+                selectedLeaveNos.Remove(item.LeaveNo);
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = $"Failed to {action} leave #{item.LeaveNo}.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // Export Excel (CSV)
+    private async Task ExportToCsv(bool xlsx)
+    {
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("No,ID,NAME,Date From,Date To,Leave ID,Leave Day,Time In,s1,Time Out,s2,Status,Dept,Section,Shift Grp,Type,Leave,Reason,Super ID,Created Date,App1,1Pass,App2,2Pass,App3,3Pass,App4,4Pass,Remarks");
+            int idx = 1;
+            foreach (var r in FilteredLeaves)
+            {
+                sb.AppendLine($"{idx},\"{r.Emp_ID}\",\"{r.EmpName}\",{r.Leave_Date_From:yyyy-MM-dd},{r.Leave_Date_To:yyyy-MM-dd},\"{r.Leave_Type}\",{r.TotalDays},\"{r.TimeIn}\",\"{r.s1}\",\"{r.TimeOut}\",\"{r.s2}\",\"{r.Leave_Status}\",\"{r.Dept}\",\"{r.Section}\",\"{r.ShiftGrp}\",\"{r.Type}\",\"{r.LeaveName}\",\"{r.Leave_Reason}\",\"{r.SuperName}\",\"{(r.CreateDate.HasValue ? r.CreateDate.Value.ToString("yyyy-MM-dd") : "")}\",\"{r.App1}\",\"{r.App1Pass}\",\"{r.App2}\",\"{r.App2Pass}\",\"{r.App3}\",\"{r.App3Pass}\",\"{r.App4}\",\"{r.App4Pass}\",\"{r.Remarks}\"");
+                idx++;
+            }
+
+            var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+            var base64 = Convert.ToBase64String(bytes);
+            string filename = activeTab == "approve" 
+                ? (xlsx ? "ApproveLeaveList.xlsx" : "ApproveLeaveList.xls") 
+                : (xlsx ? "CancelApprovedLeaveList.xlsx" : "CancelApprovedLeaveList.xls");
+
+            await JS.InvokeVoidAsync("eval", $@"
+                var a = document.createElement('a');
+                a.href = 'data:text/csv;charset=utf-8;base64,{base64}';
+                a.download = '{filename}';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            ");
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Export error: {ex.Message}";
+            isSuccess = false;
+        }
+    }
+
+    // Export PDF
+    private async Task ExportToPdf()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("window.print");
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Print error: {ex.Message}";
+            isSuccess = false;
+        }
+    }
+
+    // Helper methods for mobile cards view (matching UserManage.razor style)
+    private string GetStatusClass(string? status)
+    {
+        return (status?.ToUpperInvariant()) switch
+        {
+            "APPROVE" or "APPROVED" => "status-approved",
+            "REJECT" or "REJECTED" => "status-rejected",
+            "CANCEL" or "CANCELLED" => "status-cancelled",
+            _ => "status-pending"
+        };
+    }
+
+    private string GetStatusText(string? status)
+    {
+        return (status?.ToUpperInvariant()) switch
+        {
+            "APPROVE" or "APPROVED" => "Approved",
+            "REJECT" or "REJECTED" => "Rejected",
+            "CANCEL" or "CANCELLED" => "Cancelled",
+            _ => "Pending"
+        };
+    }
+
+    private string GetLeaveTypeBadgeClass(string? type)
+    {
+        return (type?.ToUpperInvariant()) switch
+        {
+            "AL" => "bg-primary text-white",
+            "MC" or "SL" => "bg-danger text-white",
+            "EL" => "bg-warning text-dark",
+            "UL" => "bg-secondary text-white",
+            "CL" => "bg-info text-dark",
+            "HL" => "bg-success text-white",
+            _ => "bg-dark text-white"
+        };
     }
 }

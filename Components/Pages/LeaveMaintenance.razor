@@ -70,20 +70,35 @@
                 </span>
             </div>
 
-            <!-- In-page Search Box -->
-            <div class="input-group input-group-sm" style="max-width: 320px;">
-                <span class="input-group-text bg-light border-end-0 text-muted">
-                    <i class="bi bi-search"></i>
-                </span>
-                <input type="text" class="form-control border-start-0 bg-light extra-small" 
-                       placeholder="Search Leave ID, Description..." 
-                       @bind="searchQuery" @bind:event="oninput" />
-                @if (!string.IsNullOrWhiteSpace(searchQuery))
-                {
-                    <button class="btn btn-light border border-start-0 text-muted" type="button" @onclick='() => searchQuery = ""'>
-                        <i class="bi bi-x-circle-fill"></i>
+            <!-- In-page Search Box & View Switcher -->
+            <div class="d-flex align-items-center gap-2">
+                <div class="input-group input-group-sm" style="max-width: 260px;">
+                    <span class="input-group-text bg-light border-end-0 text-muted">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0 bg-light extra-small" 
+                           placeholder="Search Leave ID, Description..." 
+                           @bind="searchQuery" @bind:event="oninput" />
+                    @if (!string.IsNullOrWhiteSpace(searchQuery))
+                    {
+                        <button class="btn btn-light border border-start-0 text-muted" type="button" @onclick='() => searchQuery = ""'>
+                            <i class="bi bi-x-circle-fill"></i>
+                        </button>
+                    }
+                </div>
+
+                <!-- View Switcher (Auto / Grid / Cards) -->
+                <div class="btn-group btn-group-sm shadow-sm" role="group">
+                    <button type="button" class="btn btn-sm @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary")" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Cards on Mobile, Grid on Desktop)">
+                        <i class="bi bi-phone"></i>
                     </button>
-                }
+                    <button type="button" class="btn btn-sm @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary")" @onclick='() => viewMode = "table"' title="Grid Table View">
+                        <i class="bi bi-table"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary")" @onclick='() => viewMode = "cards"' title="Cards View">
+                        <i class="bi bi-grid-fill"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -106,10 +121,13 @@
     }
     else
     {
-        <!-- Main Data Grid Table with Two-Tier Headers -->
-        <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white">
-            <div class="table-responsive" style="max-height: 680px;">
-                <table class="table table-hover table-bordered table-sm mb-0 extra-small align-middle text-nowrap matrix-table">
+        <!-- Main Data Grid Table with Two-Tier Headers (Desktop / Wide screen) -->
+        @if (viewMode == "table" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mb-3">
+                    <div class="table-responsive" style="max-height: 680px;">
+                        <table class="table table-hover table-bordered table-sm mb-0 extra-small align-middle text-nowrap matrix-table">
                     <!-- Two-Tier Header -->
                     <thead class="sticky-top">
                         <!-- Top Header Row -->
@@ -351,7 +369,110 @@
                     Total: <strong>@FilteredRows.Count()</strong> item(s) displayed
                 </span>
             </div>
-        </div>
+            </div>
+            </div>
+        }
+
+        <!-- ANDROID 手机端（自适应为卡片，告别左右滑动） -->
+        @if (viewMode == "cards" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") mb-4">
+                <div class="row g-2">
+                    @foreach (var row in FilteredRows)
+                    {
+                        <div class="col-12 col-sm-6">
+                            <div class="card border rounded-3 p-3 shadow-sm item-card-item bg-white" @onclick="() => OpenEditModal(row)" style="cursor: pointer;">
+                                <!-- Top Line: [LEAVE_ID] Description  |  [Active/Inactive] [Edit] -->
+                                <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                    <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                        <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@row.Leave_ID]</span>
+                                        <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.92rem;" title="@row.Description">@row.Description</span>
+                                    </div>
+                                    <div class="flex-shrink-0 d-flex align-items-center gap-1">
+                                        @if (row.Display == "Y")
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle py-0.5 px-1.5" style="font-size: 0.7rem;">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-muted border py-0.5 px-1.5" style="font-size: 0.7rem;">Inactive</span>
+                                        }
+                                        <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold ms-1" @onclick="() => OpenEditModal(row)" @onclick:stopPropagation="true">
+                                            Edit
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Line 2: Group ID & Bal Count -->
+                                <div class="d-flex align-items-center justify-content-between small text-muted mb-1.5">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-people-fill text-secondary me-1.5"></i>
+                                        <span class="text-secondary fw-semibold">Group:</span>
+                                        <span class="text-dark font-monospace fw-bold ms-1">@row.UserGroupID</span>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="text-secondary fw-semibold extra-small">Bal Count:</span>
+                                        @if (row.BalCount == "Y")
+                                        {
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-0.5 px-1.5" style="font-size: 0.68rem;">YES</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-muted border py-0.5 px-1.5" style="font-size: 0.68rem;">NO</span>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Line 3: Policy Attributes Chips -->
+                                <div class="d-flex align-items-center flex-wrap gap-1 mb-2 pt-1 border-top">
+                                    @if (!string.IsNullOrWhiteSpace(row.IndirectLeaveID))
+                                    {
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size: 0.68rem;">
+                                            Indirect: @row.IndirectLeaveID
+                                        </span>
+                                    }
+                                    @if (row.LeaveFirstYearNotAllow == "Y")
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.68rem;">
+                                            1st Yr Block
+                                        </span>
+                                    }
+                                    @if (row.StopHalfDay == "Y")
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary border" style="font-size: 0.68rem;">
+                                            Stop ½ Day
+                                        </span>
+                                    }
+                                    @if (row.CompulsoryAttach == "Y")
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.68rem;">
+                                            <i class="bi bi-paperclip"></i> File Req
+                                        </span>
+                                    }
+                                    @if (row.SpecialApproval == "Y")
+                                    {
+                                        <span class="badge bg-primary text-white" style="font-size: 0.68rem;">
+                                            Special App (@row.AppNo Lvls)
+                                        </span>
+                                    }
+                                </div>
+
+                                <!-- Line 4: Special Approval Approvers (if applicable) -->
+                                @if (row.SpecialApproval == "Y")
+                                {
+                                    <div class="bg-light p-1.5 rounded small text-muted mb-1" style="font-size: 0.72rem;">
+                                        <span class="fw-semibold text-secondary">Approvers:</span> 
+                                        <span class="text-dark">@(string.IsNullOrEmpty(row.App1) ? "-" : row.App1)</span> / 
+                                        <span class="text-dark">@(string.IsNullOrEmpty(row.App2) ? "-" : row.App2)</span> / 
+                                        <span class="text-dark">@(string.IsNullOrEmpty(row.App3) ? "-" : row.App3)</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
     }
 </div>
 
@@ -685,6 +806,7 @@
     private string? statusMessage;
     private bool isSuccess = true;
     private string searchQuery = string.Empty;
+    private string viewMode = "auto"; // "auto", "table", "cards"
 
     private string selectedGroupId = "Admin";
     private List<LeaveUserGroupOption> userGroups = new();
@@ -1054,5 +1176,18 @@
         opacity: 1;
         visibility: visible;
         transform: translateX(0);
+    }
+
+    /* Mobile Card Styles (Responsive Table-to-Card Pattern) */
+    .item-card-item {
+        border-color: #cbd5e1 !important;
+        background-color: #ffffff;
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.15s ease;
+    }
+
+    .item-card-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
     }
 </style>

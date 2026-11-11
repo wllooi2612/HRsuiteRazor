@@ -44,8 +44,21 @@
                 <i class="bi bi-lightning-charge"></i>
                 <span>Test</span>
             </button>
+            <!-- 3-Mode View Switcher -->
+            <div class="btn-group btn-group-sm shadow-sm" role="group">
+                <button type="button" class="btn btn-sm @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary") py-1 px-2" style="height: 28px;" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Phone = Cards, Desktop = Table)">
+                    <i class="bi bi-phone"></i>
+                </button>
+                <button type="button" class="btn btn-sm @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary") py-1 px-2" style="height: 28px;" @onclick='() => viewMode = "table"' title="Grid Table View">
+                    <i class="bi bi-table"></i>
+                </button>
+                <button type="button" class="btn btn-sm @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary") py-1 px-2" style="height: 28px;" @onclick='() => viewMode = "cards"' title="Cards View">
+                    <i class="bi bi-grid-fill"></i>
+                </button>
+            </div>
+
             <button type="button" class="btn btn-outline-secondary btn-sm extra-small px-3 d-inline-flex align-items-center gap-1 shadow-sm" 
-                    @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh List">
+                    @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh List" style="height: 28px;">
                 <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
                 <span>Refresh</span>
             </button>
@@ -66,145 +79,228 @@
     <!-- Main Card Box -->
     <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white">
         <!-- Table Container -->
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 custom-rules-table">
-                <thead>
-                    <tr class="table-light-header">
-                        <th style="width: 45px;" class="text-center">#</th>
-                        <th style="width: 105px;" class="text-center">
-                            <div class="d-flex align-items-center justify-content-center gap-2">
-                                <span>Action</span>
-                                <input type="checkbox" class="form-check-input mt-0 cursor-pointer" 
-                                       title="Select / Deselect All"
-                                       checked="@IsAllSelected" 
-                                       @onchange="ToggleSelectAll" />
-                            </div>
-                        </th>
-                        <th style="width: 90px;">
-                            <div class="d-flex flex-column gap-1">
-                                <span>Rule ID</span>
-                                <input type="text" class="form-control form-control-sm table-filter-input" 
-                                       placeholder="Filter..." 
-                                       @bind="filterRuleId" 
-                                       @bind:event="oninput" />
-                            </div>
-                        </th>
-                        <th style="min-width: 280px;">
-                            <div class="d-flex flex-column gap-1">
-                                <span>Condition</span>
-                                <input type="text" class="form-control form-control-sm table-filter-input" 
-                                       placeholder="Filter condition..." 
-                                       @bind="filterCondition" 
-                                       @bind:event="oninput" />
-                            </div>
-                        </th>
-                        <th style="width: 75px;" class="text-center">Action</th>
-                        <th style="min-width: 250px;">explain</th>
-                        <th style="min-width: 220px;">Route ID</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (isLoading)
-                    {
-                        <tr>
-                            <td colspan="7" class="text-center py-5">
-                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                                <span class="text-muted extra-small">Loading leave document rules...</span>
-                            </td>
-                        </tr>
-                    }
-                    else if (!FilteredRules.Any())
-                    {
-                        <tr>
-                            <td colspan="7" class="text-center py-5 text-muted extra-small">
-                                <i class="bi bi-inbox fs-3 d-block mb-1 text-secondary"></i>
-                                No leave document rules found matching your criteria.
-                            </td>
-                        </tr>
-                    }
-                    else
-                    {
-                        int seq = 1;
-                        foreach (var rule in FilteredRules)
+        @if (viewMode == "table" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 custom-rules-table">
+                        <thead>
+                            <tr class="table-light-header">
+                                <th style="width: 45px;" class="text-center">#</th>
+                                <th style="width: 105px;" class="text-center">
+                                    <div class="d-flex align-items-center justify-content-center gap-2">
+                                        <span>Action</span>
+                                        <input type="checkbox" class="form-check-input mt-0 cursor-pointer" 
+                                               title="Select / Deselect All"
+                                               checked="@IsAllSelected" 
+                                               @onchange="ToggleSelectAll" />
+                                    </div>
+                                </th>
+                                <th style="width: 90px;">
+                                    <div class="d-flex flex-column gap-1">
+                                        <span>Rule ID</span>
+                                        <input type="text" class="form-control form-control-sm table-filter-input" 
+                                               placeholder="Filter..." 
+                                               @bind="filterRuleId" 
+                                               @bind:event="oninput" />
+                                    </div>
+                                </th>
+                                <th style="min-width: 280px;">
+                                    <div class="d-flex flex-column gap-1">
+                                        <span>Condition</span>
+                                        <input type="text" class="form-control form-control-sm table-filter-input" 
+                                               placeholder="Filter condition..." 
+                                               @bind="filterCondition" 
+                                               @bind:event="oninput" />
+                                    </div>
+                                </th>
+                                <th style="width: 75px;" class="text-center">Action</th>
+                                <th style="min-width: 250px;">explain</th>
+                                <th style="min-width: 220px;">Route ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (isLoading)
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center py-5">
+                                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                        <span class="text-muted extra-small">Loading leave document rules...</span>
+                                    </td>
+                                </tr>
+                            }
+                            else if (!FilteredRules.Any())
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center py-5 text-muted extra-small">
+                                        <i class="bi bi-inbox fs-3 d-block mb-1 text-secondary"></i>
+                                        No leave document rules found matching your criteria.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                int seq = 1;
+                                foreach (var rule in FilteredRules)
+                                {
+                                    var isSelected = selectedRuleIds.Contains(rule.RuleID);
+                                    <tr class="@(isSelected ? "row-selected" : "")">
+                                        <!-- # Sequence -->
+                                        <td class="text-center text-muted extra-small fw-semibold">
+                                            @seq
+                                        </td>
+
+                                        <!-- Edit & Checkbox -->
+                                        <td class="text-center">
+                                            <div class="d-flex align-items-center justify-content-center gap-2">
+                                                <button type="button" class="btn btn-outline-primary btn-sm py-0.5 px-2 extra-small fw-semibold d-inline-flex align-items-center gap-1"
+                                                        @onclick="() => OpenEditModal(rule)">
+                                                    <i class="bi bi-pencil-square"></i>
+                                                    <span>Edit</span>
+                                                </button>
+                                                <input type="checkbox" class="form-check-input mt-0 cursor-pointer"
+                                                       checked="@isSelected"
+                                                       @onchange="(e) => ToggleRuleSelection(rule.RuleID, (bool)e.Value!)" />
+                                            </div>
+                                        </td>
+
+                                        <!-- Rule ID -->
+                                        <td class="fw-bold extra-small text-dark">
+                                            <span class="badge bg-light text-dark border">@rule.RuleID</span>
+                                        </td>
+
+                                        <!-- Condition -->
+                                        <td>
+                                            <code class="condition-code">@rule.Condition</code>
+                                        </td>
+
+                                        <!-- Action (Y / N) -->
+                                        <td class="text-center">
+                                            @if (rule.Action == "Y")
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success extra-small px-2 py-0.5">Y</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger extra-small px-2 py-0.5">N</span>
+                                            }
+                                        </td>
+
+                                        <!-- explain -->
+                                        <td class="extra-small text-dark">
+                                            @if (!string.IsNullOrWhiteSpace(rule.Explain))
+                                            {
+                                                <span>@rule.Explain</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted fst-italic">-- none --</span>
+                                            }
+                                        </td>
+
+                                        <!-- Route ID -->
+                                        <td class="extra-small">
+                                            @if (!string.IsNullOrWhiteSpace(rule.RouteID))
+                                            {
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    @foreach (var r in rule.RouteID.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                                    {
+                                                        <span class="badge bg-light text-secondary border extra-small font-monospace">@r</span>
+                                                    }
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted fst-italic">-- All / None --</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                    seq++;
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        <!-- Mobile Cards Container -->
+        @if (viewMode == "cards" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") p-2">
+                @if (isLoading)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                        <span class="text-muted extra-small">Loading leave document rules...</span>
+                    </div>
+                }
+                else if (!FilteredRules.Any())
+                {
+                    <div class="text-center py-4 text-muted extra-small">
+                        <i class="bi bi-inbox fs-3 d-block mb-1 text-secondary"></i>
+                        No leave document rules found matching your criteria.
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-2">
+                        @foreach (var rule in FilteredRules)
                         {
                             var isSelected = selectedRuleIds.Contains(rule.RuleID);
-                            <tr class="@(isSelected ? "row-selected" : "")">
-                                <!-- # Sequence -->
-                                <td class="text-center text-muted extra-small fw-semibold">
-                                    @seq
-                                </td>
-
-                                <!-- Edit & Checkbox -->
-                                <td class="text-center">
-                                    <div class="d-flex align-items-center justify-content-center gap-2">
-                                        <button type="button" class="btn btn-outline-primary btn-sm py-0.5 px-2 extra-small fw-semibold d-inline-flex align-items-center gap-1"
-                                                @onclick="() => OpenEditModal(rule)">
-                                            <i class="bi bi-pencil-square"></i>
-                                            <span>Edit</span>
-                                        </button>
-                                        <input type="checkbox" class="form-check-input mt-0 cursor-pointer"
-                                               checked="@isSelected"
-                                               @onchange="(e) => ToggleRuleSelection(rule.RuleID, (bool)e.Value!)" />
+                            <div class="col-12 col-sm-6">
+                                <div class="card border rounded-3 p-3 shadow-sm item-card-item bg-white @(isSelected ? "border-primary" : "")">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <input type="checkbox" class="form-check-input mt-0 cursor-pointer"
+                                                   checked="@isSelected"
+                                                   @onchange="(e) => ToggleRuleSelection(rule.RuleID, (bool)e.Value!)" />
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold">
+                                                Rule @rule.RuleID
+                                            </span>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            @if (rule.Action == "Y")
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success extra-small">Action: Y (Allow)</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger extra-small">Action: N (Block)</span>
+                                            }
+                                            <button type="button" class="btn btn-outline-primary btn-sm py-0.5 px-2 extra-small fw-semibold"
+                                                    @onclick="() => OpenEditModal(rule)">
+                                                <i class="bi bi-pencil-square me-1"></i>Edit
+                                            </button>
+                                        </div>
                                     </div>
-                                </td>
-
-                                <!-- Rule ID -->
-                                <td class="fw-bold extra-small text-dark">
-                                    <span class="badge bg-light text-dark border">@rule.RuleID</span>
-                                </td>
-
-                                <!-- Condition -->
-                                <td>
-                                    <code class="condition-code">@rule.Condition</code>
-                                </td>
-
-                                <!-- Action (Y / N) -->
-                                <td class="text-center">
-                                    @if (rule.Action == "Y")
-                                    {
-                                        <span class="badge bg-success-subtle text-success border border-success extra-small px-2 py-0.5">Y</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-danger-subtle text-danger border border-danger extra-small px-2 py-0.5">N</span>
-                                    }
-                                </td>
-
-                                <!-- explain -->
-                                <td class="extra-small text-dark">
+                                    <div class="extra-small mb-1">
+                                        <strong class="text-muted d-block">Condition:</strong>
+                                        <code class="condition-code d-block mt-0.5 text-wrap">@rule.Condition</code>
+                                    </div>
                                     @if (!string.IsNullOrWhiteSpace(rule.Explain))
                                     {
-                                        <span>@rule.Explain</span>
+                                        <div class="extra-small text-muted mb-1">
+                                            <i class="bi bi-chat-left-text me-1"></i>@rule.Explain
+                                        </div>
                                     }
-                                    else
-                                    {
-                                        <span class="text-muted fst-italic">-- none --</span>
-                                    }
-                                </td>
-
-                                <!-- Route ID -->
-                                <td class="extra-small">
                                     @if (!string.IsNullOrWhiteSpace(rule.RouteID))
                                     {
-                                        <div class="d-flex flex-wrap gap-1">
+                                        <div class="extra-small mt-1 d-flex align-items-center gap-1 flex-wrap">
+                                            <span class="text-muted">Route:</span>
                                             @foreach (var r in rule.RouteID.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                                             {
                                                 <span class="badge bg-light text-secondary border extra-small font-monospace">@r</span>
                                             }
                                         </div>
                                     }
-                                    else
-                                    {
-                                        <span class="text-muted fst-italic">-- All / None --</span>
-                                    }
-                                </td>
-                            </tr>
-                            seq++;
+                                </div>
+                            </div>
                         }
-                    }
-                </tbody>
-            </table>
-        </div>
+                    </div>
+                }
+            </div>
+        }
 
         <!-- Card Footer -->
         <div class="card-footer bg-light border-top py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -614,6 +710,17 @@
         background-color: #fff7ed !important;
     }
 
+    .item-card-item {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease-in-out;
+    }
+    .item-card-item:hover {
+        border-color: #94a3b8;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        transform: translateY(-1px);
+    }
+
     .spin {
         animation: spin 1s linear infinite;
     }
@@ -626,6 +733,7 @@
 </style>
 
 @code {
+    private string viewMode = "auto";
     private bool isLoading = true;
     private bool isSaving = false;
     private bool isDeleting = false;

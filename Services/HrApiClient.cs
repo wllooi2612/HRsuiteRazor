@@ -19,6 +19,81 @@ public class HrApiClient
     }
 
     // -------------------------------------------------------------
+    // Authentication & User Session Management
+    // -------------------------------------------------------------
+
+    private static User? _currentUser = new User
+    {
+        ID = "Admin",
+        Name = "Admin",
+        Email = "weichin@bca.com.my",
+        IsActive = "Y",
+        LeaveUserGroupID = "LV ADMIN",
+        UserGroupID = "ADMIN",
+        SuperAdminLeave = "Y"
+    };
+
+    public User? CurrentUser
+    {
+        get => _currentUser;
+        private set => _currentUser = value;
+    }
+
+    public bool IsLoggedIn => CurrentUser != null;
+    public event Action? OnAuthStateChanged;
+
+    public async Task<(bool success, string message, User? user)> LoginAsync(string username, string password)
+    {
+        try
+        {
+            var req = new { Username = (username ?? "").Trim(), Password = password ?? "" };
+            var res = await _http.PostAsJsonAsync("api/Auth/login", req);
+            if (res.IsSuccessStatusCode)
+            {
+                var user = await res.Content.ReadFromJsonAsync<User>();
+                if (user != null)
+                {
+                    _currentUser = user;
+                    OnAuthStateChanged?.Invoke();
+                    return (true, "Login successful", user);
+                }
+            }
+            else
+            {
+                string msg = "Invalid username or password.";
+                try
+                {
+                    var errObj = await res.Content.ReadFromJsonAsync<JsonElement>();
+                    if (errObj.TryGetProperty("message", out var p))
+                    {
+                        msg = p.GetString() ?? msg;
+                    }
+                }
+                catch { }
+                return (false, msg, null);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to login via Web API");
+            return (false, $"Connection error: {ex.Message}", null);
+        }
+        return (false, "Invalid username or password.", null);
+    }
+
+    public void Logout()
+    {
+        _currentUser = null;
+        OnAuthStateChanged?.Invoke();
+    }
+
+    public void SetCurrentUser(User user)
+    {
+        _currentUser = user;
+        OnAuthStateChanged?.Invoke();
+    }
+
+    // -------------------------------------------------------------
     // Database Diagnostics & Schema Inspection
     // -------------------------------------------------------------
 
@@ -168,6 +243,35 @@ public class HrApiClient
         }
     }
 
+    public async Task<List<LeaveRequest>> GetSupervisorApprovalLeavesAsync(
+        string status = "PENDING",
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null,
+        string atype = "Y",
+        string? supervisorId = null)
+    {
+        try
+        {
+            var query = new List<string>
+            {
+                $"status={Uri.EscapeDataString(status)}",
+                $"atype={Uri.EscapeDataString(atype)}"
+            };
+            if (dateFrom.HasValue) query.Add($"dateFrom={dateFrom.Value:yyyy-MM-dd}");
+            if (dateTo.HasValue) query.Add($"dateTo={dateTo.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrEmpty(supervisorId)) query.Add($"supervisorId={Uri.EscapeDataString(supervisorId)}");
+
+            string url = $"api/Leave/supervisor-approval?{string.Join("&", query)}";
+            var items = await _http.GetFromJsonAsync<List<LeaveRequest>>(url);
+            return items ?? new List<LeaveRequest>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch supervisor approval leaves from Web API");
+            return new List<LeaveRequest>();
+        }
+    }
+
     public async Task<List<LeaveType>> GetLeaveTypesAsync(string? userId = null)
     {
         try
@@ -261,6 +365,32 @@ public class HrApiClient
             _logger.LogError(ex, "Failed to approve leave via Web API");
             return false;
         }
+    }
+
+    public async Task<bool> ApproveBatchLeavesAsync(List<ApproveActionModel> models)
+    {
+        try
+        {
+            var res = await _http.PostAsJsonAsync("api/Leave/approve-batch", models);
+            if (res.IsSuccessStatusCode)
+            {
+                NotifyLeaveStatusChanged();
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "api/Leave/approve-batch failed, falling back to individual calls");
+        }
+
+        // Resilient fallback: approve sequentially
+        bool allOk = true;
+        foreach (var m in models)
+        {
+            bool ok = await ApproveLeaveAsync(m);
+            if (!ok) allOk = false;
+        }
+        return allOk;
     }
 
     // -------------------------------------------------------------

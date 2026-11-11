@@ -40,8 +40,21 @@
                 }
             </div>
 
+            <!-- 3-Mode View Switcher -->
+            <div class="btn-group btn-group-sm shadow-sm" role="group">
+                <button type="button" class="btn btn-sm @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary") py-1 px-2" style="height: 28px;" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Phone = Cards, Desktop = Table)">
+                    <i class="bi bi-phone"></i>
+                </button>
+                <button type="button" class="btn btn-sm @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary") py-1 px-2" style="height: 28px;" @onclick='() => viewMode = "table"' title="Grid Table View">
+                    <i class="bi bi-table"></i>
+                </button>
+                <button type="button" class="btn btn-sm @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary") py-1 px-2" style="height: 28px;" @onclick='() => viewMode = "cards"' title="Cards View">
+                    <i class="bi bi-grid-fill"></i>
+                </button>
+            </div>
+
             <button class="btn btn-sm btn-outline-secondary py-1 px-3 extra-small d-flex align-items-center gap-1 shadow-sm" 
-                    @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh List">
+                    @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh List" style="height: 28px;">
                 <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
                 <span>Refresh</span>
             </button>
@@ -77,8 +90,12 @@
             }
             else
             {
-                <div class="table-responsive" style="max-height: 540px; overflow-y: auto;">
-                    <table class="table table-hover table-sm align-middle mb-0 custom-approval-table">
+                <!-- DESKTOP TABLE VIEW -->
+                @if (viewMode == "table" || viewMode == "auto")
+                {
+                    <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                        <div class="table-responsive" style="max-height: 540px; overflow-y: auto;">
+                            <table class="table table-hover table-sm align-middle mb-0 custom-approval-table">
                         <thead class="table-light sticky-top shadow-xs">
                             <tr>
                                 <th class="text-center" style="width: 70px;">Action</th>
@@ -244,7 +261,103 @@
                             }
                         </tbody>
                     </table>
-                </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- ANDROID MOBILE CARDS VIEW (自适应为卡片，告别左右滑动) -->
+                @if (viewMode == "cards" || viewMode == "auto")
+                {
+                    <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") p-2">
+                        <div class="row g-2">
+                            @foreach (var row in FilteredRows)
+                            {
+                                <div class="col-12 col-sm-6">
+                                    <div class="card border rounded-3 p-3 shadow-sm item-card-item bg-white" @onclick="() => OpenEditModal(row)" style="cursor: pointer;">
+                                        <!-- Top Line: [ID] Name  |  [Edit Button] -->
+                                        <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                            <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                                <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@row.ID]</span>
+                                                <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.92rem;">@row.Name</span>
+                                            </div>
+                                            <button class="btn btn-xs btn-outline-primary py-0 px-2 extra-small fw-semibold flex-shrink-0" @onclick="() => OpenEditModal(row)" @onclick:stopPropagation="true">
+                                                <i class="bi bi-pencil-square me-1"></i>Edit
+                                            </button>
+                                        </div>
+
+                                        <!-- Line 2: Group Level Approvers -->
+                                        <div class="mb-1.5 small text-muted">
+                                            <span class="fw-semibold text-secondary extra-small">Group Approvers:</span>
+                                            <div class="d-flex align-items-center flex-wrap gap-1 mt-0.5">
+                                                <span class="badge bg-light text-dark border">1: @(string.IsNullOrEmpty(row.App1) ? "-" : row.App1)</span>
+                                                <span class="badge bg-light text-dark border">2: @(string.IsNullOrEmpty(row.App2) ? "-" : row.App2)</span>
+                                                <span class="badge bg-light text-dark border">3: @(string.IsNullOrEmpty(row.App3) ? "-" : row.App3)</span>
+                                                <span class="badge bg-light text-dark border">4: @(string.IsNullOrEmpty(row.App4) ? "-" : row.App4)</span>
+                                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle extra-small">@row.AppLevelName</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Line 3: Flags (Super Admin, Ind, Email Remind) -->
+                                        <div class="d-flex align-items-center flex-wrap gap-2 pt-1 border-top small text-muted">
+                                            <div>
+                                                <span class="text-secondary extra-small">Super Admin:</span>
+                                                @if (row.SuperAdminLeave == "Y")
+                                                {
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small">YES</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted extra-small">NO</span>
+                                                }
+                                            </div>
+                                            <div>
+                                                <span class="text-secondary extra-small">Ind:</span>
+                                                @if (row.UseIndividual == "Y")
+                                                {
+                                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle extra-small">YES</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted extra-small">NO</span>
+                                                }
+                                            </div>
+                                            <div>
+                                                <span class="text-secondary extra-small">Remind:</span>
+                                                @if (row.LeaveRemindFollowGeneral == "Y")
+                                                {
+                                                    <span class="badge bg-light text-secondary border extra-small">General</span>
+                                                }
+                                                else if (row.LeaveEmailRemind == "Y")
+                                                {
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle extra-small">@row.LeaveRemindTimeIndividual</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted extra-small">Off</span>
+                                                }
+                                            </div>
+                                        </div>
+
+                                        <!-- Line 4: Individual Approvers (if Individual active) -->
+                                        @if (row.UseIndividual == "Y")
+                                        {
+                                            <div class="mt-1.5 pt-1.5 border-top small text-muted">
+                                                <span class="fw-semibold text-warning-emphasis extra-small">Individual Approvers:</span>
+                                                <div class="d-flex align-items-center flex-wrap gap-1 mt-0.5">
+                                                    <span class="badge bg-light text-dark border">1: @(string.IsNullOrEmpty(row.App1_Individual) ? "-" : row.App1_Individual)</span>
+                                                    <span class="badge bg-light text-dark border">2: @(string.IsNullOrEmpty(row.App2_Individual) ? "-" : row.App2_Individual)</span>
+                                                    <span class="badge bg-light text-dark border">3: @(string.IsNullOrEmpty(row.App3_Individual) ? "-" : row.App3_Individual)</span>
+                                                    <span class="badge bg-light text-dark border">4: @(string.IsNullOrEmpty(row.App4_Individual) ? "-" : row.App4_Individual)</span>
+                                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle extra-small">@row.AppLevelName_Individual</span>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
             }
         </div>
         <div class="card-footer bg-light py-2 px-3 border-top d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -578,12 +691,23 @@
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
     }
+    .item-card-item {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease-in-out;
+    }
+    .item-card-item:hover {
+        border-color: #94a3b8;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        transform: translateY(-1px);
+    }
 </style>
 
 @code {
     private List<LeaveApprovalLevelRow> rowsList = new();
     private List<EmployeeLookupModel> usersList = new();
     private string searchText = string.Empty;
+    private string viewMode = "auto";
     private bool isLoading = false;
     private bool isSaving = false;
     private string? statusMessage;

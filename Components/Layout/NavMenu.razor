@@ -51,10 +51,12 @@
 
         <!-- 3. LEAVES (Expandable Tree Node) -->
         <div class="tree-node @(IsParentActive("leaves") ? "active-group" : "")">
-            <button type="button" class="tree-node-header" @onclick="ToggleLeaves" title="Click to minimize or expand Leaves">
-                <i class="bi @(isLeavesExpanded ? "bi-caret-down-fill" : "bi-caret-right-fill") tree-arrow"></i>
-                <span class="tree-title">LEAVES</span>
-            </button>
+            <div class="tree-node-header" @onclick="OnLeavesMotherClick" title="Go to Leave Management Portal">
+                <button type="button" class="tree-arrow-btn" @onclick="ToggleLeaves" @onclick:stopPropagation="true" title="Toggle Leaves">
+                    <i class="bi @(isLeavesExpanded ? "bi-caret-down-fill" : "bi-caret-right-fill") tree-arrow"></i>
+                </button>
+                <span class="tree-title flex-grow-1">LEAVES</span>
+            </div>
 
             <!-- Detailed Leaves Child Nodes -->
             @if (isLeavesExpanded)
@@ -180,6 +182,28 @@
                 <span class="tree-title">OPENAPI SPEC (5145)</span>
             </a>
         </div>
+
+        <!-- 8. USER & LOGOUT (Refer to hrsuite) -->
+        <div class="tree-node tree-node-logout mt-2 pt-2 border-top border-secondary-subtle">
+            @if (ApiClient.IsLoggedIn)
+            {
+                <button type="button" class="tree-node-header single-link logout-btn w-100 border-0 bg-transparent text-start d-flex align-items-center" @onclick="HandleLogout" title="Logout from HRsuite">
+                    <i class="bi bi-box-arrow-right tree-arrow text-danger"></i>
+                    <span class="tree-title text-danger fw-bold flex-grow-1">Logout</span>
+                    @if (ApiClient.CurrentUser != null)
+                    {
+                        <span class="badge bg-secondary-subtle text-dark border extra-small me-2">@ApiClient.CurrentUser.ID</span>
+                    }
+                </button>
+            }
+            else
+            {
+                <NavLink class="tree-node-header single-link d-flex align-items-center text-primary" href="login">
+                    <i class="bi bi-box-arrow-in-right tree-arrow text-primary"></i>
+                    <span class="tree-title text-primary fw-bold">Login</span>
+                </NavLink>
+            }
+        </div>
     </div>
 </div>
 
@@ -197,6 +221,23 @@
         CheckUrl(currentUrl, isInitial: true);
         NavManager.LocationChanged += HandleLocationChanged;
         ApiClient.OnLeaveStatusChanged += HandleLeaveStatusChanged;
+        ApiClient.OnAuthStateChanged += HandleAuthStateChanged;
+    }
+
+    private void HandleAuthStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleLogout()
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to log out from HRsuite?");
+        if (confirmed)
+        {
+            ApiClient.Logout();
+            await CloseNavDrawerAsync();
+            NavManager.NavigateTo("login");
+        }
     }
 
     private async void HandleLeaveStatusChanged()
@@ -311,6 +352,13 @@
         isLeavesExpanded = !isLeavesExpanded;
     }
 
+    private async Task OnLeavesMotherClick()
+    {
+        isLeavesExpanded = true;
+        await CloseNavDrawerAsync();
+        NavManager.NavigateTo("leaves");
+    }
+
     private void ToggleAdmin()
     {
         isAdminExpanded = !isAdminExpanded;
@@ -327,5 +375,6 @@
     {
         NavManager.LocationChanged -= HandleLocationChanged;
         ApiClient.OnLeaveStatusChanged -= HandleLeaveStatusChanged;
+        ApiClient.OnAuthStateChanged -= HandleAuthStateChanged;
     }
 }

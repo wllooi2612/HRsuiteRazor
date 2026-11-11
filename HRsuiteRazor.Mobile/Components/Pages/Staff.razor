@@ -29,91 +29,194 @@
         </div>
     }
 
-    <!-- Search filter -->
-    <div class="card shadow-sm border-0 mb-4">
+    <!-- Search filter & View Switcher -->
+    <div class="card shadow-sm border-0 mb-3">
         <div class="card-body p-3">
-            <div class="row g-2 align-items-center">
-                <div class="col-md-5">
-                    <div class="input-group input-group-sm">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 480px;">
+                    <div class="input-group input-group-sm flex-grow-1">
                         <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
                         <input type="text" class="form-control border-start-0" placeholder="Search by name, ID, or email..." @bind="searchTerm" @bind:event="oninput" />
                     </div>
                 </div>
-                <div class="col-md-7 text-md-end text-muted small">
-                    Showing <strong>@FilteredStaff.Count</strong> staff members (All fetched from MySQL via Web API)
+
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted small d-none d-sm-inline">
+                        Showing <strong>@FilteredStaff.Count</strong> staff members
+                    </span>
+
+                    <!-- View Switcher (Auto/Table/Cards) -->
+                    <div class="btn-group btn-group-sm shadow-sm" role="group">
+                        <button type="button" class="btn btn-sm @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary")" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Phone = Cards, Desktop = Table)">
+                            <i class="bi bi-phone"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary")" @onclick='() => viewMode = "table"' title="Grid Table View">
+                            <i class="bi bi-table"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary")" @onclick='() => viewMode = "cards"' title="Cards View">
+                            <i class="bi bi-grid-fill"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Staff Table -->
-    <div class="card shadow-sm border-0">
-        <div class="card-body p-0">
-            @if (isLoading)
-            {
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="text-muted mt-2">Loading staff from Web API...</p>
-                </div>
-            }
-            else
-            {
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 100px;">User ID</th>
-                                <th>Name</th>
-                                <th>Position</th>
-                                <th>Department</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Status</th>
-                                <th style="width: 120px;" class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (FilteredStaff.Count > 0)
-                            {
-                                @foreach (var s in FilteredStaff)
-                                {
+    @if (isLoading)
+    {
+        <div class="card shadow-sm border-0 text-center py-5">
+            <div class="spinner-border text-primary mx-auto" role="status"></div>
+            <p class="text-muted mt-2 mb-0">Loading staff from Web API...</p>
+        </div>
+    }
+    else
+    {
+        <!-- DESKTOP / WIDE SCREEN TABLE -->
+        @if (viewMode == "table" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                <div class="card shadow-sm border-0 mb-3">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
                                     <tr>
-                                        <td><span class="badge bg-secondary-subtle text-secondary font-monospace">@s.EmpId</span></td>
-                                        <td class="fw-semibold text-dark">@s.Name</td>
-                                        <td>@(string.IsNullOrWhiteSpace(s.Position) ? "Staff Member" : s.Position)</td>
-                                        <td>@(string.IsNullOrWhiteSpace(s.Department) ? "-" : s.Department)</td>
-                                        <td><a href="mailto:@s.Email" class="text-decoration-none">@s.Email</a></td>
-                                        <td><span class="text-muted small">@(string.IsNullOrWhiteSpace(s.HpNo) ? "-" : s.HpNo)</span></td>
-                                        <td>
+                                        <th style="width: 100px;">User ID</th>
+                                        <th>Name</th>
+                                        <th>Position</th>
+                                        <th>Department</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        <th>Status</th>
+                                        <th style="width: 120px;" class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (FilteredStaff.Count > 0)
+                                    {
+                                        @foreach (var s in FilteredStaff)
+                                        {
+                                            <tr>
+                                                <td><span class="badge bg-secondary-subtle text-secondary font-monospace">@s.EmpId</span></td>
+                                                <td class="fw-semibold text-dark">@s.Name</td>
+                                                <td>@(string.IsNullOrWhiteSpace(s.Position) ? "Staff Member" : s.Position)</td>
+                                                <td>@(string.IsNullOrWhiteSpace(s.Department) ? "-" : s.Department)</td>
+                                                <td><a href="mailto:@s.Email" class="text-decoration-none">@s.Email</a></td>
+                                                <td><span class="text-muted small">@(string.IsNullOrWhiteSpace(s.HpNo) ? "-" : s.HpNo)</span></td>
+                                                <td>
+                                                    @if (s.IsActive)
+                                                    {
+                                                        <span class="badge bg-success-subtle text-success">Active</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger-subtle text-danger">Inactive</span>
+                                                    }
+                                                </td>
+                                                <td class="text-end">
+                                                    <button class="btn btn-outline-secondary btn-sm py-0 px-2" @onclick="() => ViewProfileAsync(s.EmpId)">
+                                                        <i class="bi bi-eye"></i> View
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <tr>
+                                            <td colspan="8" class="text-center py-4 text-muted">No staff found.</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ANDROID PHONE CARD VIEW (自适应为卡片，告别左右滑动) -->
+        @if (viewMode == "cards" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") mb-4">
+                <div class="row g-2">
+                    @if (FilteredStaff.Count > 0)
+                    {
+                        @foreach (var s in FilteredStaff)
+                        {
+                            <div class="col-12 col-sm-6">
+                                <div class="card border rounded-3 p-3 shadow-sm item-card-item bg-white" @onclick="() => ViewProfileAsync(s.EmpId)" style="cursor: pointer;">
+                                    <!-- Top Line: [BADGE/ID] Name  |  [DEPARTMENT] [STATUS] -->
+                                    <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                        <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                            <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@s.EmpId]</span>
+                                            <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.95rem;">@s.Name</span>
+                                        </div>
+                                        <div class="flex-shrink-0 d-flex align-items-center gap-1">
+                                            @if (!string.IsNullOrWhiteSpace(s.Department))
+                                            {
+                                                <span class="badge bg-light text-secondary border py-0.5 px-1.5 font-monospace text-uppercase" style="font-size: 0.7rem;">
+                                                    @s.Department
+                                                </span>
+                                            }
                                             @if (s.IsActive)
                                             {
-                                                <span class="badge bg-success-subtle text-success">Active</span>
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle py-0.5 px-1.5" style="font-size: 0.7rem;">Active</span>
                                             }
                                             else
                                             {
-                                                <span class="badge bg-danger-subtle text-danger">Inactive</span>
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0.5 px-1.5" style="font-size: 0.7rem;">Inactive</span>
                                             }
-                                        </td>
-                                        <td class="text-end">
-                                            <button class="btn btn-outline-secondary btn-sm py-0 px-2" @onclick="() => ViewProfileAsync(s.EmpId)">
-                                                <i class="bi bi-eye"></i> View
-                                            </button>
-                                        </td>
-                                    </tr>
-                                }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="8" class="text-center py-4 text-muted">No staff found.</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                                        </div>
+                                    </div>
+
+                                    <!-- Line 2: Position -->
+                                    <div class="d-flex align-items-center small text-muted mb-1.5">
+                                        <i class="bi bi-person-badge text-secondary me-1.5"></i>
+                                        <span class="text-secondary fw-semibold">Position:</span>
+                                        <span class="text-dark ms-1">@(string.IsNullOrWhiteSpace(s.Position) ? "Staff Member" : s.Position)</span>
+                                    </div>
+
+                                    <!-- Line 3: Email -->
+                                    <div class="d-flex align-items-center small text-muted mb-1.5">
+                                        <i class="bi bi-envelope text-secondary me-1.5"></i>
+                                        <span class="text-secondary fw-semibold me-1">Email:</span>
+                                        @if (!string.IsNullOrWhiteSpace(s.Email))
+                                        {
+                                            <a href="mailto:@s.Email" class="text-decoration-none text-truncate" @onclick:stopPropagation="true">@s.Email</a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </div>
+
+                                    <!-- Line 4: Phone & View Profile Button -->
+                                    <div class="d-flex align-items-center justify-content-between pt-2 border-top mt-2">
+                                        <div class="d-flex align-items-center small text-muted">
+                                            <i class="bi bi-telephone text-secondary me-1.5"></i>
+                                            <span class="text-muted font-monospace">@(string.IsNullOrWhiteSpace(s.HpNo) ? "-" : s.HpNo)</span>
+                                        </div>
+                                        <button class="btn btn-outline-primary btn-sm py-0.5 px-2.5 extra-small fw-semibold" @onclick="() => ViewProfileAsync(s.EmpId)" @onclick:stopPropagation="true">
+                                            <i class="bi bi-eye me-1"></i> View Profile
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm rounded-3 p-4 text-center bg-white">
+                                <p class="text-muted mb-0">No staff members found matching your search.</p>
+                            </div>
+                        </div>
+                    }
                 </div>
-            }
-        </div>
-    </div>
+            </div>
+        }
+    }
 </div>
 
 <!-- Profile Modal -->
@@ -247,6 +350,7 @@
     private bool isSaving = false;
     private bool showCreateUser = false;
     private string searchTerm = "";
+    private string viewMode = "auto";
     private string? alertMessage;
     private bool isSuccess;
 
@@ -420,3 +524,16 @@
         }
     }
 }
+
+<style>
+    .item-card-item {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease-in-out;
+    }
+    .item-card-item:hover {
+        border-color: #94a3b8;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        transform: translateY(-1px);
+    }
+</style>

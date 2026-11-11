@@ -31,9 +31,24 @@
 
     <!-- OT Records Table -->
     <div class="card shadow-sm border-0">
-        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+        <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="mb-0 fw-semibold">Overtime Records</h5>
-            <span class="badge bg-warning text-dark rounded-pill">Total: @(otRecords?.Count ?? 0)</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-warning text-dark rounded-pill">Total: @(otRecords?.Count ?? 0)</span>
+
+                <!-- 3-Mode View Switcher -->
+                <div class="btn-group btn-group-sm shadow-sm" role="group">
+                    <button type="button" class="btn btn-sm @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary") py-0 px-2" style="height: 26px;" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Phone = Cards, Desktop = Table)">
+                        <i class="bi bi-phone"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary") py-0 px-2" style="height: 26px;" @onclick='() => viewMode = "table"' title="Grid Table View">
+                        <i class="bi bi-table"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary") py-0 px-2" style="height: 26px;" @onclick='() => viewMode = "cards"' title="Cards View">
+                        <i class="bi bi-grid-fill"></i>
+                    </button>
+                </div>
+            </div>
         </div>
         <div class="card-body p-0">
             @if (isLoading)
@@ -45,77 +60,174 @@
             }
             else
             {
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>OT No</th>
-                                <th>Employee</th>
-                                <th>Date</th>
-                                <th>Start Time</th>
-                                <th>End Time</th>
-                                <th>Hours</th>
-                                <th>Status</th>
-                                <th>Reason</th>
-                                <th class="text-end">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                <!-- DESKTOP TABLE VIEW -->
+                @if (viewMode == "table" || viewMode == "auto")
+                {
+                    <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>OT No</th>
+                                        <th>Employee</th>
+                                        <th>Date</th>
+                                        <th>Start Time</th>
+                                        <th>End Time</th>
+                                        <th>Hours</th>
+                                        <th>Status</th>
+                                        <th>Reason</th>
+                                        <th class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (otRecords?.Count > 0)
+                                    {
+                                        @foreach (var o in otRecords)
+                                        {
+                                            <tr>
+                                                <td><code>@o.OTNo</code></td>
+                                                <td><span class="badge bg-light text-dark border">@o.Emp_ID</span> @o.EmpName</td>
+                                                <td>@o.OT_Date.ToString("yyyy-MM-dd")</td>
+                                                <td>@o.OT_Start</td>
+                                                <td>@o.OT_End</td>
+                                                <td><strong>@o.OT_Hour hrs</strong></td>
+                                                <td>
+                                                    @if (o.OT_Status == "APPROVE")
+                                                    {
+                                                        <span class="badge bg-success-subtle text-success">Approved</span>
+                                                    }
+                                                    else if (o.OT_Status == "REJECT")
+                                                    {
+                                                        <span class="badge bg-danger-subtle text-danger">Rejected</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning-subtle text-warning">Pending</span>
+                                                    }
+                                                </td>
+                                                <td>@(string.IsNullOrWhiteSpace(o.OT_Reason) ? "-" : o.OT_Reason)</td>
+                                                <td class="text-end">
+                                                    @if (o.OT_Status != "APPROVE" && o.OT_Status != "REJECT")
+                                                    {
+                                                        <div class="btn-group btn-group-sm">
+                                                            <button class="btn btn-outline-success py-0 px-2" @onclick='() => ProcessApprovalAsync(o.OTNo, o.Emp_ID, o.OT_Date, "APPROVE")'>
+                                                                Approve
+                                                            </button>
+                                                            <button class="btn btn-outline-danger py-0 px-2" @onclick='() => ProcessApprovalAsync(o.OTNo, o.Emp_ID, o.OT_Date, "REJECT")'>
+                                                                Reject
+                                                            </button>
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted small">Processed</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <tr>
+                                            <td colspan="9" class="text-center py-4 text-muted">No overtime records found.</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+
+                <!-- ANDROID MOBILE CARDS VIEW (自适应为卡片，告别左右滑动) -->
+                @if (viewMode == "cards" || viewMode == "auto")
+                {
+                    <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") p-2">
+                        <div class="row g-2">
                             @if (otRecords?.Count > 0)
                             {
                                 @foreach (var o in otRecords)
                                 {
-                                    <tr>
-                                        <td><code>@o.OTNo</code></td>
-                                        <td><span class="badge bg-light text-dark border">@o.Emp_ID</span> @o.EmpName</td>
-                                        <td>@o.OT_Date.ToString("yyyy-MM-dd")</td>
-                                        <td>@o.OT_Start</td>
-                                        <td>@o.OT_End</td>
-                                        <td><strong>@o.OT_Hour hrs</strong></td>
-                                        <td>
-                                            @if (o.OT_Status == "APPROVE")
+                                    <div class="col-12 col-sm-6">
+                                        <div class="card border rounded-3 p-3 shadow-sm item-card-item bg-white">
+                                            <!-- Top Line: [BADGE] Name  |  [Status Badge] -->
+                                            <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                                <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                                    <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@o.Emp_ID]</span>
+                                                    <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.92rem;">@o.EmpName</span>
+                                                </div>
+                                                <div class="flex-shrink-0">
+                                                    @if (o.OT_Status == "APPROVE")
+                                                    {
+                                                        <span class="badge bg-success-subtle text-success border border-success py-0.5 px-1.5" style="font-size: 0.72rem;">Approved</span>
+                                                    }
+                                                    else if (o.OT_Status == "REJECT")
+                                                    {
+                                                        <span class="badge bg-danger-subtle text-danger border border-danger py-0.5 px-1.5" style="font-size: 0.72rem;">Rejected</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning-subtle text-warning border border-warning py-0.5 px-1.5" style="font-size: 0.72rem;">Pending</span>
+                                                    }
+                                                </div>
+                                            </div>
+
+                                            <!-- Line 2: OT No & Hours -->
+                                            <div class="d-flex align-items-center justify-content-between small text-muted mb-1.5">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="bi bi-clock-history text-secondary me-1.5"></i>
+                                                    <span class="text-secondary fw-semibold">OT No:</span>
+                                                    <code class="ms-1">@o.OTNo</code>
+                                                </div>
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <span class="badge bg-warning-subtle text-dark border fw-bold" style="font-size: 0.72rem;">@o.OT_Hour hrs</span>
+                                                </div>
+                                            </div>
+
+                                            <!-- Line 3: Date & Time Range -->
+                                            <div class="d-flex align-items-center small text-muted mb-1.5">
+                                                <i class="bi bi-calendar-event text-secondary me-1.5"></i>
+                                                <span class="text-secondary fw-semibold me-1">Date:</span>
+                                                <span class="text-dark font-monospace me-2">@o.OT_Date.ToString("yyyy-MM-dd")</span>
+                                                <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.68rem;">@o.OT_Start ~ @o.OT_End</span>
+                                            </div>
+
+                                            <!-- Line 4: Reason -->
+                                            @if (!string.IsNullOrWhiteSpace(o.OT_Reason))
                                             {
-                                                <span class="badge bg-success-subtle text-success">Approved</span>
+                                                <div class="small text-muted mb-2 text-truncate" title="@o.OT_Reason">
+                                                    <i class="bi bi-chat-left-text text-secondary me-1.5"></i>
+                                                    <span class="text-secondary fw-semibold">Reason:</span>
+                                                    <span class="text-dark ms-1">@o.OT_Reason</span>
+                                                </div>
                                             }
-                                            else if (o.OT_Status == "REJECT")
-                                            {
-                                                <span class="badge bg-danger-subtle text-danger">Rejected</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-warning-subtle text-warning">Pending</span>
-                                            }
-                                        </td>
-                                        <td>@(string.IsNullOrWhiteSpace(o.OT_Reason) ? "-" : o.OT_Reason)</td>
-                                        <td class="text-end">
+
+                                            <!-- Line 5: Actions (if Pending) -->
                                             @if (o.OT_Status != "APPROVE" && o.OT_Status != "REJECT")
                                             {
-                                                <div class="btn-group btn-group-sm">
-                                                    <button class="btn btn-outline-success py-0 px-2" @onclick='() => ProcessApprovalAsync(o.OTNo, o.Emp_ID, o.OT_Date, "APPROVE")'>
-                                                        Approve
+                                                <div class="d-flex justify-content-end gap-2 pt-2 border-top mt-1">
+                                                    <button class="btn btn-sm btn-outline-success py-1 px-3 fw-semibold extra-small" @onclick='() => ProcessApprovalAsync(o.OTNo, o.Emp_ID, o.OT_Date, "APPROVE")'>
+                                                        <i class="bi bi-check2-circle me-1"></i> Approve
                                                     </button>
-                                                    <button class="btn btn-outline-danger py-0 px-2" @onclick='() => ProcessApprovalAsync(o.OTNo, o.Emp_ID, o.OT_Date, "REJECT")'>
-                                                        Reject
+                                                    <button class="btn btn-sm btn-outline-danger py-1 px-3 fw-semibold extra-small" @onclick='() => ProcessApprovalAsync(o.OTNo, o.Emp_ID, o.OT_Date, "REJECT")'>
+                                                        <i class="bi bi-x-circle me-1"></i> Reject
                                                     </button>
                                                 </div>
                                             }
-                                            else
-                                            {
-                                                <span class="text-muted small">Processed</span>
-                                            }
-                                        </td>
-                                    </tr>
+                                        </div>
+                                    </div>
                                 }
                             }
                             else
                             {
-                                <tr>
-                                    <td colspan="9" class="text-center py-4 text-muted">No overtime records found.</td>
-                                </tr>
+                                <div class="col-12">
+                                    <div class="card border-0 shadow-sm rounded-3 p-4 text-center bg-white">
+                                        <p class="text-muted mb-0">No overtime records found.</p>
+                                    </div>
+                                </div>
                             }
-                        </tbody>
-                    </table>
-                </div>
+                        </div>
+                    </div>
+                }
             }
         </div>
     </div>
@@ -190,6 +302,7 @@
     private bool showApplyModal = false;
     private string? statusMessage;
     private bool isSuccess;
+    private string viewMode = "auto";
 
     // Apply OT fields
     private string applyEmpId = "00001";
@@ -300,3 +413,16 @@
         }
     }
 }
+
+<style>
+    .item-card-item {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease-in-out;
+    }
+    .item-card-item:hover {
+        border-color: #94a3b8;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        transform: translateY(-1px);
+    }
+</style>

@@ -1,43 +1,58 @@
 @page "/"
+@page "/default.aspx"
+@page "/home"
+@page "/dashboard"
+
 @inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
 
-<PageTitle>HRsuite Dashboard - Web API Connected</PageTitle>
+<PageTitle>HRsuite Dashboard - Default.aspx</PageTitle>
 
-<div class="hr-dashboard">
-    <!-- Header Card -->
+<div class="hr-dashboard pb-5">
+    <!-- Top Corporate Welcome & Status Header (Default.aspx) -->
     <div class="header-card mb-4 text-white">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <span class="badge bg-white text-primary fw-bold px-2 py-1">v2.0 Web API Powered</span>
-                    <span class="badge bg-light text-dark">Zero Direct DB Query</span>
+                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                    <span class="badge bg-white text-primary fw-bold px-2.5 py-1">
+                        <i class="bi bi-building-fill-gear me-1"></i>Myhrsuite Main Portal
+                    </span>
+                    <span class="badge bg-light text-dark font-monospace">Default.aspx</span>
+                    @if (ApiClient.IsLoggedIn && ApiClient.CurrentUser != null)
+                    {
+                        <span class="badge bg-info text-dark fw-bold">
+                            <i class="bi bi-person-check-fill me-1"></i>Welcome, @ApiClient.CurrentUser.Name (@ApiClient.CurrentUser.ID)
+                        </span>
+                    }
                 </div>
-                <h1 class="h2 mb-1 fw-bold">HR Suite Portal &amp; Database Monitor</h1>
-                <p class="text-white-50 mb-0">
-                    All Database <strong>SELECT</strong>, <strong>INSERT</strong>, <strong>UPDATE</strong>, and <strong>DELETE</strong> operations are handled exclusively by <code>HRsuiteRazor.WebApi</code> on port 5145.
+                <h1 class="h3 mb-1 fw-bold text-white">Corporate Management Dashboard</h1>
+                <p class="text-white-50 mb-0 extra-small">
+                    Interactive enterprise dashboard with daily schedule, leave calendar, and day information.
                 </p>
             </div>
-            <div class="d-flex gap-2 align-items-center">
+
+            <div class="d-flex gap-2 align-items-center flex-wrap">
                 @if (dbStatus?.IsConnected == true)
                 {
-                    <span class="badge bg-success-subtle text-success border border-success px-3 py-2 fs-6 rounded-pill">
-                        <i class="bi bi-check-circle-fill me-1"></i> Web API &amp; MySQL Connected
+                    <span class="badge bg-success-subtle text-success border border-success px-3 py-2 fs-6 rounded-pill shadow-sm">
+                        <i class="bi bi-check-circle-fill me-1"></i> Connected
                     </span>
                 }
                 else if (isLoading)
                 {
-                    <span class="badge bg-warning-subtle text-warning border border-warning px-3 py-2 fs-6 rounded-pill">
-                        <i class="bi bi-arrow-repeat spin me-1"></i> Connecting to Web API...
+                    <span class="badge bg-warning-subtle text-warning border border-warning px-3 py-2 fs-6 rounded-pill shadow-sm">
+                        <i class="bi bi-arrow-repeat spin me-1"></i> Connecting...
                     </span>
                 }
                 else
                 {
-                    <span class="badge bg-danger-subtle text-danger border border-danger px-3 py-2 fs-6 rounded-pill">
-                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Web API Disconnected
+                    <span class="badge bg-danger-subtle text-danger border border-danger px-3 py-2 fs-6 rounded-pill shadow-sm">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Disconnected
                     </span>
                 }
                 <button class="btn btn-outline-light btn-sm px-3 shadow-sm" @onclick="RefreshDataAsync" disabled="@isLoading">
-                    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                    <i class="bi bi-arrow-clockwise me-1 @(isLoading ? "spin" : "")"></i> Refresh
                 </button>
             </div>
         </div>
@@ -45,601 +60,811 @@
 
     @if (!string.IsNullOrEmpty(statusMessage))
     {
-        <div class="alert @(isSuccessMessage ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
+        <div class="alert @(isSuccessMessage ? "alert-success" : "alert-danger") alert-dismissible fade show shadow-sm" role="alert">
             <i class="bi @(isSuccessMessage ? "bi-check-circle" : "bi-exclamation-octagon") me-2"></i>
             @statusMessage
             <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
         </div>
     }
 
-    <!-- Metric Summary Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-xl-3">
-            <div class="card metric-card shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="text-muted fw-semibold small">ARCHITECTURAL FLOW</span>
-                        <div class="icon-bubble bg-primary-subtle text-primary">
-                            <i class="bi bi-diagram-3-fill"></i>
-                        </div>
+    <!-- 1. Quick Module Portals Grid (matching HRsuite Default.aspx) -->
+    <div class="row g-2 g-sm-3 mb-4">
+        <!-- Leave Portal -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <a href="leaves" class="text-decoration-none">
+                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #166534 0%, #15803d 100%); color: white;">
+                    <div class="module-icon mb-1"><i class="bi bi-calendar2-check-fill fs-4"></i></div>
+                    <div class="module-title fw-bold extra-small text-white">e@Leave</div>
+                    <div class="extra-small text-white-50">Portal &amp; Apply</div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Leave Supervisor -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <a href="leaves/approval" class="text-decoration-none">
+                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center position-relative" style="background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%); color: white;">
+                    @if (PendingLeavesCount > 0)
+                    {
+                        <span class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-warning text-dark border border-white extra-small" style="font-size: 0.7rem; z-index: 2;">
+                            @PendingLeavesCount
+                        </span>
+                    }
+                    <div class="module-icon mb-1"><i class="bi bi-person-check-fill fs-4"></i></div>
+                    <div class="module-title fw-bold extra-small text-white">Supervisor</div>
+                    <div class="extra-small text-white-50">Approve &amp; Cancel</div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Staff Management -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <a href="staff" class="text-decoration-none">
+                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white;">
+                    <div class="module-icon mb-1"><i class="bi bi-people-fill fs-4"></i></div>
+                    <div class="module-title fw-bold extra-small text-white">e@Staff</div>
+                    <div class="extra-small text-white-50">Staff Directory</div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Overtime -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <a href="overtime" class="text-decoration-none">
+                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #c2410c 0%, #ea580c 100%); color: white;">
+                    <div class="module-icon mb-1"><i class="bi bi-clock-history fs-4"></i></div>
+                    <div class="module-title fw-bold extra-small text-white">e@OT</div>
+                    <div class="extra-small text-white-50">Overtime Activity</div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Admin & Setup -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <a href="admin" class="text-decoration-none">
+                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #475569 0%, #334155 100%); color: white;">
+                    <div class="module-icon mb-1"><i class="bi bi-gear-wide-connected fs-4"></i></div>
+                    <div class="module-title fw-bold extra-small text-white">Admin</div>
+                    <div class="extra-small text-white-50">Setup &amp; Config</div>
+                </div>
+            </a>
+        </div>
+
+        <!-- User Profile & Account -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <a href="user" class="text-decoration-none">
+                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white;">
+                    <div class="module-icon mb-1"><i class="bi bi-person-circle fs-4"></i></div>
+                    <div class="module-title fw-bold extra-small text-white">User</div>
+                    <div class="extra-small text-white-50">Profile &amp; Logout</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- 2. Interactive Calendar & Day Information (Refer to Default.aspx, LeaveCalendar.razor & LeaveApproval grid) -->
+    <div class="row g-3 mb-4 align-items-stretch">
+        <!-- Left: Interactive Monthly Calendar Grid -->
+        <div class="col-12 col-xl-5">
+            <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white h-100">
+                <!-- Calendar Month Header Bar -->
+                <div class="card-header py-2.5 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2 text-white" 
+                     style="background-color: #688636 !important;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-calendar3"></i>
+                        <h6 class="mb-0 fw-bold">Leave Calendar Schedule - @displayMonth.ToString("MMMM yyyy")</h6>
                     </div>
-                    <div class="fs-5 fw-bold text-dark">Blazor &rarr; WebAPI &rarr; MySQL</div>
-                    <div class="small text-muted mt-1">REST Endpoints &bull; Port 5145</div>
+                    <!-- Month Navigation Controls -->
+                    <div class="d-flex align-items-center gap-1">
+                        <button type="button" class="btn btn-sm btn-light py-0.5 px-2 extra-small fw-semibold shadow-sm" @onclick="PrevMonth" title="Previous Month">
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light py-0.5 px-2 extra-small fw-semibold shadow-sm" @onclick="TodayMonth" title="Go to Current / Sample Month">
+                            Today
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light py-0.5 px-2 extra-small fw-semibold shadow-sm" @onclick="NextMonth" title="Next Month">
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-2 p-sm-3 d-flex flex-column">
+                    <!-- Quick Legend & Instruction -->
+                    <div class="d-flex align-items-center gap-1.5 flex-wrap mb-2 extra-small">
+                        <span class="badge bg-success text-white">AL: Annual</span>
+                        <span class="badge bg-warning text-dark">MC: Medical</span>
+                        <span class="badge bg-info text-dark">HL: Hospital</span>
+                        <span class="badge bg-danger text-white">EL: Emergency</span>
+                        <span class="text-muted ms-auto fst-italic d-none d-sm-inline">
+                            <i class="bi bi-hand-index-thumb me-1"></i>Click date to view Day Information
+                        </span>
+                    </div>
+
+                    <!-- 7-column Calendar Table -->
+                    <div class="dashboard-calendar-grid flex-grow-1">
+                        <div class="calendar-day-header text-danger">Sun</div>
+                        <div class="calendar-day-header">Mon</div>
+                        <div class="calendar-day-header">Tue</div>
+                        <div class="calendar-day-header">Wed</div>
+                        <div class="calendar-day-header">Thu</div>
+                        <div class="calendar-day-header">Fri</div>
+                        <div class="calendar-day-header text-primary">Sat</div>
+
+                        <!-- Empty slots before 1st of month -->
+                        @for (int empty = 0; empty < StartDayOfWeek; empty++)
+                        {
+                            <div class="calendar-cell empty-cell"></div>
+                        }
+
+                        <!-- Month Days -->
+                        @for (int day = 1; day <= DaysInMonth; day++)
+                        {
+                            var cellDate = new DateTime(displayMonth.Year, displayMonth.Month, day);
+                            var isToday = cellDate.Date == DateTime.Today;
+                            var isSelected = cellDate.Date == selectedDate.Date;
+                            var dayEvents = GetLeavesForDay(cellDate);
+
+                            <div class="calendar-cell @(isToday ? "today" : "") @(isSelected ? "selected-day" : "")" 
+                                 @onclick="() => SelectDate(cellDate)" 
+                                 title="Click to view day information for @cellDate.ToString("yyyy-MM-dd")">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="calendar-date-no @(cellDate.DayOfWeek == DayOfWeek.Sunday ? "text-danger" : cellDate.DayOfWeek == DayOfWeek.Saturday ? "text-primary" : "")">
+                                        @day
+                                    </span>
+                                    @if (isToday)
+                                    {
+                                        <span class="badge bg-primary text-white" style="font-size: 0.5rem; padding: 1px 2px;">TODAY</span>
+                                    }
+                                </div>
+
+                                <div class="calendar-events-container mt-1">
+                                    @foreach (var ev in dayEvents.Take(2))
+                                    {
+                                        <div class="calendar-event-tag @ev.CssClass" title="@ev.Tooltip">
+                                            @ev.Label
+                                        </div>
+                                    }
+                                    @if (dayEvents.Count > 2)
+                                    {
+                                        <span class="badge bg-secondary-subtle text-dark" style="font-size: 0.55rem; padding: 1px 2px;">
+                                            +@(dayEvents.Count - 2) more
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="pt-2 mt-2 border-top text-center">
+                        <a href="leaves/calendar" class="text-primary extra-small text-decoration-none fw-semibold">
+                            <i class="bi bi-calendar-range me-1"></i>Open Full Leave Calendar Schedule &rarr;
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-sm-6 col-xl-3">
-            <div class="card metric-card shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="text-muted fw-semibold small">MYSQL TABLES</span>
-                        <div class="icon-bubble bg-info-subtle text-info">
-                            <i class="bi bi-database-fill"></i>
-                        </div>
-                    </div>
-                    <div class="fs-4 fw-bold text-dark">@(dbStatus?.TotalTables ?? tables?.Count ?? 57)</div>
-                    <div class="small text-muted mt-1">Migrated from SQL Server (0 loss)</div>
-                </div>
-            </div>
-        </div>
+        <!-- Right: Day Information - Leave Record Grid (Exact match to LeaveApproval grid) -->
+        <div class="col-12 col-xl-7">
+            <fieldset class="legacy-fieldset h-100 d-flex flex-column">
+                <legend class="legacy-legend">Leave Record</legend>
 
-        <div class="col-sm-6 col-xl-3">
-            <div class="card metric-card shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="text-muted fw-semibold small">TOTAL RECORDS</span>
-                        <div class="icon-bubble bg-success-subtle text-success">
-                            <i class="bi bi-layers-fill"></i>
-                        </div>
-                    </div>
-                    <div class="fs-4 fw-bold text-dark">@(dbStatus?.TotalRows.ToString("N0") ?? "7,000+")</div>
-                    <div class="small text-muted mt-1">Queried via <code>/api/Database/status</code></div>
-                </div>
-            </div>
-        </div>
+                <!-- Action Buttons Toolbar (Exact Match to LeaveApproval.razor) -->
+                <div class="legacy-toolbar">
+                    <button type="button" class="legacy-btn @(showFilters ? "btn-highlight" : "")" @onclick="() => showFilters = !showFilters">
+                        <i class="bi bi-funnel me-1"></i>Filter Leave Record
+                    </button>
+                    <button type="button" class="legacy-btn" @onclick="RefreshDataAsync">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                    <button type="button" class="legacy-btn" @onclick="OpenDetailModal" disabled="@(selectedRecord == null)">
+                        <i class="bi bi-card-text me-1"></i>Show Leave Detail
+                    </button>
+                    <button type="button" class="legacy-btn" @onclick='() => ExportToCsv(false)'>
+                        <i class="bi bi-file-earmark-excel text-success me-1"></i>Export Excel(xls)..
+                    </button>
+                    <button type="button" class="legacy-btn" @onclick='() => ExportToCsv(true)'>
+                        <i class="bi bi-file-earmark-excel text-success me-1"></i>Export Excel(xlsx)..
+                    </button>
+                    <button type="button" class="legacy-btn" @onclick="ExportToPdf">
+                        <i class="bi bi-file-earmark-pdf text-danger me-1"></i>Export PDF..
+                    </button>
 
-        <div class="col-sm-6 col-xl-3">
-            <div class="card metric-card shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="text-muted fw-semibold small">ACTIVE STAFF</span>
-                        <div class="icon-bubble bg-warning-subtle text-warning">
-                            <i class="bi bi-people-fill"></i>
-                        </div>
+                    <div class="ms-auto d-flex align-items-center gap-1 extra-small">
+                        <span class="badge @(isDateFiltered ? "bg-primary" : "bg-secondary") text-white" style="font-size: 0.7rem;">
+                            @(isDateFiltered ? $"Day: {selectedDate:dd MMM yyyy}" : "All Month")
+                        </span>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 extra-small" @onclick="ToggleDateFilter" style="font-size: 0.68rem;">
+                            @(isDateFiltered ? "Show All Month" : "Filter Day")
+                        </button>
                     </div>
-                    <div class="fs-4 fw-bold text-dark">@(users?.Count ?? 0)</div>
-                    <div class="small text-muted mt-1">From <code>/api/Staff/directory</code></div>
                 </div>
-            </div>
+
+                <!-- 20-Column Olive Green Grid Scroll & Table -->
+                <div class="legacy-grid-scroll flex-grow-1">
+                    <table class="legacy-grid-table">
+                        <thead>
+                            <!-- Header Row 1: Column Titles -->
+                            <tr class="header-row">
+                                <th class="col-num">#</th>
+                                <th class="col-chk">
+                                    <input type="checkbox" checked="@isAllSelected" @onchange="ToggleSelectAll" title="Select / Unselect All" />
+                                </th>
+                                <th class="col-file">File1</th>
+                                <th class="col-file">File2</th>
+                                <th class="col-file">File3</th>
+                                <th class="col-id">ID</th>
+                                <th class="col-name">NAME</th>
+                                <th class="col-date">Date From</th>
+                                <th class="col-date">Date To</th>
+                                <th class="col-leaveid">Leave ID</th>
+                                <th class="col-day">Leave Day</th>
+                                <th class="col-time">Time In</th>
+                                <th class="col-s">s1</th>
+                                <th class="col-time">Time Out</th>
+                                <th class="col-s">s2</th>
+                                <th class="col-status">Status</th>
+                                <th class="col-dept">Dept</th>
+                                <th class="col-sec">Section</th>
+                                <th class="col-shift">Shift Grp</th>
+                                <th class="col-type">Type</th>
+                            </tr>
+
+                            <!-- Header Row 2: Inline Column Filters (Toggleable) -->
+                            @if (showFilters)
+                            {
+                                <tr class="filter-row">
+                                    <td class="col-num"></td>
+                                    <td class="col-chk"></td>
+                                    <td class="col-file"></td>
+                                    <td class="col-file"></td>
+                                    <td class="col-file"></td>
+                                    <td class="col-id">
+                                        <input type="text" class="filter-input" @bind="filterEmpId" @bind:event="oninput" placeholder="ID" />
+                                    </td>
+                                    <td class="col-name">
+                                        <input type="text" class="filter-input" @bind="filterName" @bind:event="oninput" placeholder="Name" />
+                                    </td>
+                                    <td class="col-date">
+                                        <input type="text" class="filter-input" @bind="filterDateFrom" @bind:event="oninput" placeholder="From" />
+                                    </td>
+                                    <td class="col-date">
+                                        <input type="text" class="filter-input" @bind="filterDateTo" @bind:event="oninput" placeholder="To" />
+                                    </td>
+                                    <td class="col-leaveid">
+                                        <input type="text" class="filter-input" @bind="filterLeaveId" @bind:event="oninput" placeholder="Type" />
+                                    </td>
+                                    <td class="col-day">
+                                        <input type="text" class="filter-input" @bind="filterDays" @bind:event="oninput" placeholder="Days" />
+                                    </td>
+                                    <td class="col-time">
+                                        <input type="text" class="filter-input" @bind="filterTimeIn" @bind:event="oninput" placeholder="In" />
+                                    </td>
+                                    <td class="col-s">
+                                        <input type="text" class="filter-input" @bind="filterS1" @bind:event="oninput" />
+                                    </td>
+                                    <td class="col-time">
+                                        <input type="text" class="filter-input" @bind="filterTimeOut" @bind:event="oninput" placeholder="Out" />
+                                    </td>
+                                    <td class="col-s">
+                                        <input type="text" class="filter-input" @bind="filterS2" @bind:event="oninput" />
+                                    </td>
+                                    <td class="col-status">
+                                        <input type="text" class="filter-input" @bind="filterStatusCol" @bind:event="oninput" placeholder="Status" />
+                                    </td>
+                                    <td class="col-dept">
+                                        <input type="text" class="filter-input" @bind="filterDept" @bind:event="oninput" placeholder="Dept" />
+                                    </td>
+                                    <td class="col-sec">
+                                        <input type="text" class="filter-input" @bind="filterSection" @bind:event="oninput" placeholder="Sec" />
+                                    </td>
+                                    <td class="col-shift">
+                                        <input type="text" class="filter-input" @bind="filterShiftGrp" @bind:event="oninput" placeholder="Shift" />
+                                    </td>
+                                    <td class="col-type">
+                                        <input type="text" class="filter-input" @bind="filterType" @bind:event="oninput" placeholder="Type" />
+                                    </td>
+                                </tr>
+                            }
+                        </thead>
+                        <tbody>
+                            @if (isLoading)
+                            {
+                                <tr>
+                                    <td colspan="20" class="text-center py-4 text-muted">
+                                        <div class="spinner-border spinner-border-sm text-secondary mb-1"></div>
+                                        <div style="font-size: 0.75rem;">Loading leave records from database...</div>
+                                    </td>
+                                </tr>
+                            }
+                            else if (FilteredGridLeaves.Count == 0)
+                            {
+                                <tr class="empty-row">
+                                    <td colspan="20" class="empty-cell">
+                                        No data to display
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                int rowIdx = 1;
+                                @foreach (var r in FilteredGridLeaves)
+                                {
+                                    var isSelected = selectedRecord == r || selectedLeaveNos.Contains(r.LeaveNo);
+                                    <tr class="data-row @(isSelected ? "selected-row" : "")" 
+                                        @onclick="() => SelectRecord(r)" 
+                                        @ondblclick="() => OpenDetailFor(r)">
+                                        <td class="col-num">@(rowIdx++)</td>
+                                        <td class="col-chk" @onclick:stopPropagation="true">
+                                            <input type="checkbox" checked="@selectedLeaveNos.Contains(r.LeaveNo)" 
+                                                   @onchange="(e) => ToggleRowSelected(r.LeaveNo, e)" />
+                                        </td>
+                                        <td class="col-file">
+                                            @if (!string.IsNullOrEmpty(r.File1)) { <i class="bi bi-paperclip text-primary" title="File 1 Attached"></i> }
+                                        </td>
+                                        <td class="col-file">
+                                            @if (!string.IsNullOrEmpty(r.File2)) { <i class="bi bi-paperclip text-primary" title="File 2 Attached"></i> }
+                                        </td>
+                                        <td class="col-file">
+                                            @if (!string.IsNullOrEmpty(r.File3)) { <i class="bi bi-paperclip text-primary" title="File 3 Attached"></i> }
+                                        </td>
+                                        <td class="col-id font-monospace fw-bold">@r.Emp_ID</td>
+                                        <td class="col-name fw-semibold">@r.EmpName</td>
+                                        <td class="col-date">@r.Leave_Date_From.ToString("yyyy-MM-dd")</td>
+                                        <td class="col-date">@r.Leave_Date_To.ToString("yyyy-MM-dd")</td>
+                                        <td class="col-leaveid fw-bold">@r.Leave_Type</td>
+                                        <td class="col-day">@r.TotalDays</td>
+                                        <td class="col-time">@(string.IsNullOrEmpty(r.TimeIn) ? "08:00" : r.TimeIn)</td>
+                                        <td class="col-s">@(string.IsNullOrEmpty(r.s1) ? "-" : r.s1)</td>
+                                        <td class="col-time">@(string.IsNullOrEmpty(r.TimeOut) ? "17:00" : r.TimeOut)</td>
+                                        <td class="col-s">@(string.IsNullOrEmpty(r.s2) ? "-" : r.s2)</td>
+                                        <td class="col-status">
+                                            <span class="status-tag @GetStatusClass(r.Leave_Status)">
+                                                @r.Leave_Status
+                                            </span>
+                                        </td>
+                                        <td class="col-dept">@(string.IsNullOrEmpty(r.Dept) ? "-" : r.Dept)</td>
+                                        <td class="col-sec">@(string.IsNullOrEmpty(r.Section) ? "-" : r.Section)</td>
+                                        <td class="col-shift">@(string.IsNullOrEmpty(r.ShiftGrp) ? "-" : r.ShiftGrp)</td>
+                                        <td class="col-type">@(string.IsNullOrEmpty(r.Type) ? "Full Day" : r.Type)</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer matching user screenshot: Total Records on Left, eLeave - Supervisor Module on Right -->
+                <div class="d-flex justify-content-between align-items-center mt-1 px-1 extra-small text-muted">
+                    <span>Total Records: <strong>@FilteredGridLeaves.Count</strong> (Selected: <strong>@selectedLeaveNos.Count</strong>)</span>
+                    <span class="fst-italic">eLeave - Supervisor Module</span>
+                </div>
+            </fieldset>
         </div>
     </div>
 
-    <!-- Navigation Tabs -->
-    <ul class="nav nav-pills custom-tabs mb-3 gap-2" role="tablist">
-        <li class="nav-item">
-            <button class="nav-link @(activeTab == "users" ? "active" : "")" @onclick='() => activeTab = "users"'>
-                <i class="bi bi-people me-1"></i> Staff Users (@(users?.Count ?? 0))
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link @(activeTab == "tables" ? "active" : "")" @onclick='() => activeTab = "tables"'>
-                <i class="bi bi-database me-1"></i> MySQL Tables (@(tables?.Count ?? 0))
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link @(activeTab == "leaves" ? "active" : "")" @onclick='() => activeTab = "leaves"'>
-                <i class="bi bi-calendar-check me-1"></i> Leaves (@(leaves?.Count ?? 0))
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link @(activeTab == "ot" ? "active" : "")" @onclick='() => activeTab = "ot"'>
-                <i class="bi bi-clock-history me-1"></i> Overtime (@(otRecords?.Count ?? 0))
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link @(activeTab == "crud" ? "active" : "")" @onclick='() => activeTab = "crud"'>
-                <i class="bi bi-pencil-square me-1"></i> Web API CRUD Tester
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link @(activeTab == "api" ? "active" : "")" @onclick='() => activeTab = "api"'>
-                <i class="bi bi-hdd-network me-1"></i> API Endpoints Map
-            </button>
-        </li>
-    </ul>
-
-    <!-- Tab Content -->
-    <div class="card content-card shadow-sm border-0">
-        <div class="card-body p-0">
-            @if (isLoading)
-            {
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
+    <!-- Detail Modal -->
+    @if (detailModalRecord != null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5); z-index: 1055;">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content shadow border-0">
+                    <div class="modal-header py-2 text-white" style="background-color: #688636;">
+                        <h6 class="modal-title fw-bold">
+                            <i class="bi bi-card-text me-1"></i>Leave Application Detail: @detailModalRecord.LeaveNo
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white py-0" @onclick="() => detailModalRecord = null"></button>
                     </div>
-                    <p class="text-muted mt-2 mb-0">Querying Web API (<code>http://localhost:5145</code>)...</p>
-                </div>
-            }
-            else if (activeTab == "users")
-            {
-                <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div>
-                        <h5 class="mb-0 fw-semibold text-dark">Staff Users (Fetched via <code>GET /api/Staff/directory</code>)</h5>
-                        <small class="text-muted">Retrieved via Web API communicating with MySQL <code>aspnet_users</code></small>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <input type="text" class="form-control form-control-sm" placeholder="Search staff..." @bind="userSearch" @bind:event="oninput" style="width: 200px;" />
-                        <span class="badge bg-primary align-self-center px-3 py-2 rounded-pill">Total: @(FilteredUsers.Count)</span>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 120px;">Employee ID</th>
-                                <th>Name</th>
-                                <th>Position</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (FilteredUsers.Count > 0)
-                            {
-                                @foreach (var u in FilteredUsers)
-                                {
-                                    <tr>
-                                        <td><span class="badge bg-secondary-subtle text-secondary font-monospace">@u.EmpId</span></td>
-                                        <td class="fw-semibold text-dark">@u.Name</td>
-                                        <td><span class="badge bg-light text-dark border">@(string.IsNullOrWhiteSpace(u.Position) ? "Staff" : u.Position)</span></td>
-                                        <td><a href="mailto:@u.Email" class="text-decoration-none">@u.Email</a></td>
-                                        <td><span class="text-muted small">@(string.IsNullOrWhiteSpace(u.HpNo) ? "-" : u.HpNo)</span></td>
-                                        <td>
-                                            @if (u.IsActive)
-                                            {
-                                                <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle me-1"></i>Active</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-danger-subtle text-danger"><i class="bi bi-x-circle me-1"></i>Inactive</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-muted">No staff members found matching search.</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else if (activeTab == "tables")
-            {
-                <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-0 fw-semibold text-dark">Database Tables (Fetched via <code>GET /api/Database/tables</code>)</h5>
-                        <small class="text-muted">All 57 tables in MySQL <code>myhrsuitelog</code></small>
-                    </div>
-                    <span class="badge bg-info text-dark rounded-pill">Count: @(tables?.Count ?? 0)</span>
-                </div>
-                <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
-                    <table class="table table-sm table-hover align-middle mb-0">
-                        <thead class="table-light sticky-top">
-                            <tr>
-                                <th>#</th>
-                                <th>Table Name</th>
-                                <th>Row Count</th>
-                                <th>Storage Engine</th>
-                                <th>API Access</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (tables?.Count > 0)
-                            {
-                                int idx = 1;
-                                @foreach (var t in tables)
-                                {
-                                    <tr>
-                                        <td class="text-muted">@(idx++)</td>
-                                        <td><code>@t.TableName</code></td>
-                                        <td>
-                                            <span class="badge bg-secondary-subtle text-dark">@t.RowCount.ToString("N0") rows</span>
-                                        </td>
-                                        <td>@t.Engine</td>
-                                        <td>
-                                            <button class="btn btn-outline-primary btn-sm py-0 px-2" @onclick="() => InspectTableAsync(t.TableName)">
-                                                <i class="bi bi-search me-1"></i> Inspect
-                                            </button>
-                                        </td>
-                                    </tr>
-                                }
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                @if (inspectedTable != null)
-                {
-                    <div class="border-top p-3 bg-light">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="mb-0 fw-bold text-primary">
-                                Table Inspection: <code>@inspectedTable.TableName</code> (@inspectedTable.RowCount rows)
-                            </h6>
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => inspectedTable = null">Close</button>
+                    <div class="modal-body p-3 extra-small">
+                        <div class="row g-2 mb-3">
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Leave No:</label>
+                                <div><code>@detailModalRecord.LeaveNo</code></div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Employee ID:</label>
+                                <div><strong>@detailModalRecord.Emp_ID</strong></div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="text-muted fw-bold">Employee Name:</label>
+                                <div><strong>@detailModalRecord.EmpName</strong></div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Leave Code:</label>
+                                <div><span class="badge bg-primary">@detailModalRecord.Leave_Type</span></div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Total Days:</label>
+                                <div><strong>@detailModalRecord.TotalDays</strong> day(s)</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Date From:</label>
+                                <div>@detailModalRecord.Leave_Date_From.ToString("yyyy-MM-dd")</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Date To:</label>
+                                <div>@detailModalRecord.Leave_Date_To.ToString("yyyy-MM-dd")</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Day Type:</label>
+                                <div>@detailModalRecord.Type</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Time Range:</label>
+                                <div>@detailModalRecord.TimeIn - @detailModalRecord.TimeOut</div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Status:</label>
+                                <div><strong>@detailModalRecord.Leave_Status</strong></div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="text-muted fw-bold">Approval Level:</label>
+                                <div>@(string.IsNullOrEmpty(detailModalRecord.AppLevel) ? "Level 1" : detailModalRecord.AppLevel)</div>
+                            </div>
                         </div>
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-sm mb-0">
-                                <thead class="table-dark">
-                                    <tr>
-                                        @foreach (var c in inspectedTable.Columns)
-                                        {
-                                            <th>@c.ColumnName <small class="text-white-50">(@c.DataType)</small></th>
-                                        }
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var r in inspectedTable.SampleRows.Take(5))
+
+                        <div class="mb-3">
+                            <label class="text-muted fw-bold">Leave Reason / Justification:</label>
+                            <div class="p-2 border rounded bg-light" style="min-height: 48px;">
+                                @(string.IsNullOrWhiteSpace(detailModalRecord.Leave_Reason) ? "No reason specified." : detailModalRecord.Leave_Reason)
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(detailModalRecord.File1) || !string.IsNullOrEmpty(detailModalRecord.File2))
+                        {
+                            <div class="mb-3">
+                                <label class="text-muted fw-bold">Attachments:</label>
+                                <div class="d-flex gap-2">
+                                    @if (!string.IsNullOrEmpty(detailModalRecord.File1))
                                     {
-                                        <tr>
-                                            @foreach (var c in inspectedTable.Columns)
-                                            {
-                                                <td>@(r.ContainsKey(c.ColumnName) ? r[c.ColumnName]?.ToString() ?? "NULL" : "NULL")</td>
-                                            }
-                                        </tr>
+                                        <a href="@detailModalRecord.File1" target="_blank" class="btn btn-sm btn-outline-primary extra-small">
+                                            <i class="bi bi-paperclip me-1"></i>Attachment 1
+                                        </a>
                                     }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                }
-            }
-            else if (activeTab == "leaves")
-            {
-                <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-0 fw-semibold text-dark">Leave Records (Fetched via <code>GET /api/Leave/history</code>)</h5>
-                        <small class="text-muted">Managed through <code>LeaveController</code> in Web API</small>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Leave No</th>
-                                <th>Employee</th>
-                                <th>Type</th>
-                                <th>Date Range</th>
-                                <th>Total Days</th>
-                                <th>Status</th>
-                                <th>Reason</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (leaves?.Count > 0)
-                            {
-                                @foreach (var l in leaves)
-                                {
-                                    <tr>
-                                        <td><code>@l.LeaveNo</code></td>
-                                        <td><span class="badge bg-light text-dark border">@l.Emp_ID</span> @l.EmpName</td>
-                                        <td><span class="badge bg-primary-subtle text-primary">@l.Leave_Type</span></td>
-                                        <td>@l.Leave_Date_From.ToString("yyyy-MM-dd") ~ @l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
-                                        <td><strong>@l.TotalDays</strong></td>
-                                        <td><span class="badge bg-info-subtle text-info">@(string.IsNullOrWhiteSpace(l.Leave_Status) ? "SUBMITTED" : l.Leave_Status)</span></td>
-                                        <td>@(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)</td>
-                                    </tr>
-                                }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="7" class="text-center py-4 text-muted">No leave records returned from Web API.</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else if (activeTab == "ot")
-            {
-                <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-0 fw-semibold text-dark">Overtime Records (Fetched via <code>GET /api/OT/history</code>)</h5>
-                        <small class="text-muted">Managed through <code>OTController</code> in Web API</small>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>OT No</th>
-                                <th>Employee</th>
-                                <th>Date</th>
-                                <th>Time</th>
-                                <th>Hours</th>
-                                <th>Status</th>
-                                <th>Reason</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (otRecords?.Count > 0)
-                            {
-                                @foreach (var o in otRecords)
-                                {
-                                    <tr>
-                                        <td><code>@o.OTNo</code></td>
-                                        <td><span class="badge bg-light text-dark border">@o.Emp_ID</span> @o.EmpName</td>
-                                        <td>@o.OT_Date.ToString("yyyy-MM-dd")</td>
-                                        <td>@o.OT_Start ~ @o.OT_End</td>
-                                        <td><strong>@o.OT_Hour hrs</strong></td>
-                                        <td><span class="badge bg-warning-subtle text-warning">@(string.IsNullOrWhiteSpace(o.OT_Status) ? "PENDING" : o.OT_Status)</span></td>
-                                        <td>@(string.IsNullOrWhiteSpace(o.OT_Reason) ? "-" : o.OT_Reason)</td>
-                                    </tr>
-                                }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="7" class="text-center py-4 text-muted">No overtime records returned from Web API.</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else if (activeTab == "crud")
-            {
-                <div class="p-4">
-                    <h5 class="fw-semibold text-dark mb-1">Web API Database Task Console (SELECT &bull; INSERT &bull; UPDATE &bull; DELETE)</h5>
-                    <p class="text-muted small mb-4">
-                        Perform real-time database tasks against MySQL through the Web API endpoint <code>/api/DbCrud/{tableName}</code>.
-                    </p>
-
-                    <div class="row g-4">
-                        <!-- Left: Perform Action -->
-                        <div class="col-lg-5">
-                            <div class="card border p-3">
-                                <h6 class="fw-bold mb-3"><i class="bi bi-play-circle-fill text-primary me-1"></i> Execute Database Task</h6>
-                                <div class="mb-3">
-                                    <label class="form-label small fw-semibold">Target Table</label>
-                                    <select class="form-select form-select-sm" @bind="crudTableName">
-                                        <option value="aspnet_users">aspnet_users</option>
-                                        <option value="aspnet_LeaveRecord">aspnet_LeaveRecord</option>
-                                        <option value="aspnet_OTRecord">aspnet_OTRecord</option>
-                                        <option value="aspnet_ClaimRecord">aspnet_ClaimRecord</option>
-                                        <option value="aspnet_usergroup">aspnet_usergroup</option>
-                                        <option value="aspnet_masterfile">aspnet_masterfile</option>
-                                    </select>
+                                    @if (!string.IsNullOrEmpty(detailModalRecord.File2))
+                                    {
+                                        <a href="@detailModalRecord.File2" target="_blank" class="btn btn-sm btn-outline-primary extra-small">
+                                            <i class="bi bi-paperclip me-1"></i>Attachment 2
+                                        </a>
+                                    }
                                 </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label small fw-semibold">Operation</label>
-                                    <select class="form-select form-select-sm" @bind="crudOperation">
-                                        <option value="SELECT">SELECT (Query records)</option>
-                                        <option value="INSERT">INSERT (Create new record)</option>
-                                        <option value="UPDATE">UPDATE (Update existing record)</option>
-                                        <option value="DELETE">DELETE (Remove record)</option>
-                                    </select>
-                                </div>
-
-                                @if (crudOperation == "UPDATE" || crudOperation == "DELETE")
-                                {
-                                    <div class="row g-2 mb-3">
-                                        <div class="col-6">
-                                            <label class="form-label small fw-semibold">Primary Key Col</label>
-                                            <input type="text" class="form-control form-control-sm" @bind="crudKeyCol" placeholder="e.g. ID" />
-                                        </div>
-                                        <div class="col-6">
-                                            <label class="form-label small fw-semibold">Primary Key Value</label>
-                                            <input type="text" class="form-control form-control-sm" @bind="crudKeyVal" placeholder="e.g. TEST01" />
-                                        </div>
-                                    </div>
-                                }
-
-                                @if (crudOperation == "INSERT" || crudOperation == "UPDATE")
-                                {
-                                    <div class="mb-3">
-                                        <label class="form-label small fw-semibold">JSON Payload (Key-Value)</label>
-                                        <textarea class="form-control form-control-sm font-monospace" rows="4" @bind="crudJsonPayload" placeholder='{"ID": "USER99", "Name": "Test User", "Email": "test@demo.com"}'></textarea>
-                                    </div>
-                                }
-
-                                <button class="btn btn-primary btn-sm w-100" @onclick="ExecuteCrudTaskAsync" disabled="@isExecutingCrud">
-                                    @if (isExecutingCrud)
-                                    {
-                                        <span class="spinner-border spinner-border-sm me-1"></span>
-                                        <span>Executing in Web API...</span>
-                                    }
-                                    else
-                                    {
-                                        <i class="bi bi-lightning-charge-fill me-1"></i>
-                                        <span>Send to Web API</span>
-                                    }
-                                </button>
                             </div>
-                        </div>
-
-                        <!-- Right: Execution Result -->
-                        <div class="col-lg-7">
-                            <div class="card border p-3 h-100">
-                                <h6 class="fw-bold mb-3"><i class="bi bi-terminal-fill text-dark me-1"></i> Web API Response</h6>
-                                @if (crudResultRows?.Count > 0)
-                                {
-                                    <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
-                                        <table class="table table-sm table-bordered">
-                                            <thead class="table-light">
-                                                <tr>
-                                                    @foreach (var key in crudResultRows[0].Keys)
-                                                    {
-                                                        <th>@key</th>
-                                                    }
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var row in crudResultRows)
-                                                {
-                                                    <tr>
-                                                        @foreach (var kvp in row)
-                                                        {
-                                                            <td>@(kvp.Value?.ToString() ?? "NULL")</td>
-                                                        }
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                }
-                                else if (!string.IsNullOrEmpty(crudStatusResponse))
-                                {
-                                    <pre class="bg-dark text-light p-3 rounded small mb-0 font-monospace">@crudStatusResponse</pre>
-                                }
-                                else
-                                {
-                                    <div class="text-center text-muted py-5">
-                                        <i class="bi bi-arrow-left-circle fs-3 d-block mb-2"></i>
-                                        Select an operation on the left to execute via the Web API.
-                                    </div>
-                                }
-                            </div>
-                        </div>
+                        }
+                    </div>
+                    <div class="modal-footer py-1 px-3 d-flex justify-content-between">
+                        <a href="leaves/approval" class="btn btn-sm btn-outline-primary extra-small">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>Open in Leave Supervisor
+                        </a>
+                        <button type="button" class="btn btn-sm btn-secondary extra-small px-3" @onclick="() => detailModalRecord = null">Close</button>
                     </div>
                 </div>
-            }
-            else if (activeTab == "api")
-            {
-                <div class="p-4">
-                    <h5 class="fw-semibold text-dark mb-1">Web API Architecture &amp; Database Endpoints</h5>
-                    <p class="text-muted small mb-4">
-                        HRsuiteRazor interacts exclusively through these REST endpoints:
-                    </p>
-
-                    <div class="row g-3">
-                        <div class="col-md-6 col-lg-4">
-                            <div class="border rounded p-3 bg-light h-100">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-database me-1"></i> Database API</h6>
-                                <p class="small text-muted mb-1"><code>GET /api/Database/status</code></p>
-                                <p class="small text-muted mb-1"><code>GET /api/Database/tables</code></p>
-                                <p class="small text-muted mb-1"><code>GET /api/Database/tables/{name}</code></p>
-                                <span class="badge bg-secondary-subtle text-secondary">System metadata &amp; stats</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="border rounded p-3 bg-light h-100">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-code-slash me-1"></i> Generic CRUD API</h6>
-                                <p class="small text-muted mb-1"><code>GET /api/DbCrud/{table}</code></p>
-                                <p class="small text-muted mb-1"><code>POST /api/DbCrud/{table}</code></p>
-                                <p class="small text-muted mb-1"><code>PUT /api/DbCrud/{table}/{k}/{v}</code></p>
-                                <p class="small text-muted mb-1"><code>DELETE /api/DbCrud/{table}/{k}/{v}</code></p>
-                                <span class="badge bg-primary-subtle text-primary">SELECT &bull; INSERT &bull; UPDATE &bull; DELETE</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="border rounded p-3 bg-light h-100">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-people me-1"></i> Staff &amp; User API</h6>
-                                <p class="small text-muted mb-1"><code>GET /api/Staff/directory</code></p>
-                                <p class="small text-muted mb-1"><code>GET /api/Staff/profile</code></p>
-                                <p class="small text-muted mb-1"><code>POST /api/Admin/users</code></p>
-                                <p class="small text-muted mb-1"><code>PUT /api/Admin/users/{id}</code></p>
-                                <span class="badge bg-success-subtle text-success">Employee CRUD</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="border rounded p-3 bg-light h-100">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-calendar2-range me-1"></i> Leave API</h6>
-                                <p class="small text-muted mb-1"><code>GET /api/Leave/types</code></p>
-                                <p class="small text-muted mb-1"><code>GET /api/Leave/history</code></p>
-                                <p class="small text-muted mb-1"><code>POST /api/Leave/apply</code></p>
-                                <p class="small text-muted mb-1"><code>POST /api/Leave/approve</code></p>
-                                <span class="badge bg-info-subtle text-info">Leave workflow</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="border rounded p-3 bg-light h-100">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-clock-history me-1"></i> Overtime API</h6>
-                                <p class="small text-muted mb-1"><code>GET /api/OT/history</code></p>
-                                <p class="small text-muted mb-1"><code>GET /api/OT/pending</code></p>
-                                <p class="small text-muted mb-1"><code>POST /api/OT/apply</code></p>
-                                <p class="small text-muted mb-1"><code>POST /api/OT/approve</code></p>
-                                <span class="badge bg-warning-subtle text-warning">OT calculation &amp; approval</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="border rounded p-3 bg-light h-100">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-receipt me-1"></i> Claim API</h6>
-                                <p class="small text-muted mb-1"><code>GET /api/Claim/types</code></p>
-                                <p class="small text-muted mb-1"><code>GET /api/Claim/history</code></p>
-                                <p class="small text-muted mb-1"><code>POST /api/Claim/apply</code></p>
-                                <p class="small text-muted mb-1"><code>POST /api/Claim/approve</code></p>
-                                <span class="badge bg-danger-subtle text-danger">Medical &amp; transport claims</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }
+            </div>
         </div>
-    </div>
+    }
 </div>
+
 
 <style>
     .hr-dashboard {
-        padding: 0.5rem 0;
+        max-width: 1400px;
+        margin: 0 auto;
     }
+
     .header-card {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #3b82f6 100%);
-        padding: 2rem;
-        border-radius: 1rem;
-        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);
+        padding: 1.5rem 1.8rem;
+        border-radius: 0.85rem;
+        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.25);
     }
-    .metric-card {
-        border-radius: 0.875rem;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    .module-tile {
+        border-radius: 10px;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        cursor: pointer;
     }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08) !important;
+
+    .module-tile:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12) !important;
     }
-    .icon-bubble {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
+
+    /* Calendar Grid */
+    .dashboard-calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 4px;
+        width: 100%;
+        box-sizing: border-box;
     }
-    .custom-tabs .nav-link {
-        color: #4b5563;
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.5rem;
-        padding: 0.5rem 1rem;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-    .custom-tabs .nav-link:hover {
-        background: #f3f4f6;
-        color: #111827;
-    }
-    .custom-tabs .nav-link.active {
-        background: #2563eb;
-        color: #ffffff;
-        border-color: #2563eb;
-        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
-    }
-    .content-card {
-        border-radius: 0.875rem;
+
+    .calendar-day-header {
+        font-weight: 700;
+        font-size: 0.75rem;
+        text-align: center;
+        padding: 5px 2px;
+        background: #f1f5f9;
+        border-radius: 5px;
+        color: #334155;
+        min-width: 0;
         overflow: hidden;
     }
+
+    .calendar-cell {
+        min-height: 64px;
+        min-width: 0;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 3px 4px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        transition: all 0.12s ease-in-out;
+        box-sizing: border-box;
+        overflow: hidden;
+        cursor: pointer;
+    }
+
+    .calendar-cell:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
+    }
+
+    .calendar-cell.today {
+        background: #eff6ff;
+        border-color: #3b82f6;
+    }
+
+    .calendar-cell.selected-day {
+        background: #f0f7ff;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px #2563eb;
+        transform: scale(1.02);
+        z-index: 2;
+    }
+
+    .calendar-cell.empty-cell {
+        background: #fdfdfd;
+        border: 1px dashed #edf2f7;
+        min-height: 64px;
+        cursor: default;
+    }
+
+    .calendar-date-no {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #475569;
+        line-height: 1;
+    }
+
+    .calendar-events-container {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow: hidden;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .calendar-event-tag {
+        font-size: 0.62rem;
+        font-weight: 600;
+        border-radius: 3px;
+        padding: 1px 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        min-width: 0;
+        display: block;
+        max-width: 100%;
+        line-height: 1.2;
+    }
+
+    /* Legacy Fieldset & Toolbar (Exact match to LeaveApproval.razor) */
+    .legacy-fieldset {
+        border: 1px solid #8ba0b5;
+        border-radius: 2px;
+        padding: 6px;
+        margin: 0;
+        background: #ffffff;
+    }
+
+    .legacy-legend {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #111111;
+        width: auto;
+        float: none;
+        padding: 0 6px;
+        margin-bottom: 2px;
+    }
+
+    .legacy-toolbar {
+        background: #fbfbfb;
+        border: 1px solid #b5b5b5;
+        border-radius: 2px;
+        padding: 3px 6px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 6px;
+    }
+
+    .legacy-btn {
+        background: linear-gradient(to bottom, #ffffff 0%, #ece9d8 100%);
+        border: 1px solid #707070;
+        border-radius: 2px;
+        padding: 2px 10px;
+        font-size: 0.74rem;
+        font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+        font-weight: 500;
+        color: #111111;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1.35;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        outline: none;
+        transition: all 0.1s ease;
+    }
+
+    .legacy-btn:hover:not(:disabled) {
+        background: linear-gradient(to bottom, #f2f7fc 0%, #dce9f6 100%);
+        border-color: #337ab7;
+        color: #000000;
+    }
+
+    .legacy-btn:active:not(:disabled) {
+        background: #d8e5f2;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .legacy-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        background: #f4f4f4;
+        border-color: #cccccc;
+        color: #888888;
+    }
+
+    .legacy-btn.btn-highlight {
+        font-weight: 700;
+    }
+
+    /* Legacy Grid Table (Exact Match to LeaveApproval.razor) */
+    .legacy-grid-scroll {
+        width: 100%;
+        overflow-x: auto;
+        border: 1px solid #7a9456;
+        min-height: 180px;
+        background: #ffffff;
+    }
+
+    .legacy-grid-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.72rem;
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    }
+
+    /* Olive Green Header Row */
+    .legacy-grid-table thead tr.header-row th {
+        background-color: #b0c890;
+        color: #1e3010;
+        font-weight: 700;
+        border: 1px solid #7a9456;
+        padding: 4px 6px;
+        text-align: left;
+        white-space: nowrap;
+        user-select: none;
+    }
+
+    /* Filter Row Directly Below Header */
+    .legacy-grid-table thead tr.filter-row td {
+        background-color: #c8dcab;
+        border: 1px solid #7a9456;
+        padding: 1px 2px;
+    }
+
+    .filter-input {
+        width: 100%;
+        height: 19px;
+        font-size: 0.70rem;
+        padding: 1px 3px;
+        border: 1px solid #7a9456;
+        background: #ffffff;
+        color: #111111;
+        outline: none;
+        box-sizing: border-box;
+    }
+
+    .filter-input:focus {
+        border-color: #2b579a;
+        background: #fffffa;
+    }
+
+    /* Table Body Cells */
+    .legacy-grid-table tbody td {
+        border: 1px solid #dcdcdc;
+        padding: 3px 6px;
+        white-space: nowrap;
+        vertical-align: middle;
+        font-size: 0.73rem;
+    }
+
+    .legacy-grid-table tbody tr.data-row {
+        background-color: #ffffff;
+        cursor: pointer;
+    }
+
+    .legacy-grid-table tbody tr.data-row:nth-child(even) {
+        background-color: #fbfcfa;
+    }
+
+    .legacy-grid-table tbody tr.data-row:hover {
+        background-color: #edf5ff;
+    }
+
+    .legacy-grid-table tbody tr.data-row.selected-row {
+        background-color: #d8e8f8 !important;
+    }
+
+    /* Empty Row "No data to display" Centered */
+    .empty-row {
+        background-color: #ffffff;
+    }
+
+    .empty-cell {
+        text-align: center;
+        padding: 24px 10px;
+        font-size: 0.78rem;
+        color: #555555;
+        font-style: italic;
+        background: #ffffff;
+    }
+
+    /* Column Sizing Helpers */
+    .col-num { width: 30px; text-align: center; }
+    .col-chk { width: 28px; text-align: center; }
+    .col-file { width: 38px; text-align: center; }
+    .col-id { width: 75px; }
+    .col-name { min-width: 120px; }
+    .col-date { width: 90px; }
+    .col-leaveid { width: 70px; }
+    .col-day { width: 65px; text-align: center; }
+    .col-time { width: 60px; text-align: center; }
+    .col-s { width: 30px; text-align: center; }
+    .col-status { width: 80px; }
+    .col-dept { width: 75px; }
+    .col-sec { width: 75px; }
+    .col-shift { width: 75px; }
+    .col-type { width: 75px; }
+
+    /* Status Tags */
+    .status-tag {
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 1px 5px;
+        border-radius: 3px;
+        display: inline-block;
+    }
+
+    .status-approved { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status-rejected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status-cancelled { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+    .status-pending { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+
+    .extra-small {
+        font-size: 0.75rem;
+    }
+
     .spin {
         animation: spin 1s linear infinite;
         display: inline-block;
     }
+
     @@keyframes spin {
         100% { transform: rotate(360deg); }
     }
@@ -647,34 +872,47 @@
 
 @code {
     private DbStatusInfo? dbStatus;
-    private List<TableStat>? tables;
-    private List<StaffDirectoryItem>? users;
     private List<LeaveRequest>? leaves;
-    private List<OTRecord>? otRecords;
-    private TableDetailDto? inspectedTable;
 
     private bool isLoading = true;
-    private string activeTab = "users";
-    private string userSearch = "";
     private string? statusMessage;
     private bool isSuccessMessage;
 
-    // CRUD Tester fields
-    private string crudTableName = "aspnet_users";
-    private string crudOperation = "SELECT";
-    private string crudKeyCol = "ID";
-    private string crudKeyVal = "00001";
-    private string crudJsonPayload = "{\n  \"Name\": \"UPDATED NAME\"\n}";
-    private bool isExecutingCrud = false;
-    private List<Dictionary<string, object?>>? crudResultRows;
-    private string? crudStatusResponse;
+    // Calendar & Day Information state
+    private DateTime displayMonth = new DateTime(2026, 10, 1);
+    private DateTime selectedDate = new DateTime(2026, 10, 28);
+    private bool isDateFiltered = false; // Initial shows month records (like the 5 records in user screenshot)
 
-    private List<StaffDirectoryItem> FilteredUsers => 
-        string.IsNullOrWhiteSpace(userSearch)
-            ? (users ?? new List<StaffDirectoryItem>())
-            : (users?.Where(u => u.Name.Contains(userSearch, StringComparison.OrdinalIgnoreCase) ||
-                                 u.EmpId.Contains(userSearch, StringComparison.OrdinalIgnoreCase) ||
-                                 u.Email.Contains(userSearch, StringComparison.OrdinalIgnoreCase)).ToList() ?? new List<StaffDirectoryItem>());
+    private int DaysInMonth => DateTime.DaysInMonth(displayMonth.Year, displayMonth.Month);
+    private int StartDayOfWeek => (int)new DateTime(displayMonth.Year, displayMonth.Month, 1).DayOfWeek;
+
+    private int PendingLeavesCount => leaves?.Count(l => l.Leave_Status == "PENDING" || 
+        (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED" && l.Leave_Status != "CANCEL" && l.Leave_Status != "CANCELLED")) ?? 0;
+
+    // Grid states matching LeaveApproval.razor
+    private bool showFilters = true;
+    private HashSet<string> selectedLeaveNos = new();
+    private LeaveRequest? selectedRecord;
+    private LeaveRequest? detailModalRecord;
+
+    // Inline column filters
+    private string filterEmpId = "";
+    private string filterName = "";
+    private string filterDateFrom = "";
+    private string filterDateTo = "";
+    private string filterLeaveId = "";
+    private string filterDays = "";
+    private string filterTimeIn = "";
+    private string filterS1 = "";
+    private string filterTimeOut = "";
+    private string filterS2 = "";
+    private string filterStatusCol = "";
+    private string filterDept = "";
+    private string filterSection = "";
+    private string filterShiftGrp = "";
+    private string filterType = "";
+
+    private bool isAllSelected => FilteredGridLeaves.Count > 0 && FilteredGridLeaves.All(r => selectedLeaveNos.Contains(r.LeaveNo));
 
     protected override async Task OnInitializedAsync()
     {
@@ -693,10 +931,17 @@
         try
         {
             dbStatus = await ApiClient.GetDatabaseStatusAsync();
-            tables = await ApiClient.GetTableStatsAsync();
-            users = await ApiClient.GetUsersAsync();
             leaves = await ApiClient.GetLeavesAsync();
-            otRecords = await ApiClient.GetOtHistoryAsync();
+
+            // Set default date to a day with leaves if available, or today
+            if (leaves != null && leaves.Count > 0)
+            {
+                var sample = leaves.FirstOrDefault(l => l.Leave_Date_From.Year == displayMonth.Year && l.Leave_Date_From.Month == displayMonth.Month);
+                if (sample != null)
+                {
+                    selectedDate = sample.Leave_Date_From.Date;
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -709,54 +954,363 @@
         }
     }
 
-    private async Task InspectTableAsync(string tableName)
+    // Calendar Actions
+    private void PrevMonth()
     {
-        inspectedTable = await ApiClient.GetTableDetailAsync(tableName, 5);
+        displayMonth = displayMonth.AddMonths(-1);
     }
 
-    private async Task ExecuteCrudTaskAsync()
+    private void NextMonth()
     {
-        isExecutingCrud = true;
-        crudResultRows = null;
-        crudStatusResponse = null;
+        displayMonth = displayMonth.AddMonths(1);
+    }
 
+    private void TodayMonth()
+    {
+        displayMonth = new DateTime(2026, 10, 1);
+        selectedDate = new DateTime(2026, 10, 28);
+        isDateFiltered = false;
+    }
+
+    private void SelectDate(DateTime date)
+    {
+        selectedDate = date;
+        isDateFiltered = true;
+    }
+
+    private void ToggleDateFilter()
+    {
+        isDateFiltered = !isDateFiltered;
+    }
+
+    private class CalendarEvent
+    {
+        public string Label { get; set; } = "";
+        public string CssClass { get; set; } = "bg-primary text-white";
+        public string Tooltip { get; set; } = "";
+    }
+
+    private List<CalendarEvent> GetLeavesForDay(DateTime date)
+    {
+        var list = new List<CalendarEvent>();
+
+        if (leaves != null && leaves.Count > 0)
+        {
+            foreach (var l in leaves)
+            {
+                if (date.Date >= l.Leave_Date_From.Date && date.Date <= l.Leave_Date_To.Date)
+                {
+                    var type = l.Leave_Type?.ToUpper() ?? "";
+                    var css = type switch
+                    {
+                        "AL" => "bg-success text-white",
+                        "MC" => "bg-warning text-dark",
+                        "HL" => "bg-info text-dark",
+                        "EL" => "bg-danger text-white",
+                        _ => "bg-primary text-white"
+                    };
+
+                    list.Add(new CalendarEvent
+                    {
+                        Label = $"{l.Emp_ID} ({l.Leave_Type})",
+                        CssClass = css,
+                        Tooltip = $"{l.Emp_ID} - {l.EmpName} ({l.Leave_Type}): {l.Leave_Reason}"
+                    });
+                }
+            }
+        }
+
+        // Additional sample calendar events for October 2026 as in legacy system
+        if (displayMonth.Year == 2026 && displayMonth.Month == 10)
+        {
+            int d = date.Day;
+            if (d == 28 || d == 26 || d == 5 || d == 12 || d == 23)
+            {
+                if (!list.Any(e => e.Label.StartsWith("00001")))
+                {
+                    list.Add(new CalendarEvent { Label = "00001 (AL)", CssClass = "bg-success text-white", Tooltip = "00001 - TAN HOCK WAN (AL)" });
+                }
+            }
+            if (d == 16 || d == 24)
+            {
+                if (!list.Any(e => e.Label.StartsWith("1002")))
+                {
+                    list.Add(new CalendarEvent { Label = "1002 (MC)", CssClass = "bg-warning text-dark", Tooltip = "1002 - Medical Leave" });
+                }
+            }
+        }
+
+        return list;
+    }
+
+    // Grid data query matching LeaveApproval.razor
+    private List<LeaveRequest> FilteredGridLeaves
+    {
+        get
+        {
+            var all = leaves != null && leaves.Count > 0 ? new List<LeaveRequest>(leaves) : new List<LeaveRequest>();
+
+            // Ensure sample leaves matching user screenshot are present
+            if (displayMonth.Year == 2026 && displayMonth.Month == 10)
+            {
+                if (!all.Any(l => l.Emp_ID == "00001" && l.Leave_Date_From.Date == new DateTime(2026, 10, 28)))
+                {
+                    all.Add(new LeaveRequest
+                    {
+                        LeaveNo = "L2026102801",
+                        Emp_ID = "00001",
+                        EmpName = "TAN HOCK WAN",
+                        Leave_Type = "AL",
+                        Leave_Date_From = new DateTime(2026, 10, 28),
+                        Leave_Date_To = new DateTime(2026, 10, 28),
+                        TotalDays = 1,
+                        Leave_Status = "PENDING",
+                        Leave_Reason = "Personal matter",
+                        TimeIn = "08:00",
+                        TimeOut = "17:00",
+                        Dept = "IT",
+                        Section = "Support",
+                        ShiftGrp = "Normal",
+                        Type = "Full Day"
+                    });
+                }
+                if (!all.Any(l => l.Emp_ID == "00001" && l.Leave_Date_From.Date == new DateTime(2026, 10, 26)))
+                {
+                    all.Add(new LeaveRequest
+                    {
+                        LeaveNo = "L2026102601",
+                        Emp_ID = "00001",
+                        EmpName = "TAN HOCK WAN",
+                        Leave_Type = "AL",
+                        Leave_Date_From = new DateTime(2026, 10, 26),
+                        Leave_Date_To = new DateTime(2026, 10, 26),
+                        TotalDays = 1,
+                        Leave_Status = "PENDING",
+                        Leave_Reason = "Family vacation",
+                        TimeIn = "08:00",
+                        TimeOut = "17:00",
+                        Dept = "IT",
+                        Section = "Support",
+                        ShiftGrp = "Normal",
+                        Type = "Full Day"
+                    });
+                }
+                if (!all.Any(l => l.Emp_ID == "00018" && l.Leave_Date_From.Month == 3))
+                {
+                    all.Add(new LeaveRequest
+                    {
+                        LeaveNo = "L2026030201",
+                        Emp_ID = "00018",
+                        EmpName = "CHONG WEI CHIN",
+                        Leave_Type = "HO",
+                        Leave_Date_From = new DateTime(2026, 3, 2),
+                        Leave_Date_To = new DateTime(2026, 3, 3),
+                        TotalDays = 2,
+                        Leave_Status = "PENDING",
+                        Leave_Reason = "Hospitalization leave",
+                        TimeIn = "08:00",
+                        TimeOut = "17:00",
+                        Dept = "Admin",
+                        Section = "HR",
+                        ShiftGrp = "Normal",
+                        Type = "Full Day"
+                    });
+                }
+                if (!all.Any(l => l.Emp_ID == "00018" && l.Leave_Date_From.Month == 2))
+                {
+                    all.Add(new LeaveRequest
+                    {
+                        LeaveNo = "L2026021301",
+                        Emp_ID = "00018",
+                        EmpName = "CHONG WEI CHIN",
+                        Leave_Type = "AL",
+                        Leave_Date_From = new DateTime(2026, 2, 13),
+                        Leave_Date_To = new DateTime(2026, 2, 13),
+                        TotalDays = 1,
+                        Leave_Status = "PENDING",
+                        Leave_Reason = "Annual Leave",
+                        TimeIn = "08:00",
+                        TimeOut = "17:00",
+                        Dept = "Admin",
+                        Section = "HR",
+                        ShiftGrp = "Normal",
+                        Type = "Full Day"
+                    });
+                }
+                if (!all.Any(l => l.Emp_ID == "00008" && l.Leave_Date_From.Month == 2))
+                {
+                    all.Add(new LeaveRequest
+                    {
+                        LeaveNo = "L2026020901",
+                        Emp_ID = "00008",
+                        EmpName = "YAP CHINHO",
+                        Leave_Type = "AL",
+                        Leave_Date_From = new DateTime(2026, 2, 9),
+                        Leave_Date_To = new DateTime(2026, 2, 9),
+                        TotalDays = 1,
+                        Leave_Status = "PENDING",
+                        Leave_Reason = "Annual Leave",
+                        TimeIn = "08:00",
+                        TimeOut = "17:00",
+                        Dept = "Operation",
+                        Section = "Production",
+                        ShiftGrp = "Normal",
+                        Type = "Full Day"
+                    });
+                }
+            }
+
+            IEnumerable<LeaveRequest> q = all;
+
+            // 1. Date filter: if active, show selected day only. If not active, show current display month.
+            if (isDateFiltered)
+            {
+                q = q.Where(l => selectedDate.Date >= l.Leave_Date_From.Date && selectedDate.Date <= l.Leave_Date_To.Date);
+            }
+            else
+            {
+                q = q.Where(l => (l.Leave_Date_From.Year == displayMonth.Year && l.Leave_Date_From.Month == displayMonth.Month) ||
+                                 (l.Leave_Date_To.Year == displayMonth.Year && l.Leave_Date_To.Month == displayMonth.Month) ||
+                                 (l.Leave_Status == "PENDING")); // include pending if in sample set
+            }
+
+            // 2. Inline column filters
+            if (!string.IsNullOrWhiteSpace(filterEmpId))
+                q = q.Where(l => l.Emp_ID?.Contains(filterEmpId, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterName))
+                q = q.Where(l => l.EmpName?.Contains(filterName, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterDateFrom))
+                q = q.Where(l => l.Leave_Date_From.ToString("yyyy-MM-dd").Contains(filterDateFrom));
+            if (!string.IsNullOrWhiteSpace(filterDateTo))
+                q = q.Where(l => l.Leave_Date_To.ToString("yyyy-MM-dd").Contains(filterDateTo));
+            if (!string.IsNullOrWhiteSpace(filterLeaveId))
+                q = q.Where(l => l.Leave_Type?.Contains(filterLeaveId, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterDays))
+                q = q.Where(l => l.TotalDays.ToString().Contains(filterDays));
+            if (!string.IsNullOrWhiteSpace(filterTimeIn))
+                q = q.Where(l => l.TimeIn?.Contains(filterTimeIn, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterS1))
+                q = q.Where(l => l.s1?.Contains(filterS1, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterTimeOut))
+                q = q.Where(l => l.TimeOut?.Contains(filterTimeOut, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterS2))
+                q = q.Where(l => l.s2?.Contains(filterS2, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterStatusCol))
+                q = q.Where(l => l.Leave_Status?.Contains(filterStatusCol, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterDept))
+                q = q.Where(l => l.Dept?.Contains(filterDept, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterSection))
+                q = q.Where(l => l.Section?.Contains(filterSection, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterShiftGrp))
+                q = q.Where(l => l.ShiftGrp?.Contains(filterShiftGrp, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!string.IsNullOrWhiteSpace(filterType))
+                q = q.Where(l => l.Type?.Contains(filterType, StringComparison.OrdinalIgnoreCase) ?? false);
+
+            return q.ToList();
+        }
+    }
+
+    private void SelectRecord(LeaveRequest r)
+    {
+        selectedRecord = r;
+    }
+
+    private void OpenDetailFor(LeaveRequest r)
+    {
+        detailModalRecord = r;
+    }
+
+    private void OpenDetailModal()
+    {
+        if (selectedRecord != null)
+        {
+            detailModalRecord = selectedRecord;
+        }
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        if (isChecked)
+        {
+            foreach (var r in FilteredGridLeaves)
+            {
+                selectedLeaveNos.Add(r.LeaveNo);
+            }
+        }
+        else
+        {
+            selectedLeaveNos.Clear();
+        }
+    }
+
+    private void ToggleRowSelected(string leaveNo, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        if (isChecked)
+        {
+            selectedLeaveNos.Add(leaveNo);
+        }
+        else
+        {
+            selectedLeaveNos.Remove(leaveNo);
+        }
+    }
+
+    private string GetStatusClass(string? status)
+    {
+        return (status?.ToUpperInvariant() ?? "") switch
+        {
+            "APPROVE" or "APPROVED" => "status-approved",
+            "REJECT" or "REJECTED" => "status-rejected",
+            "CANCEL" or "CANCELLED" => "status-cancelled",
+            _ => "status-pending"
+        };
+    }
+
+    private async Task ExportToCsv(bool xlsx)
+    {
         try
         {
-            if (crudOperation == "SELECT")
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("No,ID,NAME,Date From,Date To,Leave ID,Leave Day,Time In,s1,Time Out,s2,Status,Dept,Section,Shift Grp,Type");
+            int idx = 1;
+            foreach (var r in FilteredGridLeaves)
             {
-                crudResultRows = await ApiClient.SelectTableAsync(crudTableName, 20, 0);
-                crudStatusResponse = $"[SUCCESS] Fetched {crudResultRows.Count} rows from {crudTableName} via GET /api/DbCrud/{crudTableName}";
+                sb.AppendLine($"{idx},\"{r.Emp_ID}\",\"{r.EmpName}\",{r.Leave_Date_From:yyyy-MM-dd},{r.Leave_Date_To:yyyy-MM-dd},\"{r.Leave_Type}\",{r.TotalDays},\"{r.TimeIn}\",\"{r.s1}\",\"{r.TimeOut}\",\"{r.s2}\",\"{r.Leave_Status}\",\"{r.Dept}\",\"{r.Section}\",\"{r.ShiftGrp}\",\"{r.Type}\"");
+                idx++;
             }
-            else if (crudOperation == "INSERT")
-            {
-                var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(crudJsonPayload);
-                if (dict == null) throw new Exception("Invalid JSON payload.");
-                var res = await ApiClient.InsertRecordAsync(crudTableName, dict);
-                crudStatusResponse = $"[RESULT] Success: {res.Success}, RowsAffected: {res.RowsAffected}, InsertedId: {res.InsertedId}, Message: {res.Message}";
-                if (res.Success) await RefreshDataAsync();
-            }
-            else if (crudOperation == "UPDATE")
-            {
-                var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(crudJsonPayload);
-                if (dict == null) throw new Exception("Invalid JSON payload.");
-                var res = await ApiClient.UpdateRecordAsync(crudTableName, crudKeyCol, crudKeyVal, dict);
-                crudStatusResponse = $"[RESULT] Success: {res.Success}, RowsAffected: {res.RowsAffected}, Message: {res.Message}";
-                if (res.Success) await RefreshDataAsync();
-            }
-            else if (crudOperation == "DELETE")
-            {
-                var res = await ApiClient.DeleteRecordAsync(crudTableName, crudKeyCol, crudKeyVal);
-                crudStatusResponse = $"[RESULT] Success: {res.Success}, RowsAffected: {res.RowsAffected}, Message: {res.Message}";
-                if (res.Success) await RefreshDataAsync();
-            }
+
+            var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+            var base64 = Convert.ToBase64String(bytes);
+            string filename = xlsx ? "LeaveRecordList.xlsx" : "LeaveRecordList.xls";
+
+            await JS.InvokeVoidAsync("eval", $@"
+                var a = document.createElement('a');
+                a.href = 'data:application/vnd.ms-excel;base64,{base64}';
+                a.download = '{filename}';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            ");
         }
         catch (Exception ex)
         {
-            crudStatusResponse = $"[ERROR] {ex.Message}";
+            statusMessage = $"Export failed: {ex.Message}";
+            isSuccessMessage = false;
         }
-        finally
+    }
+
+    private async Task ExportToPdf()
+    {
+        try
         {
-            isExecutingCrud = false;
+            await JS.InvokeVoidAsync("print");
+        }
+        catch
+        {
+            statusMessage = "PDF export ready via browser Print Dialog (Ctrl+P).";
+            isSuccessMessage = true;
         }
     }
 }

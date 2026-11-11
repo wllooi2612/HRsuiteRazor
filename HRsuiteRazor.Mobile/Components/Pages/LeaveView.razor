@@ -1,0 +1,461 @@
+@page "/leaves/view"
+@page "/leaves/view-leave"
+@page "/leaves/records"
+@page "/eleaveview"
+@page "/eleaverecords"
+@page "/eLeave/eLeaveView.aspx"
+@page "/eLeave/eLeaveRecords.aspx"
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+
+<PageTitle>Leave Records History - HRsuite</PageTitle>
+
+<div class="leave-view-page-container pb-5">
+    <!-- Top Header Bar with Standardized Action Buttons (NO 11-tile grid) -->
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" 
+                    @onclick='() => NavManager.NavigateTo("leaves")' title="Back to Leave Portal">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <h5 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="view-icon-badge" style="width: 32px; height: 32px; font-size: 1.1rem; background: linear-gradient(135deg, #688636 0%, #4c6326 100%); color: white; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-card-checklist"></i>
+                </span>
+                <span>Leave Records &amp; Applications History</span>
+            </h5>
+            <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill extra-small ms-1">
+                @(leaves?.Count ?? 0) Total
+            </span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3 extra-small d-inline-flex align-items-center gap-1 shadow-sm" 
+                    @onclick="LoadDataAsync" disabled="@isLoading" title="Refresh Leave Records">
+                <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
+                <span>Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Alert Notification -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3 rounded-3" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-5"></i>
+            <div class="flex-grow-1 extra-small">@statusMessage</div>
+            <button type="button" class="btn-close" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    <!-- Filter & Search Controls Bar -->
+    <div class="card border-0 shadow-sm rounded-3 mb-3 bg-white">
+        <div class="card-body p-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <!-- Search Box -->
+            <div class="search-box" style="width: 280px; min-width: 200px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0 py-1"><i class="bi bi-search text-muted small"></i></span>
+                    <input type="text" class="form-control border-start-0 bg-light py-1" 
+                           placeholder="Search Employee, Reason..." 
+                           @bind="searchQuery" @bind:event="oninput" />
+                    @if (!string.IsNullOrEmpty(searchQuery))
+                    {
+                        <button class="btn btn-sm btn-outline-secondary bg-light border-start-0 py-1" @onclick='() => searchQuery = ""'>✕</button>
+                    }
+                </div>
+            </div>
+
+            <!-- Status Filter Pills -->
+            <div class="d-flex align-items-center gap-1 flex-wrap">
+                <span class="text-muted small me-1">Status:</span>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "ALL" ? "btn-primary text-white" : "btn-light text-dark border")" 
+                        @onclick='() => filterStatus = "ALL"'>
+                    All (@(leaves?.Count ?? 0))
+                </button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "PENDING" ? "btn-warning text-dark fw-bold" : "btn-light text-dark border")" 
+                        @onclick='() => filterStatus = "PENDING"'>
+                    Pending (@PendingCount)
+                </button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "APPROVE" ? "btn-success text-white" : "btn-light text-dark border")" 
+                        @onclick='() => filterStatus = "APPROVE"'>
+                    Approved (@ApprovedCount)
+                </button>
+                <button class="btn btn-xs rounded-pill @(filterStatus == "REJECT" ? "btn-danger text-white" : "btn-light text-dark border")" 
+                        @onclick='() => filterStatus = "REJECT"'>
+                    Rejected (@RejectedCount)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leave Records Table Container (WITHOUT 11 tiles) -->
+    <div class="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
+        <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2" style="background-color: #688636 !important;">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-card-checklist"></i>
+                <h6 class="mb-0 fw-bold">Leave Records &amp; Applications History</h6>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-light text-dark fw-bold">@FilteredLeaves.Count record(s)</span>
+
+                <!-- 3-Mode View Switcher -->
+                <div class="btn-group btn-group-sm shadow-sm" role="group">
+                    <button type="button" class="btn btn-sm @(viewMode == "auto" ? "btn-light text-dark fw-bold" : "btn-outline-light") py-0 px-2" style="height: 26px;" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Phone = Cards, Desktop = Table)">
+                        <i class="bi bi-phone"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm @(viewMode == "table" ? "btn-light text-dark fw-bold" : "btn-outline-light") py-0 px-2" style="height: 26px;" @onclick='() => viewMode = "table"' title="Grid Table View">
+                        <i class="bi bi-table"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm @(viewMode == "cards" ? "btn-light text-dark fw-bold" : "btn-outline-light") py-0 px-2" style="height: 26px;" @onclick='() => viewMode = "cards"' title="Cards View">
+                        <i class="bi bi-grid-fill"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-success" role="status"></div>
+                    <p class="text-muted extra-small mt-2">Loading leave records from Web API...</p>
+                </div>
+            }
+            else if (FilteredLeaves.Count == 0)
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox text-muted fs-1 d-block mb-2"></i>
+                    <h6 class="fw-bold text-dark mb-1">No Leave Records Found</h6>
+                    <p class="extra-small text-muted mb-0">No records matching your search and filter criteria.</p>
+                </div>
+            }
+            else
+            {
+                <!-- DESKTOP TABLE VIEW -->
+                @if (viewMode == "table" || viewMode == "auto")
+                {
+                    <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 extra-small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 45px;" class="text-center">#</th>
+                                        <th style="width: 130px;">Leave No</th>
+                                        <th>Employee</th>
+                                        <th>Type</th>
+                                        <th>From</th>
+                                        <th>To</th>
+                                        <th>Days</th>
+                                        <th>Status</th>
+                                        <th>Reason</th>
+                                        <th class="text-end" style="width: 140px;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{
+                                        int rIdx = 1;
+                                    }
+                                    @foreach (var l in FilteredLeaves)
+                                    {
+                                        <tr>
+                                            <td class="text-center text-muted">@rIdx</td>
+                                            <td><code>@l.LeaveNo</code></td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <span class="badge bg-light text-dark border">@l.Emp_ID</span>
+                                                    <strong class="text-dark">@l.EmpName</strong>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-primary-subtle text-primary border">@l.Leave_Type</span>
+                                            </td>
+                                            <td>@l.Leave_Date_From.ToString("yyyy-MM-dd")</td>
+                                            <td>@l.Leave_Date_To.ToString("yyyy-MM-dd")</td>
+                                            <td><strong>@l.TotalDays</strong></td>
+                                            <td>
+                                                @if (l.Leave_Status == "APPROVE" || l.Leave_Status == "APPROVED")
+                                                {
+                                                    <span class="badge bg-success-subtle text-success border border-success">Approved</span>
+                                                }
+                                                else if (l.Leave_Status == "REJECT" || l.Leave_Status == "REJECTED")
+                                                {
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger">Rejected</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-warning-subtle text-warning border border-warning">Pending</span>
+                                                }
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 160px;" title="@l.Leave_Reason">
+                                                @(string.IsNullOrWhiteSpace(l.Leave_Reason) ? "-" : l.Leave_Reason)
+                                            </td>
+                                            <td class="text-end text-nowrap">
+                                                @if (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")
+                                                {
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-outline-success py-0 px-2 btn-xs" 
+                                                                disabled="@isSubmitting"
+                                                                @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "APPROVE")'
+                                                                title="Approve Leave">
+                                                            Approve
+                                                        </button>
+                                                        <button class="btn btn-outline-danger py-0 px-2 btn-xs" 
+                                                                disabled="@isSubmitting"
+                                                                @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "REJECT")'
+                                                                title="Reject Leave">
+                                                            Reject
+                                                        </button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted extra-small">Closed</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                        rIdx++;
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+
+                <!-- ANDROID MOBILE CARDS VIEW (自适应为卡片，告别左右滑动) -->
+                @if (viewMode == "cards" || viewMode == "auto")
+                {
+                    <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") p-2">
+                        <div class="row g-2">
+                            @foreach (var l in FilteredLeaves)
+                            {
+                                <div class="col-12 col-sm-6">
+                                    <div class="card border rounded-3 p-3 shadow-sm item-card-item bg-white">
+                                        <!-- Top Line: [BADGE] Name  |  [Status Badge] -->
+                                        <div class="d-flex align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                                            <div class="d-flex align-items-center gap-1.5 flex-grow-1 text-truncate">
+                                                <span class="badge bg-secondary font-monospace fw-bold" style="font-size: 0.8rem;">[@l.Emp_ID]</span>
+                                                <span class="fw-bold text-dark text-truncate ms-1" style="font-size: 0.92rem;">@l.EmpName</span>
+                                            </div>
+                                            <div class="flex-shrink-0">
+                                                @if (l.Leave_Status == "APPROVE" || l.Leave_Status == "APPROVED")
+                                                {
+                                                    <span class="badge bg-success-subtle text-success border border-success py-0.5 px-1.5" style="font-size: 0.72rem;">Approved</span>
+                                                }
+                                                else if (l.Leave_Status == "REJECT" || l.Leave_Status == "REJECTED")
+                                                {
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger py-0.5 px-1.5" style="font-size: 0.72rem;">Rejected</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-warning-subtle text-warning border border-warning py-0.5 px-1.5" style="font-size: 0.72rem;">Pending</span>
+                                                }
+                                            </div>
+                                        </div>
+
+                                        <!-- Line 2: Leave No & Type & Total Days -->
+                                        <div class="d-flex align-items-center justify-content-between small text-muted mb-1.5">
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-file-earmark-text text-secondary me-1.5"></i>
+                                                <span class="text-secondary fw-semibold">No:</span>
+                                                <code class="ms-1">@l.LeaveNo</code>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-1">
+                                                <span class="badge bg-primary-subtle text-primary border" style="font-size: 0.72rem;">@l.Leave_Type</span>
+                                                <span class="badge bg-light text-dark border fw-bold" style="font-size: 0.72rem;">@l.TotalDays Day(s)</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Line 3: Date Range -->
+                                        <div class="d-flex align-items-center small text-muted mb-1.5">
+                                            <i class="bi bi-calendar-event text-secondary me-1.5"></i>
+                                            <span class="text-secondary fw-semibold me-1">Dates:</span>
+                                            <span class="text-dark font-monospace">@l.Leave_Date_From.ToString("yyyy-MM-dd")</span>
+                                            <span class="mx-1 text-muted">~</span>
+                                            <span class="text-dark font-monospace">@l.Leave_Date_To.ToString("yyyy-MM-dd")</span>
+                                        </div>
+
+                                        <!-- Line 4: Reason -->
+                                        @if (!string.IsNullOrWhiteSpace(l.Leave_Reason))
+                                        {
+                                            <div class="small text-muted mb-2 text-truncate" title="@l.Leave_Reason">
+                                                <i class="bi bi-chat-left-text text-secondary me-1.5"></i>
+                                                <span class="text-secondary fw-semibold">Reason:</span>
+                                                <span class="text-dark ms-1">@l.Leave_Reason</span>
+                                            </div>
+                                        }
+
+                                        <!-- Line 5: Actions (if Pending) -->
+                                        @if (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")
+                                        {
+                                            <div class="d-flex justify-content-end gap-2 pt-2 border-top mt-1">
+                                                <button class="btn btn-sm btn-outline-success py-1 px-3 fw-semibold extra-small" 
+                                                        disabled="@isSubmitting"
+                                                        @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "APPROVE")'>
+                                                    <i class="bi bi-check2-circle me-1"></i> Approve
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger py-1 px-3 fw-semibold extra-small" 
+                                                        disabled="@isSubmitting"
+                                                        @onclick='() => ProcessApprovalAsync(l.LeaveNo, l.Emp_ID, "REJECT")'>
+                                                    <i class="bi bi-x-circle me-1"></i> Reject
+                                                </button>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="card-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+            <span class="extra-small text-muted">Showing <strong>@FilteredLeaves.Count</strong> of <strong>@(leaves?.Count ?? 0)</strong> total records</span>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-3 extra-small" @onclick='() => NavManager.NavigateTo("leaves")'>
+                <i class="bi bi-arrow-left me-1"></i> Back to Portal
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<LeaveRequest>? leaves;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string? statusMessage;
+    private bool isSuccess;
+
+    private string filterStatus = "ALL";
+    private string searchQuery = "";
+    private string viewMode = "auto";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            leaves = await ApiClient.GetLeaveHistoryAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error loading leaves: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private List<LeaveRequest> FilteredLeaves
+    {
+        get
+        {
+            if (leaves == null) return new List<LeaveRequest>();
+
+            var q = leaves.AsEnumerable();
+
+            // Status filter
+            if (filterStatus == "PENDING")
+            {
+                q = q.Where(l => l.Leave_Status == "PENDING" || 
+                                (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && 
+                                 l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED"));
+            }
+            else if (filterStatus == "APPROVE")
+            {
+                q = q.Where(l => l.Leave_Status == "APPROVE" || l.Leave_Status == "APPROVED");
+            }
+            else if (filterStatus == "REJECT")
+            {
+                q = q.Where(l => l.Leave_Status == "REJECT" || l.Leave_Status == "REJECTED");
+            }
+
+            // Text search
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                var term = searchQuery.Trim().ToLowerInvariant();
+                q = q.Where(l =>
+                    (l.LeaveNo?.ToLowerInvariant().Contains(term) ?? false) ||
+                    (l.Emp_ID?.ToLowerInvariant().Contains(term) ?? false) ||
+                    (l.EmpName?.ToLowerInvariant().Contains(term) ?? false) ||
+                    (l.Leave_Type?.ToLowerInvariant().Contains(term) ?? false) ||
+                    (l.Leave_Reason?.ToLowerInvariant().Contains(term) ?? false));
+            }
+
+            return q.ToList();
+        }
+    }
+
+    private int PendingCount => leaves?.Count(l => l.Leave_Status == "PENDING" || 
+        (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && 
+         l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")) ?? 0;
+
+    private int ApprovedCount => leaves?.Count(l => l.Leave_Status == "APPROVE" || l.Leave_Status == "APPROVED") ?? 0;
+
+    private int RejectedCount => leaves?.Count(l => l.Leave_Status == "REJECT" || l.Leave_Status == "REJECTED") ?? 0;
+
+    private async Task ProcessApprovalAsync(string leaveNo, string empId, string action)
+    {
+        isSubmitting = true;
+        statusMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var req = new LeaveApprovalRequest
+            {
+                LeaveNo = leaveNo,
+                ApproverId = "SUPERVISOR",
+                Action = action,
+                Remarks = $"Processed via Leave View ({action})"
+            };
+
+            var ok = await ApiClient.ApproveLeaveAsync(req);
+            if (ok)
+            {
+                statusMessage = $"Leave {leaveNo} successfully {action}ED.";
+                isSuccess = true;
+                await LoadDataAsync();
+            }
+            else
+            {
+                statusMessage = $"Failed to {action} leave {leaveNo}. Check server logs.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error processing approval: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+}
+
+<style>
+    .item-card-item {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease-in-out;
+    }
+    .item-card-item:hover {
+        border-color: #94a3b8;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        transform: translateY(-1px);
+    }
+</style>

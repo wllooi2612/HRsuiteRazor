@@ -503,9 +503,24 @@ public class LeaveController : ControllerBase
                     if (string.IsNullOrEmpty(userId))
                     {
                         cmd.CommandText = @"
-                            SELECT r.LeaveNo, r.Emp_ID, MAX(u.Name) AS EmpName, MAX(r.Leave_ID) AS Leave_ID, 
-                                   MIN(r.Leave_Date) AS DateFrom, MAX(r.Leave_Date) AS DateTo, 
-                                   r.Leave_Status, MAX(r.leave_reason) AS Leave_Reason, MAX(r.applevel) AS AppLevel
+                            SELECT r.LeaveNo, r.Emp_ID, 
+                                   COALESCE(MAX(r.NAME), MAX(u.Name), '') AS EmpName, 
+                                   MAX(r.Leave_ID) AS Leave_ID, 
+                                   COALESCE(MIN(r.dateLeavefrom), MIN(r.Leave_Date)) AS DateFrom, 
+                                   COALESCE(MAX(r.dateLeaveto), MAX(r.Leave_Date)) AS DateTo, 
+                                   r.Leave_Status, 
+                                   MAX(r.leave_reason) AS Leave_Reason, 
+                                   MAX(r.applevel) AS AppLevel,
+                                   COUNT(DISTINCT r.Leave_Date) AS TotalDaysCount,
+                                   COALESCE(MAX(r.LEAVE_TIME), '0000') AS TimeIn,
+                                   COALESCE(MAX(r.LEAVE_TIME_TO), '0000') AS TimeOut,
+                                   COALESCE(MAX(r.s1), '') AS s1,
+                                   COALESCE(MAX(r.s2), '') AS s2,
+                                   COALESCE(MAX(r.LEAVE_TYPE), 'FULL') AS DayType,
+                                   COALESCE(MAX(r.picPath), '') AS File1,
+                                   COALESCE(MAX(r.picName), '') AS File2,
+                                   COALESCE(MAX(r.CDSCHDDY), '') AS ShiftGrp,
+                                   COALESCE(MAX(r.CoNo), '') AS Dept
                             FROM aspnet_leaverecord r
                             LEFT JOIN aspnet_users u ON r.Emp_ID = u.ID
                             GROUP BY r.LeaveNo, r.Emp_ID, r.Leave_Status
@@ -514,9 +529,24 @@ public class LeaveController : ControllerBase
                     else
                     {
                         cmd.CommandText = @"
-                            SELECT r.LeaveNo, r.Emp_ID, MAX(u.Name) AS EmpName, MAX(r.Leave_ID) AS Leave_ID, 
-                                   MIN(r.Leave_Date) AS DateFrom, MAX(r.Leave_Date) AS DateTo, 
-                                   r.Leave_Status, MAX(r.leave_reason) AS Leave_Reason, MAX(r.applevel) AS AppLevel
+                            SELECT r.LeaveNo, r.Emp_ID, 
+                                   COALESCE(MAX(r.NAME), MAX(u.Name), '') AS EmpName, 
+                                   MAX(r.Leave_ID) AS Leave_ID, 
+                                   COALESCE(MIN(r.dateLeavefrom), MIN(r.Leave_Date)) AS DateFrom, 
+                                   COALESCE(MAX(r.dateLeaveto), MAX(r.Leave_Date)) AS DateTo, 
+                                   r.Leave_Status, 
+                                   MAX(r.leave_reason) AS Leave_Reason, 
+                                   MAX(r.applevel) AS AppLevel,
+                                   COUNT(DISTINCT r.Leave_Date) AS TotalDaysCount,
+                                   COALESCE(MAX(r.LEAVE_TIME), '0000') AS TimeIn,
+                                   COALESCE(MAX(r.LEAVE_TIME_TO), '0000') AS TimeOut,
+                                   COALESCE(MAX(r.s1), '') AS s1,
+                                   COALESCE(MAX(r.s2), '') AS s2,
+                                   COALESCE(MAX(r.LEAVE_TYPE), 'FULL') AS DayType,
+                                   COALESCE(MAX(r.picPath), '') AS File1,
+                                   COALESCE(MAX(r.picName), '') AS File2,
+                                   COALESCE(MAX(r.CDSCHDDY), '') AS ShiftGrp,
+                                   COALESCE(MAX(r.CoNo), '') AS Dept
                             FROM aspnet_leaverecord r
                             LEFT JOIN aspnet_users u ON r.Emp_ID = u.ID
                             WHERE r.Emp_ID = @EmpID
@@ -529,6 +559,17 @@ public class LeaveController : ControllerBase
                     {
                         while (reader.Read())
                         {
+                            decimal totalDays = 1.0m;
+                            if (reader["TotalDaysCount"] != DBNull.Value && decimal.TryParse(reader["TotalDaysCount"].ToString(), out var td) && td > 0)
+                            {
+                                totalDays = td;
+                            }
+                            string dayType = reader["DayType"]?.ToString() ?? "FULL";
+                            if (dayType.Contains("Half", StringComparison.OrdinalIgnoreCase) && totalDays <= 1)
+                            {
+                                totalDays = 0.5m;
+                            }
+
                             list.Add(new LeaveRequest
                             {
                                 LeaveNo = reader["LeaveNo"]?.ToString() ?? "",
@@ -537,9 +578,19 @@ public class LeaveController : ControllerBase
                                 Leave_Type = reader["Leave_ID"]?.ToString() ?? "",
                                 Leave_Date_From = Convert.ToDateTime(reader["DateFrom"]),
                                 Leave_Date_To = Convert.ToDateTime(reader["DateTo"]),
+                                TotalDays = totalDays,
                                 Leave_Status = reader["Leave_Status"]?.ToString() ?? "",
                                 Leave_Reason = reader["Leave_Reason"]?.ToString() ?? "",
-                                AppLevel = reader["AppLevel"]?.ToString() ?? ""
+                                AppLevel = reader["AppLevel"]?.ToString() ?? "",
+                                TimeIn = reader["TimeIn"]?.ToString() ?? "0000",
+                                TimeOut = reader["TimeOut"]?.ToString() ?? "0000",
+                                s1 = reader["s1"]?.ToString() ?? "",
+                                s2 = reader["s2"]?.ToString() ?? "",
+                                Type = dayType,
+                                File1 = reader["File1"]?.ToString() ?? "",
+                                File2 = reader["File2"]?.ToString() ?? "",
+                                ShiftGrp = reader["ShiftGrp"]?.ToString() ?? "",
+                                Dept = reader["Dept"]?.ToString() ?? ""
                             });
                         }
                     }
@@ -554,33 +605,60 @@ public class LeaveController : ControllerBase
     }
 
     [HttpGet("pending-count")]
-    public IActionResult GetPendingCount([FromQuery] string? supervisorId)
+    public async Task<IActionResult> GetPendingCount([FromQuery] string? supervisorId)
     {
         string connStr = _configuration.GetConnectionString("MyhrsuiteConnectionString") ?? "";
+        string superId = supervisorId?.Trim() ?? "";
         try
         {
-            using (var conn = new MySqlConnection(connStr))
+            using var conn = new MySqlConnection(connStr);
+            await conn.OpenAsync();
+
+            bool isSuperAdmin = false;
+            if (string.IsNullOrEmpty(superId) || 
+                superId.Equals("admin", StringComparison.OrdinalIgnoreCase) || 
+                superId.Equals("super", StringComparison.OrdinalIgnoreCase))
             {
-                conn.Open();
-                using (var cmd = conn.CreateCommand())
+                isSuperAdmin = true;
+            }
+            else
+            {
+                using var checkCmd = conn.CreateCommand();
+                checkCmd.CommandText = "SELECT superAdminLeave FROM aspnet_applevel WHERE ID = @SuperID AND GroupID = 'LEAVE' LIMIT 1";
+                checkCmd.Parameters.AddWithValue("@SuperID", superId);
+                var superVal = (await checkCmd.ExecuteScalarAsync())?.ToString()?.Trim();
+                if (string.Equals(superVal, "Y", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (string.IsNullOrEmpty(supervisorId))
-                    {
-                        cmd.CommandText = "SELECT COUNT(DISTINCT LeaveNo) FROM aspnet_leaverecord WHERE UPPER(LEAVE_STATUS) = 'PENDING'";
-                    }
-                    else
-                    {
-                        cmd.CommandText = @"
-                            SELECT COUNT(DISTINCT LeaveNo) 
-                            FROM aspnet_leaverecord 
-                            WHERE UPPER(LEAVE_STATUS) = 'PENDING' 
-                              AND (app1 = @SuperID OR app2 = @SuperID OR app3 = @SuperID OR app4 = @SuperID)";
-                        cmd.Parameters.AddWithValue("@SuperID", supervisorId);
-                    }
-                    var count = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
-                    return Ok(new { count });
+                    isSuperAdmin = true;
                 }
             }
+
+            using var cmd = conn.CreateCommand();
+            if (isSuperAdmin)
+            {
+                cmd.CommandText = @"
+                    SELECT COUNT(DISTINCT leaveNo) FROM (
+                        SELECT leaveNo FROM aspnet_leaverecord_group WHERE UPPER(LEAVE_STATUS) = 'PENDING'
+                        UNION
+                        SELECT LeaveNo AS leaveNo FROM aspnet_leaverecord WHERE UPPER(LEAVE_STATUS) = 'PENDING'
+                    ) AS combinedPending";
+            }
+            else
+            {
+                cmd.CommandText = @"
+                    SELECT COUNT(DISTINCT leaveNo) FROM (
+                        SELECT leaveNo FROM aspnet_leaverecord_group 
+                        WHERE UPPER(LEAVE_STATUS) = 'PENDING' 
+                          AND (app1 = @SuperID OR app2 = @SuperID OR app3 = @SuperID OR app4 = @SuperID)
+                        UNION
+                        SELECT LeaveNo AS leaveNo FROM aspnet_leaverecord 
+                        WHERE UPPER(LEAVE_STATUS) = 'PENDING' 
+                          AND (app1 = @SuperID OR app2 = @SuperID OR app3 = @SuperID OR app4 = @SuperID)
+                    ) AS combinedPending";
+                cmd.Parameters.AddWithValue("@SuperID", superId);
+            }
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
+            return Ok(new { count });
         }
         catch (Exception ex)
         {
@@ -642,6 +720,530 @@ public class LeaveController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, new { Message = "Database error.", Details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Legacy GeteLeaveApprove_ObjLeaveApproval (BLL_Class.vb) implementation for Supervisor Approval Grid.
+    /// Handles PENDING, CANCEL APPROVED LEAVE, SuperAdminLeave override, multi-level approver permissions,
+    /// total day calculation from daily rows, attachments from aspnet_leaverecordpic, and dw_emp lookups.
+    /// </summary>
+    [HttpGet("supervisor-approval")]
+    public async Task<IActionResult> GetSupervisorApprovalLeaves(
+        [FromQuery] string status = "PENDING",
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
+        [FromQuery] string atype = "Y",
+        [FromQuery] string? supervisorId = null)
+    {
+        string statusUpper = (status ?? "PENDING").Trim().ToUpperInvariant();
+        string atypeUpper = (atype ?? "Y").Trim().ToUpperInvariant();
+        string superId = supervisorId?.Trim() ?? "";
+
+        DateTime df = dateFrom ?? DateTime.Today;
+        DateTime dt = dateTo ?? DateTime.Today;
+
+        string connStr = _configuration.GetConnectionString("MyhrsuiteConnectionString") ?? "";
+        string tmsConnStr = GetTmsMySqlConnectionString();
+
+        var resultList = new List<LeaveRequest>();
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            using var conn = new MySqlConnection(connStr);
+            await conn.OpenAsync();
+
+            // 1. Check Super Admin permission for LEAVE (aspnet_applevel)
+            bool isSuperAdmin = false;
+            if (string.IsNullOrEmpty(superId) || 
+                superId.Equals("admin", StringComparison.OrdinalIgnoreCase) || 
+                superId.Equals("super", StringComparison.OrdinalIgnoreCase))
+            {
+                isSuperAdmin = true;
+            }
+            else
+            {
+                using var checkCmd = conn.CreateCommand();
+                checkCmd.CommandText = "SELECT superAdminLeave FROM aspnet_applevel WHERE ID = @SuperID AND GroupID = 'LEAVE' LIMIT 1";
+                checkCmd.Parameters.AddWithValue("@SuperID", superId);
+                var superVal = (await checkCmd.ExecuteScalarAsync())?.ToString()?.Trim();
+                if (string.Equals(superVal, "Y", StringComparison.OrdinalIgnoreCase))
+                {
+                    isSuperAdmin = true;
+                }
+            }
+
+            // 2. Query records matching requested status
+            if (statusUpper == "CANCELLEAVE")
+            {
+                using var cmd = conn.CreateCommand();
+                var sql = new StringBuilder(@"
+                    SELECT g.*, 
+                           COALESCE(u.Name, g.NAME) AS DisplayEmpName,
+                           COALESCE(l.Name, g.leave_name) AS DisplayLeaveName
+                    FROM aspnet_leaverecord_group g
+                    LEFT JOIN aspnet_users u ON g.EMP_ID = u.ID
+                    LEFT JOIN dw_leave l ON g.LEAVE_ID = l.Leave_ID
+                    WHERE UPPER(g.LEAVE_STATUS) = 'APPROVE'");
+
+                if (atypeUpper != "Y")
+                {
+                    sql.Append(@" AND (
+                        (g.LEAVE_DATE_FROM BETWEEN @DateFrom AND @DateTo) 
+                        OR (g.LEAVE_DATE_FROM <= @DateFrom AND g.LEAVE_DATE_TO >= @DateTo) 
+                        OR (g.LEAVE_DATE_TO BETWEEN @DateFrom AND @DateTo)
+                    )");
+                    cmd.Parameters.AddWithValue("@DateFrom", df.ToString("yyyy-MM-dd 00:00:00"));
+                    cmd.Parameters.AddWithValue("@DateTo", dt.ToString("yyyy-MM-dd 23:59:59"));
+                }
+
+                if (!isSuperAdmin && !string.IsNullOrEmpty(superId))
+                {
+                    sql.Append(" AND (g.app1 = @SuperID OR g.app2 = @SuperID OR g.app3 = @SuperID OR g.app4 = @SuperID)");
+                    cmd.Parameters.AddWithValue("@SuperID", superId);
+                }
+
+                sql.Append(" ORDER BY g.LEAVE_DATE_FROM DESC LIMIT 200");
+                cmd.CommandText = sql.ToString();
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var req = MapFromGroupReader(reader);
+                    req.CheckBoxOpen = true;
+                    req.CheckBoxOpen2 = true;
+                    if (seenKeys.Add(req.LeaveNo + "@" + req.Emp_ID))
+                    {
+                        resultList.Add(req);
+                    }
+                }
+            }
+            else
+            {
+                // Status is PENDING (or APPROVE, REJECT)
+                using (var cmd = conn.CreateCommand())
+                {
+                    var sql = new StringBuilder(@"
+                        SELECT g.*, 
+                               COALESCE(u.Name, g.NAME) AS DisplayEmpName,
+                               COALESCE(l.Name, g.leave_name) AS DisplayLeaveName
+                        FROM aspnet_leaverecord_group g
+                        LEFT JOIN aspnet_users u ON g.EMP_ID = u.ID
+                        LEFT JOIN dw_leave l ON g.LEAVE_ID = l.Leave_ID
+                        WHERE UPPER(g.LEAVE_STATUS) = @Status");
+
+                    cmd.Parameters.AddWithValue("@Status", statusUpper);
+
+                    if (atypeUpper != "Y")
+                    {
+                        sql.Append(@" AND (
+                            (g.LEAVE_DATE_FROM BETWEEN @DateFrom AND @DateTo) 
+                            OR (g.LEAVE_DATE_FROM <= @DateFrom AND g.LEAVE_DATE_TO >= @DateTo) 
+                            OR (g.LEAVE_DATE_TO BETWEEN @DateFrom AND @DateTo)
+                        )");
+                        cmd.Parameters.AddWithValue("@DateFrom", df.ToString("yyyy-MM-dd 00:00:00"));
+                        cmd.Parameters.AddWithValue("@DateTo", dt.ToString("yyyy-MM-dd 23:59:59"));
+                    }
+
+                    if (!isSuperAdmin && !string.IsNullOrEmpty(superId))
+                    {
+                        sql.Append(" AND (g.app1 = @SuperID OR g.app2 = @SuperID OR g.app3 = @SuperID OR g.app4 = @SuperID)");
+                        cmd.Parameters.AddWithValue("@SuperID", superId);
+                    }
+
+                    sql.Append(" ORDER BY g.LEAVE_DATE_FROM ASC");
+                    cmd.CommandText = sql.ToString();
+
+                    using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        var req = MapFromGroupReader(reader);
+                        if (seenKeys.Add(req.LeaveNo + "@" + req.Emp_ID))
+                        {
+                            resultList.Add(req);
+                        }
+                    }
+                }
+
+                // Also check aspnet_leaverecord for any missing applications matching status
+                if (statusUpper == "PENDING")
+                {
+                    using var cmd = conn.CreateCommand();
+                    var sql = new StringBuilder(@"
+                        SELECT r.LeaveNo, r.Emp_ID, 
+                               COALESCE(MAX(r.NAME), MAX(u.Name), '') AS DisplayEmpName, 
+                               MAX(r.Leave_ID) AS LEAVE_ID, 
+                               COALESCE(MIN(r.dateLeavefrom), MIN(r.Leave_Date)) AS LEAVE_DATE_From, 
+                               COALESCE(MAX(r.dateLeaveto), MAX(r.Leave_Date)) AS LEAVE_DATE_To, 
+                               r.Leave_Status, 
+                               MAX(r.leave_reason) AS LEAVE_REASON, 
+                               MAX(r.applevel) AS applevel,
+                               COALESCE(MAX(r.LEAVE_TIME), '0000') AS LEAVE_TIME,
+                               COALESCE(MAX(r.LEAVE_TIME_TO), '0000') AS LEAVE_TIME_TO,
+                               COALESCE(MAX(r.s1), '') AS s1,
+                               COALESCE(MAX(r.s2), '') AS s2,
+                               COALESCE(MAX(r.LEAVE_TYPE), 'FULL') AS LEAVE_TYPE,
+                               COALESCE(MAX(r.picPath), '') AS picPath,
+                               COALESCE(MAX(r.picName), '') AS picName,
+                               COALESCE(MAX(r.CDSCHDDY), '') AS CDSCHDDY,
+                               COALESCE(MAX(r.CoNo), '') AS CoNo,
+                               MAX(r.app1) AS app1, MAX(r.app2) AS app2, MAX(r.app3) AS app3, MAX(r.app4) AS app4,
+                               MAX(r.app1Pass) AS app1Pass, MAX(r.app2Pass) AS app2Pass, MAX(r.app3Pass) AS app3Pass, MAX(r.app4Pass) AS app4Pass,
+                               COALESCE(MAX(l.Name), MAX(r.leave_name), '') AS DisplayLeaveName,
+                               MAX(r.super_name) AS super_name,
+                               '' AS Remarks,
+                               MAX(r.CreatedDate) AS CreatedDate
+                        FROM aspnet_leaverecord r
+                        LEFT JOIN aspnet_users u ON r.Emp_ID = u.ID
+                        LEFT JOIN dw_leave l ON r.Leave_ID = l.Leave_ID
+                        WHERE UPPER(r.LEAVE_STATUS) = 'PENDING'");
+
+                    if (!isSuperAdmin && !string.IsNullOrEmpty(superId))
+                    {
+                        sql.Append(" AND (r.app1 = @SuperID OR r.app2 = @SuperID OR r.app3 = @SuperID OR r.app4 = @SuperID)");
+                        cmd.Parameters.AddWithValue("@SuperID", superId);
+                    }
+
+                    sql.Append(" GROUP BY r.LeaveNo, r.Emp_ID, r.Leave_Status");
+                    cmd.CommandText = sql.ToString();
+
+                    using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        string lno = reader["LeaveNo"]?.ToString() ?? "";
+                        string empid = reader["Emp_ID"]?.ToString() ?? "";
+                        if (seenKeys.Add(lno + "@" + empid))
+                        {
+                            resultList.Add(MapFromRecordReader(reader));
+                        }
+                    }
+                }
+            }
+
+            // 3. Detail Enrichment (TotalDays, Attachments, Approval Permissions)
+            if (resultList.Count > 0)
+            {
+                var leaveNos = resultList.Select(r => r.LeaveNo).Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
+
+                // a. Batch calculate TotalDays from aspnet_leaverecord
+                var daysMap = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < leaveNos.Count; i += 80)
+                {
+                    var chunk = leaveNos.Skip(i).Take(80).ToList();
+                    using var dayCmd = conn.CreateCommand();
+                    var inClause = string.Join(",", chunk.Select((_, idx) => $"@ln_{idx}"));
+                    dayCmd.CommandText = $@"
+                        SELECT LeaveNo, Emp_ID,
+                               SUM(CASE WHEN UPPER(TRIM(LEAVE_TYPE)) = 'FULL' THEN 1.0 ELSE 0.5 END) AS CalculatedDays
+                        FROM aspnet_leaverecord
+                        WHERE LeaveNo IN ({inClause})
+                        GROUP BY LeaveNo, Emp_ID";
+                    for (int j = 0; j < chunk.Count; j++)
+                    {
+                        dayCmd.Parameters.AddWithValue($"@ln_{j}", chunk[j]);
+                    }
+                    using var dayReader = await dayCmd.ExecuteReaderAsync();
+                    while (await dayReader.ReadAsync())
+                    {
+                        string lno = dayReader["LeaveNo"]?.ToString() ?? "";
+                        string empid = dayReader["Emp_ID"]?.ToString() ?? "";
+                        decimal d = dayReader["CalculatedDays"] != DBNull.Value ? Convert.ToDecimal(dayReader["CalculatedDays"]) : 1.0m;
+                        daysMap[lno + "@" + empid] = d;
+                    }
+                }
+
+                // b. Batch load attachments from aspnet_leaverecordpic
+                var picMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < leaveNos.Count; i += 80)
+                {
+                    var chunk = leaveNos.Skip(i).Take(80).ToList();
+                    using var picCmd = conn.CreateCommand();
+                    var inClause = string.Join(",", chunk.Select((_, idx) => $"@pln_{idx}"));
+                    picCmd.CommandText = $@"
+                        SELECT LeaveNo, picPath, picName
+                        FROM aspnet_leaverecordpic
+                        WHERE LeaveNo IN ({inClause})
+                        ORDER BY NoPic ASC";
+                    for (int j = 0; j < chunk.Count; j++)
+                    {
+                        picCmd.Parameters.AddWithValue($"@pln_{j}", chunk[j]);
+                    }
+                    using var picReader = await picCmd.ExecuteReaderAsync();
+                    while (await picReader.ReadAsync())
+                    {
+                        string lno = picReader["LeaveNo"]?.ToString() ?? "";
+                        string pPath = picReader["picPath"]?.ToString()?.Trim() ?? "";
+                        string pName = picReader["picName"]?.ToString()?.Trim() ?? "";
+                        string displayFile = !string.IsNullOrEmpty(pPath) ? pPath : pName;
+                        if (displayFile.StartsWith("~/")) displayFile = displayFile.Substring(1);
+
+                        if (!picMap.TryGetValue(lno, out var list))
+                        {
+                            list = new List<string>();
+                            picMap[lno] = list;
+                        }
+                        if (list.Count < 3 && !string.IsNullOrEmpty(displayFile))
+                        {
+                            list.Add(displayFile);
+                        }
+                    }
+                }
+
+                // Apply to resultList
+                foreach (var req in resultList)
+                {
+                    if (daysMap.TryGetValue(req.LeaveNo + "@" + req.Emp_ID, out var calcDays) && calcDays > 0)
+                    {
+                        req.TotalDays = calcDays;
+                    }
+                    else if (req.TotalDays <= 0)
+                    {
+                        var span = (req.Leave_Date_To.Date - req.Leave_Date_From.Date).TotalDays + 1;
+                        req.TotalDays = (decimal)(span > 0 ? span : 1);
+                    }
+
+                    if (picMap.TryGetValue(req.LeaveNo, out var files))
+                    {
+                        if (files.Count > 0) req.File1 = files[0];
+                        if (files.Count > 1) req.File2 = files[1];
+                        if (files.Count > 2) req.File3 = files[2];
+                    }
+
+                    // c. Permission calculation (CheckBoxOpen, CheckBoxOpen2)
+                    EvaluateApproverPermissions(req, isSuperAdmin, superId, statusUpper);
+                }
+            }
+
+            // d. Batch employee lookup (Dept, Section, ShiftGrp) from dw_emp
+            await EnrichEmployeesFromDwEmpAsync(resultList, tmsConnStr, conn);
+
+            return Ok(resultList);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Error executing GeteLeaveApprove_ObjLeaveApproval process.", Details = ex.Message });
+        }
+    }
+
+    private static LeaveRequest MapFromGroupReader(System.Data.Common.DbDataReader reader)
+    {
+        DateTime df = reader["LEAVE_DATE_From"] != DBNull.Value ? Convert.ToDateTime(reader["LEAVE_DATE_From"]) : DateTime.Today;
+        DateTime dt = reader["LEAVE_DATE_To"] != DBNull.Value ? Convert.ToDateTime(reader["LEAVE_DATE_To"]) : df;
+        DateTime? created = reader["CreatedDate"] != DBNull.Value ? Convert.ToDateTime(reader["CreatedDate"]) : (DateTime?)null;
+
+        string picPath = reader["picPath"]?.ToString()?.Trim() ?? "";
+        string picName = reader["picName"]?.ToString()?.Trim() ?? "";
+        string displayFile = !string.IsNullOrEmpty(picPath) ? picPath : picName;
+        if (displayFile.StartsWith("~/")) displayFile = displayFile.Substring(1);
+
+        return new LeaveRequest
+        {
+            LeaveNo = reader["leaveNo"]?.ToString()?.Trim() ?? "",
+            Emp_ID = reader["EMP_ID"]?.ToString()?.Trim() ?? "",
+            EmpName = reader["DisplayEmpName"]?.ToString()?.Trim() ?? (reader["NAME"]?.ToString()?.Trim() ?? ""),
+            Leave_Type = reader["LEAVE_ID"]?.ToString()?.Trim() ?? "",
+            LeaveName = reader["DisplayLeaveName"]?.ToString()?.Trim() ?? (reader["leave_name"]?.ToString()?.Trim() ?? ""),
+            Leave_Date_From = df,
+            Leave_Date_To = dt,
+            Leave_Status = reader["LEAVE_STATUS"]?.ToString()?.Trim() ?? "PENDING",
+            Leave_Reason = reader["LEAVE_REASON"]?.ToString()?.Trim() ?? "",
+            AppLevel = reader["applevel"]?.ToString()?.Trim() ?? "1",
+            TimeIn = reader["LEAVE_TIME"]?.ToString()?.Trim() ?? "0000",
+            TimeOut = reader["LEAVE_TIME_TO"]?.ToString()?.Trim() ?? "0000",
+            s1 = reader["s1"]?.ToString()?.Trim() ?? "",
+            s2 = reader["s2"]?.ToString()?.Trim() ?? "",
+            Type = reader["LEAVE_TYPE"]?.ToString()?.Trim() ?? "FULL",
+            ShiftGrp = reader["CDSCHDDY"]?.ToString()?.Trim() ?? "",
+            Dept = reader["CoNo"]?.ToString()?.Trim() ?? "",
+            SuperName = reader["super_name"]?.ToString()?.Trim() ?? "",
+            App1 = reader["app1"]?.ToString()?.Trim() ?? "",
+            App1Pass = reader["app1Pass"]?.ToString()?.Trim() ?? "NO",
+            App2 = reader["app2"]?.ToString()?.Trim() ?? "",
+            App2Pass = reader["app2Pass"]?.ToString()?.Trim() ?? "NO",
+            App3 = reader["app3"]?.ToString()?.Trim() ?? "",
+            App3Pass = reader["app3Pass"]?.ToString()?.Trim() ?? "NO",
+            App4 = reader["app4"]?.ToString()?.Trim() ?? "",
+            App4Pass = reader["app4Pass"]?.ToString()?.Trim() ?? "NO",
+            Remarks = reader["Remarks"]?.ToString()?.Trim() ?? "",
+            CreateDate = created,
+            File1 = displayFile
+        };
+    }
+
+    private static LeaveRequest MapFromRecordReader(System.Data.Common.DbDataReader reader)
+    {
+        DateTime df = reader["LEAVE_DATE_From"] != DBNull.Value ? Convert.ToDateTime(reader["LEAVE_DATE_From"]) : DateTime.Today;
+        DateTime dt = reader["LEAVE_DATE_To"] != DBNull.Value ? Convert.ToDateTime(reader["LEAVE_DATE_To"]) : df;
+        DateTime? created = reader["CreatedDate"] != DBNull.Value ? Convert.ToDateTime(reader["CreatedDate"]) : (DateTime?)null;
+
+        string picPath = reader["picPath"]?.ToString()?.Trim() ?? "";
+        string picName = reader["picName"]?.ToString()?.Trim() ?? "";
+        string displayFile = !string.IsNullOrEmpty(picPath) ? picPath : picName;
+        if (displayFile.StartsWith("~/")) displayFile = displayFile.Substring(1);
+
+        return new LeaveRequest
+        {
+            LeaveNo = reader["LeaveNo"]?.ToString()?.Trim() ?? "",
+            Emp_ID = reader["Emp_ID"]?.ToString()?.Trim() ?? "",
+            EmpName = reader["DisplayEmpName"]?.ToString()?.Trim() ?? (reader["NAME"]?.ToString()?.Trim() ?? ""),
+            Leave_Type = reader["LEAVE_ID"]?.ToString()?.Trim() ?? "",
+            LeaveName = reader["DisplayLeaveName"]?.ToString()?.Trim() ?? "",
+            Leave_Date_From = df,
+            Leave_Date_To = dt,
+            Leave_Status = reader["Leave_Status"]?.ToString()?.Trim() ?? "PENDING",
+            Leave_Reason = reader["LEAVE_REASON"]?.ToString()?.Trim() ?? "",
+            AppLevel = reader["applevel"]?.ToString()?.Trim() ?? "1",
+            TimeIn = reader["LEAVE_TIME"]?.ToString()?.Trim() ?? "0000",
+            TimeOut = reader["LEAVE_TIME_TO"]?.ToString()?.Trim() ?? "0000",
+            s1 = reader["s1"]?.ToString()?.Trim() ?? "",
+            s2 = reader["s2"]?.ToString()?.Trim() ?? "",
+            Type = reader["LEAVE_TYPE"]?.ToString()?.Trim() ?? "FULL",
+            ShiftGrp = reader["CDSCHDDY"]?.ToString()?.Trim() ?? "",
+            Dept = reader["CoNo"]?.ToString()?.Trim() ?? "",
+            SuperName = reader["super_name"]?.ToString()?.Trim() ?? "",
+            App1 = reader["app1"]?.ToString()?.Trim() ?? "",
+            App1Pass = reader["app1Pass"]?.ToString()?.Trim() ?? "NO",
+            App2 = reader["app2"]?.ToString()?.Trim() ?? "",
+            App2Pass = reader["app2Pass"]?.ToString()?.Trim() ?? "NO",
+            App3 = reader["app3"]?.ToString()?.Trim() ?? "",
+            App3Pass = reader["app3Pass"]?.ToString()?.Trim() ?? "NO",
+            App4 = reader["app4"]?.ToString()?.Trim() ?? "",
+            App4Pass = reader["app4Pass"]?.ToString()?.Trim() ?? "NO",
+            Remarks = reader["Remarks"]?.ToString()?.Trim() ?? "",
+            CreateDate = created,
+            File1 = displayFile
+        };
+    }
+
+    private static void EvaluateApproverPermissions(LeaveRequest req, bool isSuperAdmin, string superId, string statusUpper)
+    {
+        if (statusUpper == "CANCELLEAVE")
+        {
+            bool isApprover = req.App1 == superId || req.App2 == superId || req.App3 == superId || req.App4 == superId;
+            req.CheckBoxOpen = isApprover;
+            req.CheckBoxOpen2 = isSuperAdmin || isApprover;
+            return;
+        }
+
+        if (isSuperAdmin)
+        {
+            req.CheckBoxOpen = true;
+            req.CheckBoxOpen2 = true;
+            return;
+        }
+
+        // Exact GeteLeaveApprove_ObjLeaveApproval logic (BLL_Class.vb lines 10214-10292):
+        string appLevel = req.AppLevel?.Trim() ?? "1";
+        string app1 = req.App1?.Trim() ?? "";
+        string app1Pass = req.App1Pass?.Trim()?.ToUpperInvariant() ?? "NO";
+        string app2 = req.App2?.Trim() ?? "";
+        string app2Pass = req.App2Pass?.Trim()?.ToUpperInvariant() ?? "NO";
+        string app3 = req.App3?.Trim() ?? "";
+        string app3Pass = req.App3Pass?.Trim()?.ToUpperInvariant() ?? "NO";
+        string app4 = req.App4?.Trim() ?? "";
+        string app4Pass = req.App4Pass?.Trim()?.ToUpperInvariant() ?? "NO";
+
+        bool open = false;
+
+        if (appLevel == "1")
+        {
+            if (app1 == superId && app1Pass == "NO" && app2Pass == "NO" && app3Pass == "NO")
+                open = true;
+            else if (app2 == superId && app1Pass == "YES" && app2Pass == "NO" && app3Pass == "NO")
+                open = true;
+            else if (app3 == superId && app1Pass == "YES" && app2Pass == "YES" && app3Pass == "NO")
+                open = true;
+            else if (app4 == superId && app1Pass == "YES" && app2Pass == "YES" && app3Pass == "YES")
+                open = true;
+        }
+        else if (appLevel == "2")
+        {
+            if (app1Pass == "NO" && app2Pass == "NO" && app3Pass == "NO" && (app4Pass == "NO" || string.IsNullOrEmpty(app4Pass)))
+                open = true;
+        }
+        else if (appLevel == "3")
+        {
+            if (app1 == superId && app1Pass == "NO")
+                open = true;
+            else if (app2 == superId && app2Pass == "NO")
+                open = true;
+            else if ((app3 == superId || app4 == superId) && (app1Pass == "YES" || app2Pass == "YES") && app3Pass == "NO")
+                open = true;
+        }
+        else
+        {
+            if (app1 == superId || app2 == superId || app3 == superId || app4 == superId)
+                open = true;
+        }
+
+        req.CheckBoxOpen = open;
+        req.CheckBoxOpen2 = open;
+    }
+
+    private async Task EnrichEmployeesFromDwEmpAsync(List<LeaveRequest> list, string tmsConnStr, MySqlConnection mainConn)
+    {
+        var empIds = list.Select(l => l.Emp_ID).Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList();
+        if (empIds.Count == 0) return;
+
+        var empMap = new Dictionary<string, (string Dept, string Section, string ShiftGrp)>(StringComparer.OrdinalIgnoreCase);
+
+        // 1. Try querying dw_emp from TMS MySQL
+        try
+        {
+            using var tmsConn = new MySqlConnection(tmsConnStr);
+            await tmsConn.OpenAsync();
+            using var cmd = tmsConn.CreateCommand();
+            cmd.CommandText = "SELECT Emp_ID, Dept_ID, SECTION_ID, wrkgrp_ID FROM dw_emp";
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                string id = reader["Emp_ID"]?.ToString()?.Trim() ?? "";
+                if (!string.IsNullOrEmpty(id))
+                {
+                    empMap[id] = (
+                        reader["Dept_ID"]?.ToString()?.Trim() ?? "",
+                        reader["SECTION_ID"]?.ToString()?.Trim() ?? "",
+                        reader["wrkgrp_ID"]?.ToString()?.Trim() ?? ""
+                    );
+                }
+            }
+        }
+        catch { }
+
+        // 2. Fallback to mainConn (myhrsuitelog) if dw_emp exists there
+        if (empMap.Count == 0)
+        {
+            try
+            {
+                using var cmd = mainConn.CreateCommand();
+                cmd.CommandText = "SELECT Emp_ID, Dept_ID, SECTION_ID, wrkgrp_ID FROM dw_emp";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    string id = reader["Emp_ID"]?.ToString()?.Trim() ?? "";
+                    if (!string.IsNullOrEmpty(id))
+                    {
+                        empMap[id] = (
+                            reader["Dept_ID"]?.ToString()?.Trim() ?? "",
+                            reader["SECTION_ID"]?.ToString()?.Trim() ?? "",
+                            reader["wrkgrp_ID"]?.ToString()?.Trim() ?? ""
+                        );
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // Apply to list
+        foreach (var req in list)
+        {
+            if (empMap.TryGetValue(req.Emp_ID, out var info))
+            {
+                if (!string.IsNullOrEmpty(info.Dept)) req.Dept = info.Dept;
+                if (!string.IsNullOrEmpty(info.Section)) req.Section = info.Section;
+                if (!string.IsNullOrEmpty(info.ShiftGrp)) req.ShiftGrp = info.ShiftGrp;
+            }
         }
     }
 
@@ -759,13 +1361,26 @@ public class LeaveController : ControllerBase
 
         try
         {
-            string newStatus = model.Action.ToUpper() == "APPROVE" ? "APPROVE" : "REJECT";
+            string actionUpper = (model.Action ?? "").Trim().ToUpperInvariant();
+            string newStatus = "REJECT";
+            if (actionUpper == "APPROVE" || actionUpper == "APPROVED")
+            {
+                newStatus = "APPROVE";
+            }
+            else if (actionUpper == "CANCEL" || actionUpper == "CANCELLED" || actionUpper == "CANCEL_APPROVE")
+            {
+                newStatus = "CANCEL";
+            }
+            else
+            {
+                newStatus = "REJECT";
+            }
 
             using (var conn = new MySqlConnection(sqlConnStr))
             {
                 conn.Open();
                 
-                // Fetch leave request details to copy to MySQL upon approval
+                // Fetch leave request details to copy/remove to/from MySQL upon approval/cancellation
                 string leaveId = "";
                 DateTime dateFrom = DateTime.Today;
                 DateTime dateTo = DateTime.Today;
@@ -781,8 +1396,10 @@ public class LeaveController : ControllerBase
                         if (reader.Read())
                         {
                             leaveId = reader["LEAVE_ID"]?.ToString() ?? "";
-                            dateFrom = Convert.ToDateTime(reader["dateLeavefrom"]);
-                            dateTo = Convert.ToDateTime(reader["dateLeaveto"]);
+                            if (reader["dateLeavefrom"] != DBNull.Value)
+                                dateFrom = Convert.ToDateTime(reader["dateLeavefrom"]);
+                            if (reader["dateLeaveto"] != DBNull.Value)
+                                dateTo = Convert.ToDateTime(reader["dateLeaveto"]);
                             leaveType = reader["LEAVE_TYPE"]?.ToString() ?? "FULL";
                         }
                     }
@@ -791,15 +1408,80 @@ public class LeaveController : ControllerBase
                 // Update SQL Server status
                 using (var cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = @"
-                        UPDATE aspnet_leaverecord 
-                        SET LEAVE_STATUS = @Status, 
-                            dateapp1 = NOW(), 
-                            app1Pass = 'YES' 
-                        WHERE LeaveNo = @LeaveNo AND Emp_ID = @EmpID";
-                    cmd.Parameters.AddWithValue("@Status", newStatus);
+                    if (newStatus == "CANCEL")
+                    {
+                        cmd.CommandText = @"
+                            UPDATE aspnet_leaverecord 
+                            SET LEAVE_STATUS = 'CANCEL',
+                                edit_status = 'CANCEL',
+                                dateapp1 = NOW() 
+                            WHERE LeaveNo = @LeaveNo AND Emp_ID = @EmpID";
+                    }
+                    else if (newStatus == "APPROVE")
+                    {
+                        cmd.CommandText = @"
+                            UPDATE aspnet_leaverecord 
+                            SET LEAVE_STATUS = 'APPROVE', 
+                                app1Pass = 'YES',
+                                dateapp1 = NOW() 
+                            WHERE LeaveNo = @LeaveNo AND Emp_ID = @EmpID";
+                    }
+                    else
+                    {
+                        cmd.CommandText = @"
+                            UPDATE aspnet_leaverecord 
+                            SET LEAVE_STATUS = 'REJECT', 
+                                app1Pass = 'NO',
+                                dateapp1 = NOW() 
+                            WHERE LeaveNo = @LeaveNo AND Emp_ID = @EmpID";
+                    }
                     cmd.Parameters.AddWithValue("@LeaveNo", model.LeaveNo);
                     cmd.Parameters.AddWithValue("@EmpID", model.EmpId);
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Also synchronize aspnet_leaverecord_group
+                using (var cmd = conn.CreateCommand())
+                {
+                    if (newStatus == "CANCEL")
+                    {
+                        cmd.CommandText = @"
+                            UPDATE aspnet_leaverecord_group 
+                            SET LEAVE_STATUS = 'CANCEL',
+                                edit_status = 'CANCEL',
+                                Remarks = CASE WHEN @Remarks <> '' THEN @Remarks ELSE Remarks END,
+                                Approved_date = NOW(),
+                                Approve_by = @SupervisorId
+                            WHERE leaveNo = @LeaveNo AND EMP_ID = @EmpID";
+                    }
+                    else if (newStatus == "APPROVE")
+                    {
+                        cmd.CommandText = @"
+                            UPDATE aspnet_leaverecord_group 
+                            SET LEAVE_STATUS = 'APPROVE', 
+                                app1Pass = 'YES',
+                                dateapp1 = NOW(),
+                                Remarks = CASE WHEN @Remarks <> '' THEN @Remarks ELSE Remarks END,
+                                Approved_date = NOW(),
+                                Approve_by = @SupervisorId
+                            WHERE leaveNo = @LeaveNo AND EMP_ID = @EmpID";
+                    }
+                    else
+                    {
+                        cmd.CommandText = @"
+                            UPDATE aspnet_leaverecord_group 
+                            SET LEAVE_STATUS = 'REJECT', 
+                                app1Pass = 'NO',
+                                dateapp1 = NOW(),
+                                Remarks = CASE WHEN @Remarks <> '' THEN @Remarks ELSE Remarks END,
+                                Approved_date = NOW(),
+                                Approve_by = @SupervisorId
+                            WHERE leaveNo = @LeaveNo AND EMP_ID = @EmpID";
+                    }
+                    cmd.Parameters.AddWithValue("@LeaveNo", model.LeaveNo);
+                    cmd.Parameters.AddWithValue("@EmpID", model.EmpId);
+                    cmd.Parameters.AddWithValue("@Remarks", model.Remarks ?? "");
+                    cmd.Parameters.AddWithValue("@SupervisorId", model.SupervisorId ?? "");
                     cmd.ExecuteNonQuery();
                 }
 
@@ -833,14 +1515,56 @@ public class LeaveController : ControllerBase
                         Console.WriteLine("MySQL insertion failed: " + ex.Message);
                     }
                 }
+                // If CANCEL, delete from MySQL transaction table (dw_leaveform) to restore employee balance
+                else if (newStatus == "CANCEL" && !string.IsNullOrEmpty(leaveId))
+                {
+                    try
+                    {
+                        using (var myConn = new OdbcConnection(mysqlConnStr))
+                        {
+                            myConn.Open();
+                            using (var myCmd = myConn.CreateCommand())
+                            {
+                                myCmd.CommandText = "DELETE FROM dw_leaveform WHERE EMP_ID = ? AND LEAVE_ID = ? AND DATE_FROM = ? AND DATE_TO = ?";
+                                myCmd.Parameters.Add(new OdbcParameter("EMP_ID", model.EmpId));
+                                myCmd.Parameters.Add(new OdbcParameter("LEAVE_ID", leaveId));
+                                myCmd.Parameters.Add(new OdbcParameter("DATE_FROM", OdbcType.Date) { Value = dateFrom });
+                                myCmd.Parameters.Add(new OdbcParameter("DATE_TO", OdbcType.Date) { Value = dateTo });
+                                myCmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("MySQL delete dw_leaveform failed: " + ex.Message);
+                    }
+                }
             }
 
-            return Ok(new { Message = $"Leave request successfully {(newStatus == "APPROVE" ? "approved" : "rejected")}." });
+            return Ok(new { Message = $"Leave request successfully {(newStatus == "APPROVE" ? "approved" : newStatus == "CANCEL" ? "cancelled" : "rejected")}." });
         }
         catch (Exception ex)
         {
             return StatusCode(500, new { Message = "Error updating leave request status.", Details = ex.Message });
         }
+    }
+
+    [HttpPost("approve-batch")]
+    public IActionResult ApproveBatchLeaves([FromBody] List<ApproveActionModel> models)
+    {
+        if (models == null || models.Count == 0)
+        {
+            return BadRequest(new { Message = "No items specified." });
+        }
+
+        int successCount = 0;
+        foreach (var m in models)
+        {
+            var res = ApproveLeave(m);
+            if (res is OkObjectResult) successCount++;
+        }
+
+        return Ok(new { Message = $"{successCount} of {models.Count} leave requests processed successfully.", Count = successCount });
     }
 
     private string GetTmsMySqlConnectionString()
@@ -1896,4 +2620,6 @@ public class ApproveActionModel
     public string LeaveNo { get; set; } = string.Empty;
     public string EmpId { get; set; } = string.Empty;
     public string Action { get; set; } = string.Empty; // APPROVE or REJECT
+    public string Remarks { get; set; } = string.Empty;
+    public string SupervisorId { get; set; } = string.Empty;
 }

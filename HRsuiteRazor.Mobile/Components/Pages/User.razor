@@ -1,0 +1,420 @@
+@page "/user"
+@page "/profile"
+@page "/account"
+@rendermode InteractiveServer
+@inject HrApiClient ApiClient
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>User Profile - HRsuite</PageTitle>
+
+<div class="user-page-container pb-5">
+    <!-- Top Bar -->
+    <div class="page-top-bar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" 
+                    @onclick='() => NavManager.NavigateTo("")' title="Back to Home">
+                <i class="bi bi-arrow-left"></i>
+            </button>
+            <h6 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
+                <span class="user-icon-badge" style="width: 28px; height: 28px; font-size: 0.95rem; background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-person-fill"></i>
+                </span>
+                <span>User Account &amp; Profile</span>
+            </h6>
+        </div>
+
+        @if (ApiClient.IsLoggedIn)
+        {
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-danger py-1 px-3 d-inline-flex align-items-center gap-1.5 shadow-sm" style="font-size: 0.8rem;"
+                        @onclick="HandleLogout" title="Sign out of HRsuite">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Logout</span>
+                </button>
+            </div>
+        }
+    </div>
+
+    <!-- Alert Message -->
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3 rounded-2" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-danger") fs-5"></i>
+            <div class="flex-grow-1 small">@statusMessage</div>
+            <button type="button" class="btn-close py-2" @onclick='() => statusMessage = null'></button>
+        </div>
+    }
+
+    @if (ApiClient.IsLoggedIn && ApiClient.CurrentUser != null)
+    {
+        var user = ApiClient.CurrentUser;
+
+        <!-- 1. Profile Header Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-3 overflow-hidden">
+            <div class="card-header border-0 py-3 px-3 px-md-4 text-white" style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="profile-avatar-circle shadow-sm">
+                        <span>@GetInitials(user.Name)</span>
+                    </div>
+                    <div class="text-truncate">
+                        <h5 class="mb-0 fw-bold text-white text-truncate">@user.Name</h5>
+                        <div class="d-flex align-items-center gap-2 flex-wrap mt-1">
+                            <span class="badge bg-white text-primary fw-semibold" style="font-size: 0.75rem;">
+                                <i class="bi bi-person-badge me-1"></i>ID: @user.ID
+                            </span>
+                            @if (user.IsAdmin)
+                            {
+                                <span class="badge bg-warning text-dark fw-bold" style="font-size: 0.72rem;">
+                                    <i class="bi bi-shield-fill-check me-1"></i>ADMINISTRATOR
+                                </span>
+                            }
+                            <span class="badge bg-success-subtle text-success border border-success-subtle fw-semibold" style="font-size: 0.72rem;">
+                                <i class="bi bi-check-circle-fill me-1"></i>Active
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Details Body -->
+            <div class="card-body p-3 p-md-4">
+                <div class="row g-3">
+                    <!-- Column 1: Account Information -->
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 bg-light rounded-3 border h-100">
+                            <h6 class="fw-bold text-primary mb-3 d-flex align-items-center gap-2" style="font-size: 0.88rem;">
+                                <i class="bi bi-person-lines-fill"></i>
+                                <span>Account Information</span>
+                            </h6>
+                            <div class="user-detail-row">
+                                <span class="text-muted small">User ID / Login:</span>
+                                <strong class="text-dark small font-monospace">@user.ID</strong>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="text-muted small">Full Name:</span>
+                                <span class="text-dark small fw-semibold">@user.Name</span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="text-muted small">Email Address:</span>
+                                <span class="text-dark small">@(string.IsNullOrWhiteSpace(user.Email) ? "—" : user.Email)</span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="text-muted small">Department:</span>
+                                <span class="text-dark small">@(staffProfile?.Department ?? "IT / General")</span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="text-muted small">Position:</span>
+                                <span class="text-dark small">@(staffProfile?.Position ?? "Staff")</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: System Permissions & Groups -->
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 bg-light rounded-3 border h-100">
+                            <h6 class="fw-bold text-primary mb-3 d-flex align-items-center gap-2" style="font-size: 0.88rem;">
+                                <i class="bi bi-shield-lock-fill"></i>
+                                <span>Roles &amp; Group Permissions</span>
+                            </h6>
+                            <div class="user-detail-row">
+                                <span class="text-muted small">Leave User Group:</span>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" style="font-size: 0.75rem;">
+                                    @(string.IsNullOrWhiteSpace(user.LeaveUserGroupID) ? "Default" : user.LeaveUserGroupID)
+                                </span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="text-muted small">System User Group:</span>
+                                <span class="badge bg-secondary-subtle text-dark border font-monospace" style="font-size: 0.75rem;">
+                                    @(string.IsNullOrWhiteSpace(user.UserGroupID) ? "None" : user.UserGroupID)
+                                </span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="text-muted small">Super Admin Leave:</span>
+                                <span class="badge @(user.SuperAdminLeave == "Y" ? "bg-success" : "bg-light text-muted border")" style="font-size: 0.75rem;">
+                                    @(user.SuperAdminLeave == "Y" ? "Yes" : "No")
+                                </span>
+                            </div>
+                            <div class="user-detail-row">
+                                <span class="text-muted small">Admin Privileges:</span>
+                                <span class="badge @(user.IsAdmin ? "bg-danger" : "bg-light text-muted border")" style="font-size: 0.75rem;">
+                                    @(user.IsAdmin ? "Full Administrative Access" : "Standard User Access")
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Action Shortcuts -->
+                <div class="mt-4 pt-2 border-top">
+                    <h6 class="fw-bold text-dark mb-3" style="font-size: 0.88rem;">
+                        <i class="bi bi-grid-fill text-secondary me-1"></i>Quick Portals
+                    </h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="leaves" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5 py-1.5 px-3">
+                            <i class="bi bi-calendar2-check"></i>
+                            <span>Leave Portal</span>
+                        </a>
+                        <a href="leaves/approval" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5 py-1.5 px-3">
+                            <i class="bi bi-person-check"></i>
+                            <span>Leave Supervisor</span>
+                        </a>
+                        <a href="staff" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5 py-1.5 px-3">
+                            <i class="bi bi-person-badge"></i>
+                            <span>Staff Directory</span>
+                        </a>
+                        @if (user.IsAdmin)
+                        {
+                            <a href="admin" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1.5 py-1.5 px-3">
+                                <i class="bi bi-person-fill-gear"></i>
+                                <span>Admin &amp; Setup</span>
+                            </a>
+                            <a href="admin/users" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1.5 py-1.5 px-3">
+                                <i class="bi bi-people"></i>
+                                <span>User Master</span>
+                            </a>
+                        }
+                    </div>
+                </div>
+
+                <!-- Switch User Account Section -->
+                <div class="mt-4 pt-3 border-top">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold text-dark mb-1" style="font-size: 0.88rem;">
+                                <i class="bi bi-arrow-repeat text-secondary me-1"></i>Switch User Account
+                            </h6>
+                            <p class="text-muted extra-small mb-0">Quickly switch between corporate test users or re-authenticate.</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3 d-inline-flex align-items-center gap-1"
+                                    @onclick='() => NavManager.NavigateTo("login")'>
+                                <i class="bi bi-box-arrow-in-right"></i>
+                                <span>Sign In as Different User</span>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger py-1 px-3 d-inline-flex align-items-center gap-1"
+                                    @onclick="HandleLogout">
+                                <i class="bi bi-box-arrow-right"></i>
+                                <span>Logout</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- 2. Not Logged In State: Integrated Corporate Login Form -->
+        <div class="card border-0 shadow-sm rounded-3 mx-auto overflow-hidden" style="max-width: 480px;">
+            <div class="card-header border-0 py-3 text-center text-white" style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);">
+                <div class="d-inline-flex align-items-center justify-content-center bg-white text-primary rounded-circle mb-2 shadow-sm" style="width: 52px; height: 52px; font-size: 1.5rem;">
+                    <i class="bi bi-shield-lock-fill"></i>
+                </div>
+                <h5 class="mb-0 fw-bold text-white">HRsuite Login</h5>
+                <p class="text-white-50 extra-small mb-0">Sign in to access your HRsuite account</p>
+            </div>
+
+            <div class="card-body p-4">
+                <form @onsubmit="PerformLoginAsync">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark">User ID (Login Name) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-muted"><i class="bi bi-person"></i></span>
+                            <input type="text" class="form-control" placeholder="e.g. Admin or 00018" @bind="loginUsername" required autocomplete="username" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark">Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-muted"><i class="bi bi-key"></i></span>
+                            <input type="@(showPassword ? "text" : "password")" class="form-control" placeholder="Enter password" @bind="loginPassword" required autocomplete="current-password" />
+                            <button type="button" class="btn btn-outline-secondary" @onclick='() => showPassword = !showPassword' title="Toggle password visibility">
+                                <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm" disabled="@isLoggingIn">
+                        @if (isLoggingIn)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                            <span>Signing in...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-box-arrow-in-right"></i>
+                            <span>Sign In</span>
+                        }
+                    </button>
+                </form>
+
+                <!-- Quick Login Demo Buttons -->
+                <div class="mt-4 pt-3 border-top">
+                    <div class="extra-small text-muted fw-bold text-uppercase mb-2 text-center">Quick Select Test User</div>
+                    <div class="d-flex flex-column gap-1.5">
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex align-items-center justify-content-between py-1.5 px-3 extra-small"
+                                @onclick='() => QuickFill("Admin", "1234")'>
+                            <span><i class="bi bi-shield-check text-primary me-1.5"></i><strong>Admin</strong> (System Admin)</span>
+                            <span class="badge bg-secondary-subtle text-dark">1234</span>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex align-items-center justify-content-between py-1.5 px-3 extra-small"
+                                @onclick='() => QuickFill("00018", "1234")'>
+                            <span><i class="bi bi-person text-success me-1.5"></i><strong>00018</strong> (CHONG WEI CHIN)</span>
+                            <span class="badge bg-secondary-subtle text-dark">1234</span>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex align-items-center justify-content-between py-1.5 px-3 extra-small"
+                                @onclick='() => QuickFill("00001", "1234")'>
+                            <span><i class="bi bi-person text-secondary me-1.5"></i><strong>00001</strong> (TAN HOCK WAN)</span>
+                            <span class="badge bg-secondary-subtle text-dark">1234</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .user-page-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .profile-avatar-circle {
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        background: #ffffff;
+        color: #1e3a8a;
+        font-weight: 800;
+        font-size: 1.3rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid rgba(255, 255, 255, 0.85);
+        flex-shrink: 0;
+    }
+
+    .user-detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 7px 0;
+        border-bottom: 1px dashed #e2e8f0;
+    }
+
+    .user-detail-row:last-child {
+        border-bottom: none;
+    }
+
+    .extra-small {
+        font-size: 0.75rem;
+    }
+</style>
+
+@code {
+    private string? statusMessage;
+    private bool isSuccess;
+    private bool isLoggingIn = false;
+    private bool showPassword = false;
+
+    private string loginUsername = "";
+    private string loginPassword = "";
+
+    private StaffProfile? staffProfile;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ApiClient.OnAuthStateChanged += HandleAuthStateChanged;
+        await LoadUserProfileAsync();
+    }
+
+    private void HandleAuthStateChanged()
+    {
+        _ = LoadUserProfileAsync();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadUserProfileAsync()
+    {
+        if (ApiClient.CurrentUser != null && !string.IsNullOrWhiteSpace(ApiClient.CurrentUser.ID))
+        {
+            try
+            {
+                staffProfile = await ApiClient.GetStaffProfileAsync(ApiClient.CurrentUser.ID);
+            }
+            catch { }
+        }
+    }
+
+    private void QuickFill(string username, string password)
+    {
+        loginUsername = username;
+        loginPassword = password;
+    }
+
+    private async Task PerformLoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(loginUsername) || string.IsNullOrWhiteSpace(loginPassword))
+        {
+            statusMessage = "Please enter both User ID and Password.";
+            isSuccess = false;
+            return;
+        }
+
+        isLoggingIn = true;
+        statusMessage = null;
+        try
+        {
+            var (ok, msg, user) = await ApiClient.LoginAsync(loginUsername, loginPassword);
+            if (ok && user != null)
+            {
+                statusMessage = $"Welcome back, {user.Name}!";
+                isSuccess = true;
+                loginPassword = "";
+                await LoadUserProfileAsync();
+            }
+            else
+            {
+                statusMessage = msg;
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Login error: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoggingIn = false;
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to log out from HRsuite?");
+        if (confirmed)
+        {
+            ApiClient.Logout();
+            statusMessage = "You have been logged out successfully.";
+            isSuccess = true;
+        }
+    }
+
+    private string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
+
+    public void Dispose()
+    {
+        ApiClient.OnAuthStateChanged -= HandleAuthStateChanged;
+    }
+}

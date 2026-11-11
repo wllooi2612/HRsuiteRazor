@@ -61,6 +61,19 @@
                 <span>Print</span>
             </button>
 
+            <!-- 3-Mode View Switcher -->
+            <div class="btn-group btn-group-sm shadow-sm" role="group">
+                <button type="button" class="btn btn-sm @(viewMode == "auto" ? "btn-primary text-white" : "btn-outline-primary") py-1 px-2" style="height: 28px;" @onclick='() => viewMode = "auto"' title="Adaptive Auto (Phone = Cards, Desktop = Table)">
+                    <i class="bi bi-phone"></i>
+                </button>
+                <button type="button" class="btn btn-sm @(viewMode == "table" ? "btn-primary text-white" : "btn-outline-primary") py-1 px-2" style="height: 28px;" @onclick='() => viewMode = "table"' title="Grid Table View">
+                    <i class="bi bi-table"></i>
+                </button>
+                <button type="button" class="btn btn-sm @(viewMode == "cards" ? "btn-primary text-white" : "btn-outline-primary") py-1 px-2" style="height: 28px;" @onclick='() => viewMode = "cards"' title="Cards View">
+                    <i class="bi bi-grid-fill"></i>
+                </button>
+            </div>
+
             <button class="btn btn-sm btn-success shadow-sm py-0 px-2 fw-semibold extra-small d-inline-flex align-items-center" style="height: 28px;" @onclick="ExecuteSearchAsync" disabled="@isLoading" title="Refresh Logs">
                 <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "") me-1"></i>
                 <span>Refresh</span>
@@ -142,125 +155,201 @@
 
 
         <!-- Table View -->
-        <div class="table-responsive log-table-wrapper" style="min-height: 380px; max-height: 65vh;">
-            <table class="table table-hover align-middle mb-0 log-grid-table">
-                <thead class="table-light sticky-top shadow-sm">
-                    <tr>
-                        <th style="width: 60px;" class="text-center">#</th>
-                        <th style="width: 165px; cursor: pointer;" @onclick='() => ToggleSort("Date")'>
-                            <div class="d-flex align-items-center justify-content-between">
-                                <span>Date &amp; Time</span>
-                                <i class="bi @(GetSortIcon("Date")) text-muted extra-small"></i>
-                            </div>
-                        </th>
-                        <th style="width: 85px; cursor: pointer;" @onclick='() => ToggleSort("Level")'>
-                            <div class="d-flex align-items-center justify-content-between">
-                                <span>Level</span>
-                                <i class="bi @(GetSortIcon("Level")) text-muted extra-small"></i>
-                            </div>
-                        </th>
-                        <th style="width: 100px; cursor: pointer;" @onclick='() => ToggleSort("UserID")'>
-                            <div class="d-flex align-items-center justify-content-between">
-                                <span>User ID</span>
-                                <i class="bi @(GetSortIcon("UserID")) text-muted extra-small"></i>
-                            </div>
-                        </th>
-                        <th style="width: 130px; cursor: pointer;" @onclick='() => ToggleSort("PageName")'>
-                            <div class="d-flex align-items-center justify-content-between">
-                                <span>Page / Caller</span>
-                                <i class="bi @(GetSortIcon("PageName")) text-muted extra-small"></i>
-                            </div>
-                        </th>
-                        <th style="width: 130px;">IP / Host</th>
-                        <th>Message</th>
-                        <th style="width: 60px;" class="text-center">Detail</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (isLoading)
-                    {
-                        <tr>
-                            <td colspan="8" class="text-center py-5 text-muted">
-                                <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
-                                <div class="small">Querying logs from database...</div>
-                            </td>
-                        </tr>
-                    }
-                    else if (queryResult.Items.Count == 0)
-                    {
-                        <tr>
-                            <td colspan="8" class="text-center py-5 text-muted">
-                                <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
-                                <div>No log records found matching your filter criteria.</div>
-                                <div class="extra-small text-muted mt-1">Try expanding the date range or clearing filters.</div>
-                            </td>
-                        </tr>
-                    }
-                    else
-                    {
-                        var index = ((queryRequest.PageIndex - 1) * queryRequest.PageSize) + 1;
+        @if (viewMode == "table" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-none d-md-block" : "")">
+                <div class="table-responsive log-table-wrapper" style="min-height: 380px; max-height: 65vh;">
+                    <table class="table table-hover align-middle mb-0 log-grid-table">
+                        <thead class="table-light sticky-top shadow-sm">
+                            <tr>
+                                <th style="width: 60px;" class="text-center">#</th>
+                                <th style="width: 165px; cursor: pointer;" @onclick='() => ToggleSort("Date")'>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span>Date &amp; Time</span>
+                                        <i class="bi @(GetSortIcon("Date")) text-muted extra-small"></i>
+                                    </div>
+                                </th>
+                                <th style="width: 85px; cursor: pointer;" @onclick='() => ToggleSort("Level")'>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span>Level</span>
+                                        <i class="bi @(GetSortIcon("Level")) text-muted extra-small"></i>
+                                    </div>
+                                </th>
+                                <th style="width: 100px; cursor: pointer;" @onclick='() => ToggleSort("UserID")'>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span>User ID</span>
+                                        <i class="bi @(GetSortIcon("UserID")) text-muted extra-small"></i>
+                                    </div>
+                                </th>
+                                <th style="width: 130px; cursor: pointer;" @onclick='() => ToggleSort("PageName")'>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span>Page / Caller</span>
+                                        <i class="bi @(GetSortIcon("PageName")) text-muted extra-small"></i>
+                                    </div>
+                                </th>
+                                <th style="width: 130px;">IP / Host</th>
+                                <th>Message</th>
+                                <th style="width: 60px;" class="text-center">Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (isLoading)
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-5 text-muted">
+                                        <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
+                                        <div class="small">Querying logs from database...</div>
+                                    </td>
+                                </tr>
+                            }
+                            else if (queryResult.Items.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                                        <div>No log records found matching your filter criteria.</div>
+                                        <div class="extra-small text-muted mt-1">Try expanding the date range or clearing filters.</div>
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                var index = ((queryRequest.PageIndex - 1) * queryRequest.PageSize) + 1;
+                                @foreach (var item in queryResult.Items)
+                                {
+                                    var hasException = !string.IsNullOrWhiteSpace(item.Exception);
+                                    <tr class="log-row @(hasException ? "table-danger-subtle" : "")" @onclick="() => OpenDetailModal(item)">
+                                        <td class="text-center text-muted extra-small">@index</td>
+                                        <td class="font-monospace small text-nowrap">
+                                            <i class="bi bi-clock text-muted me-1 extra-small"></i>
+                                            <span>@(item.Date?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge @(GetLevelBadgeClass(item.Level)) extra-small px-2 py-1">
+                                                @item.Level
+                                            </span>
+                                        </td>
+                                        <td class="small">
+                                            @if (!string.IsNullOrWhiteSpace(item.UserID) && item.UserID != "UNKNOWN")
+                                            {
+                                                <span class="user-chip"><i class="bi bi-person-fill me-1 extra-small"></i>@item.UserID</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted extra-small">SYSTEM</span>
+                                            }
+                                        </td>
+                                        <td class="small text-truncate" style="max-width: 140px;" title="@item.PageName">
+                                            @if (!string.IsNullOrWhiteSpace(item.PageName))
+                                            {
+                                                <span class="badge bg-light text-dark border extra-small text-truncate d-inline-block" style="max-width: 130px;">@item.PageName</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td class="extra-small text-muted text-nowrap">
+                                            <div>@item.IP</div>
+                                            @if (!string.IsNullOrWhiteSpace(item.ComputerName))
+                                            {
+                                                <div class="text-secondary opacity-75">@item.ComputerName</div>
+                                            }
+                                        </td>
+                                        <td class="small log-message-cell">
+                                            <div class="text-truncate-2" title="@item.Message">@item.Message</div>
+                                            @if (hasException)
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger extra-small mt-1">
+                                                    <i class="bi bi-bug-fill me-1"></i>Exception Attached
+                                                </span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-circle" @onclick:stopPropagation="true" @onclick="() => OpenDetailModal(item)" title="Inspect Log Entry">
+                                                <i class="bi bi-eye-fill"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    index++;
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        <!-- Mobile Cards Container -->
+        @if (viewMode == "cards" || viewMode == "auto")
+        {
+            <div class="@(viewMode == "auto" ? "d-block d-md-none" : "") p-2">
+                @if (isLoading)
+                {
+                    <div class="text-center py-4 text-muted">
+                        <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
+                        <div class="small">Querying logs from database...</div>
+                    </div>
+                }
+                else if (queryResult.Items.Count == 0)
+                {
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-2 text-secondary opacity-50 d-block mb-2"></i>
+                        <div>No log records found matching your filter criteria.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-2">
                         @foreach (var item in queryResult.Items)
                         {
                             var hasException = !string.IsNullOrWhiteSpace(item.Exception);
-                            <tr class="log-row @(hasException ? "table-danger-subtle" : "")" @onclick="() => OpenDetailModal(item)">
-                                <td class="text-center text-muted extra-small">@index</td>
-                                <td class="font-monospace small text-nowrap">
-                                    <i class="bi bi-clock text-muted me-1 extra-small"></i>
-                                    <span>@(item.Date?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</span>
-                                </td>
-                                <td>
-                                    <span class="badge @(GetLevelBadgeClass(item.Level)) extra-small px-2 py-1">
-                                        @item.Level
-                                    </span>
-                                </td>
-                                <td class="small">
-                                    @if (!string.IsNullOrWhiteSpace(item.UserID) && item.UserID != "UNKNOWN")
-                                    {
-                                        <span class="user-chip"><i class="bi bi-person-fill me-1 extra-small"></i>@item.UserID</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted extra-small">SYSTEM</span>
-                                    }
-                                </td>
-                                <td class="small text-truncate" style="max-width: 140px;" title="@item.PageName">
-                                    @if (!string.IsNullOrWhiteSpace(item.PageName))
-                                    {
-                                        <span class="badge bg-light text-dark border extra-small text-truncate d-inline-block" style="max-width: 130px;">@item.PageName</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">-</span>
-                                    }
-                                </td>
-                                <td class="extra-small text-muted text-nowrap">
-                                    <div>@item.IP</div>
-                                    @if (!string.IsNullOrWhiteSpace(item.ComputerName))
-                                    {
-                                        <div class="text-secondary opacity-75">@item.ComputerName</div>
-                                    }
-                                </td>
-                                <td class="small log-message-cell">
-                                    <div class="text-truncate-2" title="@item.Message">@item.Message</div>
+                            <div class="col-12 col-sm-6">
+                                <div class="card border rounded-3 p-3 shadow-sm item-card-item bg-white @(hasException ? "border-danger" : "")" @onclick="() => OpenDetailModal(item)" style="cursor: pointer;">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                            <span class="badge @(GetLevelBadgeClass(item.Level)) extra-small px-2 py-0.5">
+                                                @item.Level
+                                            </span>
+                                            <span class="badge bg-light text-dark border extra-small font-monospace">
+                                                @(item.Date?.ToString("MM-dd HH:mm:ss") ?? "-")
+                                            </span>
+                                        </div>
+                                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-circle" @onclick:stopPropagation="true" @onclick="() => OpenDetailModal(item)" title="Inspect Log Entry">
+                                            <i class="bi bi-eye-fill"></i>
+                                        </button>
+                                    </div>
+                                    <div class="extra-small mb-1">
+                                        <div class="d-flex align-items-center gap-2 text-muted mb-1">
+                                            <span><i class="bi bi-person me-1"></i>@(string.IsNullOrWhiteSpace(item.UserID) || item.UserID == "UNKNOWN" ? "SYSTEM" : item.UserID)</span>
+                                            @if (!string.IsNullOrWhiteSpace(item.PageName))
+                                            {
+                                                <span><i class="bi bi-file-earmark me-1"></i>@item.PageName</span>
+                                            }
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(item.IP))
+                                        {
+                                            <div class="text-muted extra-small mb-1">
+                                                <i class="bi bi-hdd-network me-1"></i>@item.IP @(!string.IsNullOrWhiteSpace(item.ComputerName) ? $"({item.ComputerName})" : "")
+                                            </div>
+                                        }
+                                        <div class="fw-semibold text-dark text-break mt-1">@item.Message</div>
+                                    </div>
                                     @if (hasException)
                                     {
-                                        <span class="badge bg-danger-subtle text-danger border border-danger extra-small mt-1">
-                                            <i class="bi bi-bug-fill me-1"></i>Exception Attached
-                                        </span>
+                                        <div class="mt-1">
+                                            <span class="badge bg-danger-subtle text-danger border border-danger extra-small">
+                                                <i class="bi bi-bug-fill me-1"></i>Exception Attached
+                                            </span>
+                                        </div>
                                     }
-                                </td>
-                                <td class="text-center">
-                                    <button type="button" class="btn btn-xs btn-outline-secondary rounded-circle" @onclick:stopPropagation="true" @onclick="() => OpenDetailModal(item)" title="Inspect Log Entry">
-                                        <i class="bi bi-eye-fill"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            index++;
+                                </div>
+                            </div>
                         }
-                    }
-                </tbody>
-            </table>
-        </div>
+                    </div>
+                }
+            </div>
+        }
 
         <!-- Bottom Pagination Bar (Consolidated & moved below grid) -->
         <div class="card-footer bg-white py-2 px-3 border-top d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -490,6 +579,7 @@
 </div>
 
 @code {
+    private string viewMode = "auto";
     private LogQueryRequest queryRequest = new()
     {
         DateFrom = DateTime.Today.AddDays(-7),
@@ -826,3 +916,17 @@
         return list;
     }
 }
+
+<style>
+    .item-card-item {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease-in-out;
+    }
+    .item-card-item:hover {
+        border-color: #94a3b8;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        transform: translateY(-1px);
+    }
+</style>
+
