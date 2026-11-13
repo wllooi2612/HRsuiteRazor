@@ -64,6 +64,20 @@ public class LeaveRequest
     public DateTime? CreateDate { get; set; }
 }
 
+public class EmployeeLeaveInfo
+{
+    public string EmpId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Dept { get; set; } = string.Empty;
+    public string Section { get; set; } = string.Empty;
+    public string LeaveUserGroupId { get; set; } = string.Empty;
+    public string App1 { get; set; } = string.Empty;
+    public string App1Name { get; set; } = string.Empty;
+    public string AppLevel { get; set; } = "1";
+    public string AppNo { get; set; } = "1";
+    public bool HasLeaveApprovalLevel { get; set; } = true;
+}
+
 public class LeaveApplyModel
 {
     public string EmpId { get; set; } = string.Empty;
@@ -72,7 +86,11 @@ public class LeaveApplyModel
     public DateTime DateTo { get; set; } = DateTime.Today;
     public decimal Days { get; set; } = 1.0m;
     public string Reason { get; set; } = string.Empty;
-    public string DayType { get; set; } = "FULL"; // FULL, FIRST_HALF, SECOND_HALF
+    public string DayType { get; set; } = "FULL"; // FULL, FIRST_HALF, SECOND_HALF, TIME
+    public string LeaveType { get; set; } = "FULL";
+    public string TimeFrom { get; set; } = "0000";
+    public string TimeTo { get; set; } = "0000";
+    public decimal Hours { get; set; } = 0m;
     public string? FileAttachmentBase64 { get; set; }
     public string? FileName { get; set; }
 }

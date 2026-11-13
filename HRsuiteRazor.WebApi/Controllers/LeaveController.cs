@@ -1247,6 +1247,112 @@ public class LeaveController : ControllerBase
         }
     }
 
+    [HttpGet("employee-info/{empId}")]
+    public IActionResult GetEmployeeInfo(string empId)
+    {
+        if (string.IsNullOrWhiteSpace(empId))
+            return BadRequest(new { Message = "Employee ID cannot be empty." });
+
+        string sqlConnStr = _configuration.GetConnectionString("MyhrsuiteConnectionString") ?? "";
+        
+        var info = new HRsuiteRazor.Shared.Models.EmployeeLeaveInfo
+        {
+            EmpId = empId.Trim(),
+            Name = "",
+            Dept = "",
+            Section = "",
+            LeaveUserGroupId = "DEFAULT",
+            App1 = "",
+            App1Name = "",
+            AppLevel = "1",
+            AppNo = "1",
+            HasLeaveApprovalLevel = true
+        };
+
+        try
+        {
+            using (var conn = new MySqlConnection(sqlConnStr))
+            {
+                conn.Open();
+
+                // 1. Check aspnet_users
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Name, LeaveUserGroupID FROM aspnet_users WHERE ID = @ID";
+                    cmd.Parameters.AddWithValue("@ID", empId.Trim());
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            info.Name = reader["Name"]?.ToString() ?? "";
+                            info.LeaveUserGroupId = reader["LeaveUserGroupID"]?.ToString() ?? "DEFAULT";
+                        }
+                    }
+                }
+
+                // 2. Check aspnet_applevel for supervisor
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT app1, app2, app3, app4, appNo, applevel FROM aspnet_applevel WHERE ID = @ID AND GroupID = 'LEAVE'";
+                    cmd.Parameters.AddWithValue("@ID", empId.Trim());
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            info.App1 = reader["app1"]?.ToString() ?? "";
+                            info.AppNo = reader["appNo"]?.ToString() ?? "1";
+                            info.AppLevel = reader["applevel"]?.ToString() ?? "1";
+                        }
+                        else
+                        {
+                            info.HasLeaveApprovalLevel = false;
+                        }
+                    }
+                }
+
+                // 3. If App1 found, get App1 Name
+                if (!string.IsNullOrEmpty(info.App1))
+                {
+                    using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT Name FROM aspnet_users WHERE ID = @ID";
+                        cmd.Parameters.AddWithValue("@ID", info.App1);
+                        info.App1Name = cmd.ExecuteScalar()?.ToString() ?? info.App1;
+                    }
+                }
+            }
+
+            // Look up dw_emp in ConnectionTMS for Dept, Section, and Name fallback
+            try
+            {
+                using var connMy = new MySqlConnection(GetTmsMySqlConnectionString());
+                connMy.Open();
+                using var cmd = connMy.CreateCommand();
+                cmd.CommandText = "SELECT name, dept, section FROM dw_emp WHERE emp_id = @EmpID";
+                cmd.Parameters.AddWithValue("@EmpID", empId.Trim());
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    if (string.IsNullOrEmpty(info.Name)) info.Name = reader["name"]?.ToString() ?? "";
+                    info.Dept = reader["dept"]?.ToString() ?? "";
+                    info.Section = reader["section"]?.ToString() ?? "";
+                }
+            }
+            catch { }
+
+            if (string.IsNullOrEmpty(info.Name))
+            {
+                info.Name = $"Employee {empId.Trim()}";
+            }
+
+            return Ok(info);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Error retrieving employee info.", Details = ex.Message });
+        }
+    }
+
     [HttpPost("apply")]
     public IActionResult ApplyLeave([FromBody] LeaveApplyModel model)
     {
@@ -1259,10 +1365,13 @@ public class LeaveController : ControllerBase
         
         try
         {
-            // 1. Get Employee Name and Supervisor level from DB
             string empName = "";
             string app1 = model.EmpId, app2 = "", app3 = "", app4 = "";
+            string app1Name = "", app2Name = "", app3Name = "", app4Name = "";
             string applevel = "1", appNo = "1";
+            string leaveName = model.LeaveCode;
+            string effectiveDayType = !string.IsNullOrEmpty(model.DayType) ? model.DayType : (!string.IsNullOrEmpty(model.LeaveType) ? model.LeaveType : "FULL");
+            string leaveNo = "";
 
             using (var conn = new MySqlConnection(sqlConnStr))
             {
@@ -1274,6 +1383,11 @@ public class LeaveController : ControllerBase
                     cmd.CommandText = "SELECT Name FROM aspnet_users WHERE ID = @ID";
                     cmd.Parameters.AddWithValue("@ID", model.EmpId);
                     empName = cmd.ExecuteScalar()?.ToString() ?? "";
+                }
+
+                if (string.IsNullOrEmpty(empName))
+                {
+                    empName = $"Employee {model.EmpId}";
                 }
 
                 // Get supervisor mapping
@@ -1295,10 +1409,103 @@ public class LeaveController : ControllerBase
                     }
                 }
 
-                // Generate a unique LeaveNo (similar to yyMMddhhmmss)
-                string leaveNo = model.EmpId + DateTime.Now.ToString("yyMMddHHmmss");
+                // Lookup supervisor names
+                if (!string.IsNullOrEmpty(app1))
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "SELECT Name FROM aspnet_users WHERE ID = @ID";
+                    cmd.Parameters.AddWithValue("@ID", app1);
+                    app1Name = cmd.ExecuteScalar()?.ToString() ?? app1;
+                }
+                if (!string.IsNullOrEmpty(app2))
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "SELECT Name FROM aspnet_users WHERE ID = @ID";
+                    cmd.Parameters.AddWithValue("@ID", app2);
+                    app2Name = cmd.ExecuteScalar()?.ToString() ?? app2;
+                }
 
-                // Insert one row per day in the range
+                // Lookup leave name from aspnet_leaveid
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Name FROM aspnet_leaveid WHERE Leave_ID = @LeaveID LIMIT 1";
+                    cmd.Parameters.AddWithValue("@LeaveID", model.LeaveCode);
+                    leaveName = cmd.ExecuteScalar()?.ToString() ?? model.LeaveCode;
+                }
+
+                // Generate a unique LeaveNo (e.g. EmpId + yyMMddHHmmss + DayType code)
+                string leaveSuffix = effectiveDayType == "FIRST_HALF" ? "1" : (effectiveDayType == "SECOND_HALF" ? "2" : (effectiveDayType == "TIME" ? "3" : "0"));
+                leaveNo = model.EmpId + DateTime.Now.ToString("yyMMddHHmmss") + leaveSuffix;
+
+                // Handle file attachment if provided
+                string savedFileName = model.FileName ?? "";
+                string savedFilePath = "";
+                if (!string.IsNullOrEmpty(model.FileAttachmentBase64) && !string.IsNullOrEmpty(model.FileName))
+                {
+                    try
+                    {
+                        string uploadFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "leave");
+                        Directory.CreateDirectory(uploadFolder);
+                        string safeFileName = $"{leaveNo}_{Path.GetFileName(model.FileName)}";
+                        string fullPath = Path.Combine(uploadFolder, safeFileName);
+                        byte[] fileBytes = Convert.FromBase64String(model.FileAttachmentBase64);
+                        System.IO.File.WriteAllBytes(fullPath, fileBytes);
+                        savedFileName = safeFileName;
+                        savedFilePath = $"/uploads/leave/{safeFileName}";
+                    }
+                    catch { }
+                }
+
+                // 2. Insert master header into aspnet_leaverecord_group
+                using (var cmdGroup = conn.CreateCommand())
+                {
+                    cmdGroup.CommandText = @"
+                        INSERT INTO aspnet_leaverecord_group (
+                            leaveNo, LEAVE_DATE_From, LEAVE_DATE_To, EMP_ID, NAME, SUPER_ID, LEAVE_STATUS, LEAVE_REASON,
+                            LEAVE_TIME, LEAVE_TIME_TO, s1, s2, LEAVE_ID, email, CDSCHDDY, LEAVE_TYPE, EXCLUDE, edit_status,
+                            indexNo, dateLeavefrom, dateLeaveto, super_name, leave_name, app1, app2, app3, app4,
+                            app1Pass, app2Pass, app3Pass, app4Pass, applevel, appNo,
+                            app1_name, app2_name, app3_name, app4_name,
+                            picPath, picName, CreateDate, CreatedDate, CreatedBy, special_leave_app, superAdminLeave
+                        ) VALUES (
+                            @LeaveNo, @DateFrom, @DateTo, @EmpID, @Name, @SuperID, 'PENDING', @Reason,
+                            @TimeFrom, @TimeTo, '', '', @LeaveID, '', '', @LeaveType, 'NO', '',
+                            0, @DateFrom, @DateTo, @SuperName, @LeaveName, @App1, @App2, @App3, @App4,
+                            'NO', 'NO', 'NO', 'NO', @AppLevel, @AppNo,
+                            @App1Name, @App2Name, @App3Name, @App4Name,
+                            @PicPath, @PicName, NOW(), NOW(), @EmpID, 'N', 'N'
+                        )";
+                    
+                    cmdGroup.Parameters.AddWithValue("@LeaveNo", leaveNo);
+                    cmdGroup.Parameters.AddWithValue("@DateFrom", model.DateFrom.Date);
+                    cmdGroup.Parameters.AddWithValue("@DateTo", model.DateTo.Date);
+                    cmdGroup.Parameters.AddWithValue("@EmpID", model.EmpId);
+                    cmdGroup.Parameters.AddWithValue("@Name", empName);
+                    cmdGroup.Parameters.AddWithValue("@SuperID", app1);
+                    cmdGroup.Parameters.AddWithValue("@Reason", model.Reason ?? "");
+                    cmdGroup.Parameters.AddWithValue("@TimeFrom", model.TimeFrom ?? "0000");
+                    cmdGroup.Parameters.AddWithValue("@TimeTo", model.TimeTo ?? "0000");
+                    cmdGroup.Parameters.AddWithValue("@LeaveID", model.LeaveCode);
+                    cmdGroup.Parameters.AddWithValue("@LeaveType", effectiveDayType);
+                    cmdGroup.Parameters.AddWithValue("@SuperName", app1Name);
+                    cmdGroup.Parameters.AddWithValue("@LeaveName", leaveName);
+                    cmdGroup.Parameters.AddWithValue("@App1", app1);
+                    cmdGroup.Parameters.AddWithValue("@App2", app2);
+                    cmdGroup.Parameters.AddWithValue("@App3", app3);
+                    cmdGroup.Parameters.AddWithValue("@App4", app4);
+                    cmdGroup.Parameters.AddWithValue("@AppLevel", applevel);
+                    cmdGroup.Parameters.AddWithValue("@AppNo", appNo);
+                    cmdGroup.Parameters.AddWithValue("@App1Name", app1Name);
+                    cmdGroup.Parameters.AddWithValue("@App2Name", app2Name);
+                    cmdGroup.Parameters.AddWithValue("@App3Name", app3Name);
+                    cmdGroup.Parameters.AddWithValue("@App4Name", app4Name);
+                    cmdGroup.Parameters.AddWithValue("@PicPath", savedFilePath);
+                    cmdGroup.Parameters.AddWithValue("@PicName", savedFileName);
+
+                    cmdGroup.ExecuteNonQuery();
+                }
+
+                // 3. Insert one row per day into aspnet_leaverecord
                 DateTime current = model.DateFrom.Date;
                 DateTime end = model.DateTo.Date;
 
@@ -1310,11 +1517,11 @@ public class LeaveController : ControllerBase
                             INSERT INTO aspnet_leaverecord (
                                 leaveNo, LEAVE_DATE, EMP_ID, NAME, SUPER_ID, LEAVE_STATUS, LEAVE_REASON, LEAVE_ID, LEAVE_TYPE,
                                 dateLeavefrom, dateLeaveto, app1, app2, app3, app4, app1Pass, app2Pass, app3Pass, app4Pass,
-                                applevel, appNo, CreatedDate
+                                applevel, appNo, app1_name, app2_name, super_name, leave_name, picPath, picName, CreatedDate
                             ) VALUES (
                                 @LeaveNo, @LeaveDate, @EmpID, @Name, @SuperID, 'PENDING', @Reason, @LeaveID, @LeaveType,
                                 @DateFrom, @DateTo, @App1, @App2, @App3, @App4, 'NO', 'NO', 'NO', 'NO',
-                                @AppLevel, @AppNo, NOW()
+                                @AppLevel, @AppNo, @App1Name, @App2Name, @SuperName, @LeaveName, @PicPath, @PicName, NOW()
                             )";
                         
                         cmd.Parameters.AddWithValue("@LeaveNo", leaveNo);
@@ -1322,25 +1529,66 @@ public class LeaveController : ControllerBase
                         cmd.Parameters.AddWithValue("@EmpID", model.EmpId);
                         cmd.Parameters.AddWithValue("@Name", empName);
                         cmd.Parameters.AddWithValue("@SuperID", app1);
-                        cmd.Parameters.AddWithValue("@Reason", model.Reason);
+                        cmd.Parameters.AddWithValue("@Reason", model.Reason ?? "");
                         cmd.Parameters.AddWithValue("@LeaveID", model.LeaveCode);
-                        cmd.Parameters.AddWithValue("@LeaveType", model.LeaveType);
-                        cmd.Parameters.AddWithValue("@DateFrom", model.DateFrom);
-                        cmd.Parameters.AddWithValue("@DateTo", model.DateTo);
+                        cmd.Parameters.AddWithValue("@LeaveType", effectiveDayType);
+                        cmd.Parameters.AddWithValue("@DateFrom", model.DateFrom.Date);
+                        cmd.Parameters.AddWithValue("@DateTo", model.DateTo.Date);
                         cmd.Parameters.AddWithValue("@App1", app1);
                         cmd.Parameters.AddWithValue("@App2", app2);
                         cmd.Parameters.AddWithValue("@App3", app3);
                         cmd.Parameters.AddWithValue("@App4", app4);
                         cmd.Parameters.AddWithValue("@AppLevel", applevel);
                         cmd.Parameters.AddWithValue("@AppNo", appNo);
+                        cmd.Parameters.AddWithValue("@App1Name", app1Name);
+                        cmd.Parameters.AddWithValue("@App2Name", app2Name);
+                        cmd.Parameters.AddWithValue("@SuperName", app1Name);
+                        cmd.Parameters.AddWithValue("@LeaveName", leaveName);
+                        cmd.Parameters.AddWithValue("@PicPath", savedFilePath);
+                        cmd.Parameters.AddWithValue("@PicName", savedFileName);
 
                         cmd.ExecuteNonQuery();
                     }
                     current = current.AddDays(1);
                 }
+
+                // 4. RegistrationDetails for email activation
+                try
+                {
+                    using var cmdReg = conn.CreateCommand();
+                    cmdReg.CommandText = @"
+                        INSERT INTO aspnet_registrationdetails (
+                            ActivationCode, Registered, DateRegistered, LeaveDate, EmailSend, RefID, Emp_ID, Email_Reject, TotalTry
+                        ) VALUES (
+                            @ActivationCode, 'N', NOW(), @LeaveDate, 'N', @RefID, @EmpID, '', 0
+                        )";
+                    cmdReg.Parameters.AddWithValue("@ActivationCode", Guid.NewGuid().ToString());
+                    cmdReg.Parameters.AddWithValue("@LeaveDate", model.DateFrom.Date);
+                    cmdReg.Parameters.AddWithValue("@RefID", leaveNo);
+                    cmdReg.Parameters.AddWithValue("@EmpID", model.EmpId);
+                    cmdReg.ExecuteNonQuery();
+                }
+                catch { }
+
+                // 5. If file attachment, insert into aspnet_leaverecordpic
+                if (!string.IsNullOrEmpty(savedFileName))
+                {
+                    try
+                    {
+                        using var cmdPic = conn.CreateCommand();
+                        cmdPic.CommandText = @"
+                            INSERT INTO aspnet_leaverecordpic (picName, picPath, leaveNo)
+                            VALUES (@PicName, @PicPath, @LeaveNo)";
+                        cmdPic.Parameters.AddWithValue("@PicName", savedFileName);
+                        cmdPic.Parameters.AddWithValue("@PicPath", savedFilePath);
+                        cmdPic.Parameters.AddWithValue("@LeaveNo", leaveNo);
+                        cmdPic.ExecuteNonQuery();
+                    }
+                    catch { }
+                }
             }
 
-            return Ok(new { Message = "Leave request submitted successfully." });
+            return Ok(new { Message = "Leave request submitted successfully.", LeaveNo = leaveNo });
         }
         catch (Exception ex)
         {
@@ -2611,8 +2859,15 @@ public class LeaveApplyModel
     public string LeaveCode { get; set; } = string.Empty;
     public DateTime DateFrom { get; set; }
     public DateTime DateTo { get; set; }
-    public string LeaveType { get; set; } = "FULL"; // FULL, 1st Half, 2nd Half
+    public decimal Days { get; set; } = 1.0m;
+    public string LeaveType { get; set; } = "FULL"; // FULL, FIRST_HALF, SECOND_HALF, TIME
+    public string DayType { get; set; } = "FULL";
+    public string TimeFrom { get; set; } = "0000";
+    public string TimeTo { get; set; } = "0000";
+    public decimal Hours { get; set; } = 0m;
     public string Reason { get; set; } = string.Empty;
+    public string? FileAttachmentBase64 { get; set; }
+    public string? FileName { get; set; }
 }
 
 public class ApproveActionModel

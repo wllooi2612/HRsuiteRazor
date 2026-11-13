@@ -331,6 +331,20 @@ public class HrApiClient
         }
     }
 
+    public async Task<EmployeeLeaveInfo?> GetEmployeeLeaveInfoAsync(string empId)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(empId)) return null;
+            return await _http.GetFromJsonAsync<EmployeeLeaveInfo>($"api/Leave/employee-info/{Uri.EscapeDataString(empId)}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get employee leave info for {EmpId}", empId);
+            return null;
+        }
+    }
+
     public async Task<bool> ApplyLeaveAsync(LeaveApplyModel model)
     {
         try

@@ -1,6 +1,9 @@
 @page "/leaves"
 @page "/eleave"
 @page "/eLeave/eLeaveDefault.aspx"
+@page "/leaves/apply"
+@page "/leaves/individual"
+@page "/eLeave/eLeaveAppIndividual.aspx"
 @inject HrApiClient ApiClient
 @inject NavigationManager NavManager
 @inject IJSRuntime JS
@@ -12,12 +15,22 @@
     <!-- Top Header Bar -->
     <div class="page-top-bar d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
-                <i class="bi bi-arrow-left"></i>
-            </button>
+            @if (!string.IsNullOrEmpty(activeTab))
+            {
+                <button class="btn btn-outline-secondary btn-sm py-0 px-2 extra-small d-inline-flex align-items-center gap-1 shadow-xs" @onclick="CloseTab" title="Back to Leave Portal">
+                    <i class="bi bi-arrow-left"></i>
+                    <span>Back to Portal</span>
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-link text-dark p-0 text-decoration-none fs-5 d-inline-flex align-items-center back-arrow-btn" @onclick='() => NavManager.NavigateTo("admin")' title="Back to Admin">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+            }
             <h6 class="mb-0 fw-bold d-flex align-items-center gap-2 text-dark">
                 <span class="leave-icon-badge" style="width: 26px; height: 26px; font-size: 0.95rem;"><i class="bi bi-calendar2-check-fill"></i></span>
-                <span>Leave Management Portal</span>
+                <span>@(activeTab == "ind_apply" ? "Individual Leave Application" : (activeTab == "group_apply" ? "Group Leave Application" : "Leave Management Portal"))</span>
             </h6>
         </div>
 
@@ -29,64 +42,67 @@
         </div>
     </div>
 
-    <!-- 12-Tile Dashboard Grid (Exact match to eLeaveDefault.aspx & User Reference) -->
-    <div class="leave-grid-wrapper mb-3">
-        <div class="leave-grid">
-            <!-- Row 1: Green & Red -->
-            <button type="button" class="leave-tile @(activeTab == "group_apply" ? "active" : "")" @onclick='() => SelectTile("group_apply")' title="Group Leave Apply">
-                <img src="img/icon/GroupLeaveApply.png" alt="Group Leave Apply" class="leave-tile-img" />
-            </button>
+    <!-- 12-Tile Dashboard Grid (Shown on portal default, hidden on leave application page) -->
+    @if (string.IsNullOrEmpty(activeTab))
+    {
+        <div class="leave-grid-wrapper mb-3 animate-fade-in">
+            <div class="leave-grid">
+                <!-- Row 1: Green & Red -->
+                <button type="button" class="leave-tile @(activeTab == "group_apply" ? "active" : "")" @onclick='() => SelectTile("group_apply")' title="Group Leave Apply">
+                    <img src="img/icon/GroupLeaveApply.png" alt="Group Leave Apply" class="leave-tile-img" />
+                </button>
 
-            <button type="button" class="leave-tile @(activeTab == "ind_apply" ? "active" : "")" @onclick='() => SelectTile("ind_apply")' title="Individual Leave Apply">
-                <img src="img/icon/IndLeaveApply.png" alt="Individual Leave Apply" class="leave-tile-img" />
-            </button>
+                <button type="button" class="leave-tile @(activeTab == "ind_apply" ? "active" : "")" @onclick='() => SelectTile("ind_apply")' title="Individual Leave Apply">
+                    <img src="img/icon/IndLeaveApply.png" alt="Individual Leave Apply" class="leave-tile-img" />
+                </button>
 
-            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/approval")' title="Leave Supervisor (@pendingApprovalCount Pending)">
-                <img src="img/icon/LeaveSupervisor.png" alt="Leave Supervisor" class="leave-tile-img" />
-                @if (pendingApprovalCount > 0)
-                {
-                    <span class="tile-badge-pill" title="@pendingApprovalCount pending leave requests">@pendingApprovalCount</span>
-                }
-            </button>
+                <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/approval")' title="Leave Supervisor (@pendingApprovalCount Pending)">
+                    <img src="img/icon/LeaveSupervisor.png" alt="Leave Supervisor" class="leave-tile-img" />
+                    @if (pendingApprovalCount > 0)
+                    {
+                        <span class="tile-badge-pill" title="@pendingApprovalCount pending leave requests">@pendingApprovalCount</span>
+                    }
+                </button>
 
-            <!-- Row 2: Orange, Cyan, Teal, Rust -->
-            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/create-user-access")' title="Create User Access">
-                <img src="img/icon/CreateUserAccess.png" alt="Create User Access" class="leave-tile-img" />
-            </button>
+                <!-- Row 2: Orange, Cyan, Teal, Rust -->
+                <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/create-user-access")' title="Create User Access">
+                    <img src="img/icon/CreateUserAccess.png" alt="Create User Access" class="leave-tile-img" />
+                </button>
 
-            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/approval-level")' title="Leave Approval Level">
-                <img src="img/icon/LeaveApprovalLevel.png" alt="Leave Approval Level" class="leave-tile-img" />
-            </button>
+                <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/approval-level")' title="Leave Approval Level">
+                    <img src="img/icon/LeaveApprovalLevel.png" alt="Leave Approval Level" class="leave-tile-img" />
+                </button>
 
-            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/maintenance")' title="Leave Maintenance">
-                <img src="img/icon/LeaveMaintenance.png" alt="Leave Maintenance" class="leave-tile-img" />
-            </button>
+                <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/maintenance")' title="Leave Maintenance">
+                    <img src="img/icon/LeaveMaintenance.png" alt="Leave Maintenance" class="leave-tile-img" />
+                </button>
 
-            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/doc-rule")' title="Leave Doc Rule">
-                <img src="img/icon/LeaveDocRule.png" alt="Leave Doc Rule" class="leave-tile-img" />
-            </button>
+                <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/doc-rule")' title="Leave Doc Rule">
+                    <img src="img/icon/LeaveDocRule.png" alt="Leave Doc Rule" class="leave-tile-img" />
+                </button>
 
-            <!-- Row 3: Rust, Olive Green, Olive Green, Rust -->
-            <button type="button" class="leave-tile @(activeTab == "administrator" ? "active" : "")" @onclick='() => SelectTile("administrator")' title="Leave Administrator">
-                <img src="img/icon/LeaveAdministrator.png" alt="Leave Administrator" class="leave-tile-img" />
-            </button>
+                <!-- Row 3: Rust, Olive Green, Olive Green, Rust -->
+                <button type="button" class="leave-tile @(activeTab == "administrator" ? "active" : "")" @onclick='() => SelectTile("administrator")' title="Leave Administrator">
+                    <img src="img/icon/LeaveAdministrator.png" alt="Leave Administrator" class="leave-tile-img" />
+                </button>
 
-            <button type="button" class="leave-tile @(activeTab == "view_leave" ? "active" : "")" @onclick='() => SelectTile("view_leave")' title="View Leave">
-                <img src="img/icon/ViewLeave.png" alt="View Leave" class="leave-tile-img" />
-            </button>
+                <button type="button" class="leave-tile @(activeTab == "view_leave" ? "active" : "")" @onclick='() => SelectTile("view_leave")' title="View Leave">
+                    <img src="img/icon/ViewLeave.png" alt="View Leave" class="leave-tile-img" />
+                </button>
 
-            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/calendar")' title="Leave Calendar">
-                <img src="img/icon/LeaveCalendar.png" alt="Leave Calendar" class="leave-tile-img" />
-            </button>
+                <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/calendar")' title="Leave Calendar">
+                    <img src="img/icon/LeaveCalendar.png" alt="Leave Calendar" class="leave-tile-img" />
+                </button>
 
-            <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/create-user-access")' title="User Access Review">
-                <img src="img/icon/UserAccessReview.png" alt="User Access Review" class="leave-tile-img" />
-            </button>
+                <button type="button" class="leave-tile" @onclick='() => NavManager.NavigateTo("leaves/create-user-access")' title="User Access Review">
+                    <img src="img/icon/UserAccessReview.png" alt="User Access Review" class="leave-tile-img" />
+                </button>
 
-            <!-- Transparent spacer slot to maintain 4-column grid alignment -->
-            <div class="tile-spacer"></div>
+                <!-- Transparent spacer slot to maintain 4-column grid alignment -->
+                <div class="tile-spacer"></div>
+            </div>
         </div>
-    </div>
+    }
 
     <!-- Status Alert Notification -->
     @if (!string.IsNullOrEmpty(statusMessage))
@@ -102,85 +118,285 @@
     <!-- DETAIL FEATURE PANELS (Triggered only when a tile is tapped)   -->
     <!-- ============================================================== -->
 
-    <!-- 1. INDIVIDUAL LEAVE APPLY PANEL -->
+    <!-- 1. INDIVIDUAL LEAVE APPLY PANEL (eLeaveAppIndividual.aspx) -->
     @if (activeTab == "ind_apply")
     {
         <div class="card border-0 shadow-sm rounded-3 mb-4 animate-fade-in bg-white">
-            <div class="card-header bg-success text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3">
+            <div class="card-header text-white py-2 px-3 d-flex align-items-center justify-content-between rounded-top-3" style="background: linear-gradient(135deg, #2e7d32, #1b5e20);">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-person-fill"></i>
-                    <h6 class="mb-0 fw-bold">Individual Leave Application</h6>
-                </div>
-                <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick='() => activeTab = null'>✕ Close</button>
-            </div>
-            <div class="card-body p-3">
-                <div class="row g-2">
-                    <div class="col-12 col-md-4">
-                        <label class="form-label extra-small fw-semibold text-muted">Employee ID</label>
-                        <input class="form-control form-control-sm" @bind="applyEmpId" placeholder="e.g. 00001" />
+                    <i class="bi bi-person-badge-fill fs-5"></i>
+                    <div>
+                        <h6 class="mb-0 fw-bold">Individual Leave Application</h6>
+                        <small class="opacity-75" style="font-size: 0.72rem;">Conforms to eLeaveAppIndividual.aspx workflow &amp; condition rules</small>
                     </div>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label extra-small fw-semibold text-muted">Leave Type</label>
-                        <select class="form-select form-select-sm" @bind="applyLeaveCode">
-                            @if (leaveTypes?.Count > 0)
-                            {
-                                @foreach (var lt in leaveTypes)
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-light text-dark extra-small border">
+                        <i class="bi bi-shield-check text-success me-1"></i>Approval Route: @(currentEmployeeInfo?.App1Name ?? "Supervisor (Auto)")
+                    </span>
+                    <button class="btn btn-sm btn-outline-light py-0 px-2 extra-small" @onclick="CloseTab">✕ Close</button>
+                </div>
+            </div>
+
+            <div class="card-body p-3">
+                <!-- Employee Lookup Bar (Emp ID & Name in #CCFF99 classic styling) -->
+                <div class="row g-2 p-2 mb-3 rounded-2 border bg-light-subtle align-items-center">
+                    <div class="col-12 col-md-3">
+                        <label class="form-label extra-small fw-bold text-muted mb-1">
+                            <i class="bi bi-person-fill text-success me-1"></i>Emp ID (txtEmpID)
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input class="form-control form-control-sm fw-bold font-monospace" 
+                                   style="background-color: #e8f5e9; border-color: #a5d6a7;"
+                                   @bind="applyEmpId" @bind:after="OnEmployeeIdChangedAsync" placeholder="e.g. 00001" />
+                            <button class="btn btn-outline-secondary btn-sm" type="button" @onclick="OnEmployeeIdChangedAsync" title="Lookup Employee">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-md-5">
+                        <label class="form-label extra-small fw-bold text-muted mb-1">
+                            <i class="bi bi-card-heading text-success me-1"></i>Employee Name (txtName)
+                        </label>
+                        <input class="form-control form-control-sm fw-bold" 
+                               style="background-color: #ccff99; border-color: #99cc66; color: #1b5e20;" 
+                               value="@(currentEmployeeInfo?.Name ?? applyEmpName)" readonly />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <label class="form-label extra-small fw-semibold text-muted mb-1">Department</label>
+                        <input class="form-control form-control-sm bg-white" 
+                               value="@(string.IsNullOrEmpty(currentEmployeeInfo?.Dept) ? "Operations" : currentEmployeeInfo.Dept)" readonly />
+                    </div>
+
+                    <div class="col-6 col-md-2">
+                        <label class="form-label extra-small fw-semibold text-muted mb-1">User Group</label>
+                        <input class="form-control form-control-sm bg-white" 
+                               value="@(string.IsNullOrEmpty(currentEmployeeInfo?.LeaveUserGroupId) ? "DEFAULT" : currentEmployeeInfo.LeaveUserGroupId)" readonly />
+                    </div>
+                </div>
+
+                <!-- Main Leave Details Form -->
+                <div class="row g-3">
+                    <!-- Left Column: Leave Selection & Dates -->
+                    <div class="col-12 col-lg-7">
+                        <div class="border rounded-2 p-3 bg-white h-100 shadow-none">
+                            <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom">
+                                <span class="fw-bold text-dark extra-small text-uppercase">
+                                    <i class="bi bi-calendar2-check text-success me-1"></i>Leave Period &amp; Classification
+                                </span>
+                                @if (selectedLeaveType != null)
                                 {
-                                    <option value="@lt.Code">@lt.Name (@lt.Code) - Bal: @lt.Balance</option>
+                                    <span class="badge @(selectedLeaveType.Balance > 0 ? "bg-success-subtle text-success border border-success" : "bg-danger-subtle text-danger border border-danger") extra-small">
+                                        Avail Bal: <strong>@selectedLeaveType.Balance</strong> Days
+                                    </span>
                                 }
+                            </div>
+
+                            <div class="row g-2">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted">Leave ID &amp; Type (ddlLeaveID2)</label>
+                                    <select class="form-select form-select-sm" @bind="applyLeaveCode" @bind:after="OnLeaveTypeChanged">
+                                        @if (leaveTypes?.Count > 0)
+                                        {
+                                            @foreach (var lt in leaveTypes)
+                                            {
+                                                <option value="@lt.Code">@lt.Name (@lt.Code) - Bal: @lt.Balance</option>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <option value="AL">ANNUAL LEAVE (AL) - Bal: 14</option>
+                                            <option value="MC">MEDICAL LEAVE (MC) - Bal: 14</option>
+                                            <option value="HL">HOSPITALIZATION LEAVE (HL) - Bal: 60</option>
+                                            <option value="EL">EMERGENCY LEAVE (EL) - Bal: 0</option>
+                                            <option value="RL">REPLACEMENT LEAVE (RL) - Bal: 1</option>
+                                            <option value="UL">UNPAID LEAVE (UL) - Bal: 0</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label extra-small fw-semibold text-muted">Day Type (rdotypes)</label>
+                                    <select class="form-select form-select-sm" @bind="applyDayType" @bind:after="RecalculateDays">
+                                        <option value="FULL">Full Day (1.0)</option>
+                                        <option value="FIRST_HALF">1st Half / Morning (0.5)</option>
+                                        <option value="SECOND_HALF">2nd Half / Afternoon (0.5)</option>
+                                        <option value="TIME">Time Based / Hourly (3)</option>
+                                    </select>
+                                </div>
+
+                                <!-- Hourly / Time Controls (Visible when DayType == TIME) -->
+                                @if (applyDayType == "TIME")
+                                {
+                                    <div class="col-12 p-2 rounded border bg-warning-subtle d-flex align-items-center gap-2 animate-fade-in">
+                                        <div class="extra-small fw-bold text-dark flex-shrink-0">
+                                            <i class="bi bi-clock-history me-1 text-primary"></i>Time Window:
+                                        </div>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <label class="extra-small text-muted mb-0">From:</label>
+                                            <input type="time" class="form-control form-control-sm py-0 px-1 extra-small" style="width: 100px;" @bind="applyTimeFrom" @bind:after="RecalculateDays" />
+                                        </div>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <label class="extra-small text-muted mb-0">To:</label>
+                                            <input type="time" class="form-control form-control-sm py-0 px-1 extra-small" style="width: 100px;" @bind="applyTimeTo" @bind:after="RecalculateDays" />
+                                        </div>
+                                        <span class="badge bg-primary extra-small ms-auto">@applyHours Hrs</span>
+                                    </div>
+                                }
+
+                                <div class="col-6 col-md-4">
+                                    <label class="form-label extra-small fw-semibold text-muted">Date From (DateFrom)</label>
+                                    <input type="date" class="form-control form-control-sm" @bind="applyDateFrom" @bind:after="RecalculateDays" />
+                                </div>
+
+                                <div class="col-6 col-md-4">
+                                    <label class="form-label extra-small fw-semibold text-muted">Date To (DateTo)</label>
+                                    <input type="date" class="form-control form-control-sm" @bind="applyDateTo" @bind:after="RecalculateDays" />
+                                </div>
+
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label extra-small fw-semibold text-muted">Total Days (txtday)</label>
+                                    <input type="text" class="form-control form-control-sm fw-bold text-center" 
+                                           style="background-color: #ccff99; border-color: #99cc66; color: #1b5e20;" 
+                                           value="@applyDays.ToString("0.0")" readonly />
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label extra-small fw-semibold text-muted">Reason / Justification (txtreason)</label>
+                                    <textarea class="form-control form-control-sm" rows="2" @bind="applyReason" placeholder="State official reason for leave application..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Balance Summary & Medical Certificate / Attachments -->
+                    <div class="col-12 col-lg-5">
+                        <div class="border rounded-2 p-3 bg-white h-100 shadow-none d-flex flex-column justify-content-between">
+                            <!-- Live Balance Breakdown Card -->
+                            <div>
+                                <div class="fw-bold text-dark extra-small text-uppercase mb-2 pb-1 border-bottom d-flex align-items-center justify-content-between">
+                                    <span><i class="bi bi-wallet2 text-primary me-1"></i>Balance Card [@applyLeaveCode]</span>
+                                    <span class="text-muted extra-small">eLeave Balance</span>
+                                </div>
+
+                                <div class="row g-2 text-center mb-3">
+                                    <div class="col-3">
+                                        <div class="p-2 border rounded bg-light">
+                                            <div class="extra-small text-muted">Entitle</div>
+                                            <div class="fw-bold text-dark fs-6">@(selectedLeaveType?.Entitle ?? 14.0m)</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="p-2 border rounded bg-light">
+                                            <div class="extra-small text-muted">Taken</div>
+                                            <div class="fw-bold text-secondary fs-6">@(selectedLeaveType?.Taken ?? 0m)</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="p-2 border rounded bg-light">
+                                            <div class="extra-small text-muted">Pending</div>
+                                            <div class="fw-bold text-warning fs-6">@(selectedLeaveType?.Pending ?? 0m)</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="p-2 border rounded" style="background-color: #e8f5e9; border-color: #a5d6a7 !important;">
+                                            <div class="extra-small text-success fw-semibold">Balance</div>
+                                            <div class="fw-bold text-success fs-6">@(selectedLeaveType?.Balance ?? 14.0m)</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- MC / Sick Leave Mandatory Warning (AttachedFileforSickLeave = Y) -->
+                                @if (applyLeaveCode == "MC" || applyLeaveCode == "HL" || applyLeaveCode.Contains("SICK", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <div class="alert alert-warning py-1.5 px-2.5 mb-2 extra-small border-warning d-flex align-items-center gap-2">
+                                        <i class="bi bi-exclamation-triangle-fill text-warning fs-6 flex-shrink-0"></i>
+                                        <div>
+                                            <strong>MC Notice:</strong> Medical Certificate file attachment is <u>compulsory</u> for sick leave per HR policy.
+                                        </div>
+                                    </div>
+                                }
+
+                                <!-- File Attachment Box (UploadControl) -->
+                                <div class="border rounded-2 p-2 bg-light-subtle mb-2">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <label class="form-label extra-small fw-semibold text-muted mb-0">
+                                            <i class="bi bi-paperclip me-1"></i>File Attachment (MC / Supporting Doc)
+                                        </label>
+                                        <span class="extra-small text-muted" style="font-size: 0.68rem;">jpg, png, pdf &lt; 4MB</span>
+                                    </div>
+
+                                    @if (!string.IsNullOrEmpty(attachedFileName))
+                                    {
+                                        <div class="d-flex align-items-center justify-content-between p-1.5 bg-white border rounded">
+                                            <div class="d-flex align-items-center gap-1.5 extra-small text-truncate">
+                                                <i class="bi bi-file-earmark-medical-fill text-success fs-6"></i>
+                                                <span class="fw-semibold text-dark text-truncate">@attachedFileName</span>
+                                                <span class="badge bg-secondary extra-small">Ready</span>
+                                            </div>
+                                            <button class="btn btn-sm btn-link text-danger p-0 ms-2" type="button" @onclick="RemoveAttachment" title="Remove attachment">
+                                                <i class="bi bi-x-circle-fill"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex align-items-center gap-2">
+                                            <InputFile OnChange="HandleFileSelected" class="form-control form-control-sm extra-small" accept=".jpg,.jpeg,.png,.pdf" />
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- Conditions & Validation Checklist Status -->
+                            <div class="p-2 border rounded bg-light extra-small mt-2">
+                                <div class="fw-semibold text-secondary mb-1" style="font-size: 0.72rem;">LEAVE RULE CONDITION CHECK:</div>
+                                <div class="d-flex flex-column gap-1">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span class="text-muted"><i class="bi bi-check-circle-fill text-success me-1"></i>1. Balance check (BalCount):</span>
+                                        <span class="fw-bold @(applyDays <= (selectedLeaveType?.Balance ?? 14m) ? "text-success" : "text-danger")">
+                                            @(applyDays <= (selectedLeaveType?.Balance ?? 14m) ? "Sufficient" : "Insufficient Balance")
+                                        </span>
+                                    </div>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span class="text-muted"><i class="bi bi-check-circle-fill text-success me-1"></i>2. Approval Route (applevel):</span>
+                                        <span class="fw-bold text-success">Level @(currentEmployeeInfo?.AppLevel ?? "1") Assigned</span>
+                                    </div>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span class="text-muted"><i class="bi bi-check-circle-fill text-success me-1"></i>3. Attachment status:</span>
+                                        <span class="fw-bold @((applyLeaveCode == "MC" && string.IsNullOrEmpty(attachedFileName)) ? "text-warning" : "text-success")">
+                                            @((applyLeaveCode == "MC" && string.IsNullOrEmpty(attachedFileName)) ? "Attachment Recommended" : "Valid")
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Action Buttons -->
+                <div class="d-flex justify-content-between align-items-center gap-2 mt-3 pt-2 border-top">
+                    <button type="button" class="btn btn-outline-secondary btn-sm extra-small px-3" @onclick='() => SelectTile("history")'>
+                        <i class="bi bi-clock-history me-1"></i>View Status Records
+                    </button>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-light btn-sm extra-small px-3 border" @onclick="CloseTab">Cancel</button>
+                        <button type="button" class="btn btn-success btn-sm extra-small px-4 fw-semibold shadow-sm" @onclick="SubmitLeaveApplicationAsync" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Applying via Web API...</span>
                             }
                             else
                             {
-                                <option value="AL">Annual Leave (AL) - Bal: 14</option>
-                                <option value="MC">Medical Leave (MC) - Bal: 14</option>
-                                <option value="HL">Hospitalization Leave (HL) - Bal: 60</option>
-                                <option value="EL">Emergency Leave (EL)</option>
-                                <option value="UL">Unpaid Leave (UL)</option>
+                                <i class="bi bi-check2-circle me-1"></i>
+                                <span>Apply Leave (INSERT)</span>
                             }
-                        </select>
+                        </button>
                     </div>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label extra-small fw-semibold text-muted">Day Type</label>
-                        <select class="form-select form-select-sm" @bind="applyDayType">
-                            <option value="FULL">Full Day</option>
-                            <option value="FIRST_HALF">First Half (Morning)</option>
-                            <option value="SECOND_HALF">Second Half (Afternoon)</option>
-                        </select>
-                    </div>
-
-                    <div class="col-6 col-md-4">
-                        <label class="form-label extra-small fw-semibold text-muted">Date From</label>
-                        <input type="date" class="form-control form-control-sm" @bind="applyDateFrom" @bind:after="RecalculateDays" />
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <label class="form-label extra-small fw-semibold text-muted">Date To</label>
-                        <input type="date" class="form-control form-control-sm" @bind="applyDateTo" @bind:after="RecalculateDays" />
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label extra-small fw-semibold text-muted">Total Days</label>
-                        <input type="number" step="0.5" class="form-control form-control-sm" @bind="applyDays" />
-                    </div>
-
-                    <div class="col-12">
-                        <label class="form-label extra-small fw-semibold text-muted">Reason / Justification</label>
-                        <textarea class="form-control form-control-sm" rows="2" @bind="applyReason" placeholder="State reason for leave application..."></textarea>
-                    </div>
-                </div>
-
-                <div class="d-flex justify-content-end gap-2 mt-3 pt-2 border-top">
-                    <button type="button" class="btn btn-light btn-sm extra-small px-3" @onclick='() => activeTab = null'>Cancel</button>
-                    <button type="button" class="btn btn-success btn-sm extra-small px-4 fw-semibold" @onclick="SubmitLeaveApplicationAsync" disabled="@isSubmitting">
-                        @if (isSubmitting)
-                        {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
-                            <span>Submitting via Web API...</span>
-                        }
-                        else
-                        {
-                            <i class="bi bi-send-fill me-1"></i>
-                            <span>Submit Application (INSERT)</span>
-                        }
-                    </button>
                 </div>
             </div>
         </div>
@@ -677,6 +893,15 @@
             return;
         }
 
+        var uri = NavManager.Uri;
+        if (uri.Contains("eLeaveAppIndividual.aspx", StringComparison.OrdinalIgnoreCase) || 
+            uri.EndsWith("/leaves/apply", StringComparison.OrdinalIgnoreCase) ||
+            uri.EndsWith("/leaves/individual", StringComparison.OrdinalIgnoreCase))
+        {
+            activeTab = "ind_apply";
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(Tab))
         {
             activeTab = Tab;
@@ -693,14 +918,105 @@
     private string historyViewMode = "auto";
     private int pendingApprovalCount = 0;
 
-    // 1. Individual Apply Form Fields
+    // 1. Individual Apply Form Fields (conforms to eLeaveAppIndividual.aspx)
     private string applyEmpId = "00001";
+    private string applyEmpName = "TAN AH KOW";
+    private EmployeeLeaveInfo? currentEmployeeInfo;
     private string applyLeaveCode = "AL";
+    private LeaveType? selectedLeaveType;
     private DateTime applyDateFrom = DateTime.Today.AddDays(1);
     private DateTime applyDateTo = DateTime.Today.AddDays(1);
     private decimal applyDays = 1.0m;
     private string applyDayType = "FULL";
+    private TimeOnly applyTimeFrom = new TimeOnly(9, 0);
+    private TimeOnly applyTimeTo = new TimeOnly(13, 0);
+    private decimal applyHours = 4.0m;
     private string applyReason = "Personal matter";
+    private string? attachedFileName;
+    private string? attachedFileBase64;
+
+    private async Task OnEmployeeIdChangedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(applyEmpId)) return;
+        currentEmployeeInfo = await ApiClient.GetEmployeeLeaveInfoAsync(applyEmpId.Trim());
+        if (currentEmployeeInfo != null && !string.IsNullOrEmpty(currentEmployeeInfo.Name))
+        {
+            applyEmpName = currentEmployeeInfo.Name;
+        }
+        leaveTypes = await ApiClient.GetLeaveTypesAsync(applyEmpId.Trim());
+        OnLeaveTypeChanged();
+        StateHasChanged();
+    }
+
+    private void OnLeaveTypeChanged()
+    {
+        selectedLeaveType = leaveTypes?.FirstOrDefault(l => l.Code.Equals(applyLeaveCode, StringComparison.OrdinalIgnoreCase))
+            ?? (leaveTypes?.Count > 0 ? leaveTypes[0] : null);
+    }
+
+    private void RecalculateDays()
+    {
+        if (applyDayType == "TIME")
+        {
+            if (applyTimeTo > applyTimeFrom)
+            {
+                var span = (applyTimeTo.ToTimeSpan() - applyTimeFrom.ToTimeSpan()).TotalHours;
+                applyHours = (decimal)Math.Round(span, 1);
+                applyDays = Math.Round(applyHours / 8.0m, 2);
+                if (applyDays < 0.1m) applyDays = 0.5m;
+            }
+            else
+            {
+                applyHours = 4.0m;
+                applyDays = 0.5m;
+            }
+            return;
+        }
+
+        if (applyDateTo >= applyDateFrom)
+        {
+            var diff = (applyDateTo - applyDateFrom).Days + 1;
+            if (applyDayType == "FIRST_HALF" || applyDayType == "SECOND_HALF")
+            {
+                applyDays = diff * 0.5m;
+            }
+            else
+            {
+                applyDays = (decimal)diff;
+            }
+        }
+        else
+        {
+            applyDays = 1.0m;
+        }
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file != null)
+            {
+                attachedFileName = file.Name;
+                using var stream = file.OpenReadStream(maxAllowedSize: 4 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                attachedFileBase64 = Convert.ToBase64String(ms.ToArray());
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"File upload error: {ex.Message}";
+            isSuccess = false;
+        }
+    }
+
+    private void RemoveAttachment()
+    {
+        attachedFileName = null;
+        attachedFileBase64 = null;
+    }
 
     // 2. Group Apply Fields
     private string groupTargetDept = "ALL";
@@ -756,19 +1072,6 @@
         NavManager.NavigateTo("leaves");
     }
 
-    private void RecalculateDays()
-    {
-        if (applyDateTo >= applyDateFrom)
-        {
-            var diff = (applyDateTo - applyDateFrom).Days + 1;
-            applyDays = (decimal)diff;
-        }
-        else
-        {
-            applyDays = 1.0m;
-        }
-    }
-
     private List<LeaveRequest> GetFilteredLeaves()
     {
         if (leaves == null) return new List<LeaveRequest>();
@@ -800,7 +1103,13 @@
         try
         {
             leaves = await ApiClient.GetLeavesAsync();
-            leaveTypes = await ApiClient.GetLeaveTypesAsync("00001");
+            leaveTypes = await ApiClient.GetLeaveTypesAsync(applyEmpId);
+            currentEmployeeInfo = await ApiClient.GetEmployeeLeaveInfoAsync(applyEmpId);
+            if (currentEmployeeInfo != null && !string.IsNullOrEmpty(currentEmployeeInfo.Name))
+            {
+                applyEmpName = currentEmployeeInfo.Name;
+            }
+            OnLeaveTypeChanged();
             pendingApprovalCount = leaves?.Count(l => l.Leave_Status == "PENDING" || (l.Leave_Status != "APPROVE" && l.Leave_Status != "APPROVED" && l.Leave_Status != "REJECT" && l.Leave_Status != "REJECTED")) ?? 0;
         }
         catch (Exception ex)
@@ -816,25 +1125,54 @@
 
     private async Task SubmitLeaveApplicationAsync()
     {
+        if (string.IsNullOrWhiteSpace(applyEmpId))
+        {
+            statusMessage = "Error: Employee ID cannot be blank (eLeaveAppIndividual rule).";
+            isSuccess = false;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(applyReason))
+        {
+            statusMessage = "Error: Reason / Justification cannot be blank (eLeaveAppIndividual rule).";
+            isSuccess = false;
+            return;
+        }
+
+        if (applyDateTo < applyDateFrom && applyDayType != "TIME")
+        {
+            statusMessage = "Error: Date To cannot be earlier than Date From.";
+            isSuccess = false;
+            return;
+        }
+
         isSubmitting = true;
         try
         {
             var model = new LeaveApplyModel
             {
-                EmpId = applyEmpId,
+                EmpId = applyEmpId.Trim(),
                 LeaveCode = applyLeaveCode,
                 DateFrom = applyDateFrom,
                 DateTo = applyDateTo,
                 Days = applyDays,
                 DayType = applyDayType,
-                Reason = applyReason
+                LeaveType = applyDayType,
+                TimeFrom = applyDayType == "TIME" ? applyTimeFrom.ToString("HHmm") : "0000",
+                TimeTo = applyDayType == "TIME" ? applyTimeTo.ToString("HHmm") : "0000",
+                Hours = applyHours,
+                Reason = applyReason,
+                FileName = attachedFileName,
+                FileAttachmentBase64 = attachedFileBase64
             };
 
             bool ok = await ApiClient.ApplyLeaveAsync(model);
             if (ok)
             {
-                statusMessage = $"Leave application successfully submitted and recorded in MySQL via Web API!";
+                statusMessage = $"Leave application successfully submitted and recorded in aspnet_leaverecord_group & aspnet_leaverecord! PENDING supervisor approval.";
                 isSuccess = true;
+                attachedFileName = null;
+                attachedFileBase64 = null;
                 activeTab = null;
                 await LoadDataAsync();
             }
