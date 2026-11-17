@@ -143,10 +143,10 @@
     </div>
 
     <!-- 2. Interactive Calendar & Day Information (Refer to Default.aspx, LeaveCalendar.razor & LeaveApproval grid) -->
-    <div class="row g-3 mb-4 align-items-stretch">
-        <!-- Left: Interactive Monthly Calendar Grid -->
-        <div class="col-12 col-xl-5">
-            <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white h-100">
+    <div class="row g-3 mb-4">
+        <!-- Interactive Monthly Calendar Grid (Full Width) -->
+        <div class="col-12">
+            <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white">
                 <!-- Calendar Month Header Bar -->
                 <div class="card-header py-2.5 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2 text-white" 
                      style="background-color: #688636 !important;">
@@ -176,7 +176,7 @@
                         <span class="badge bg-info text-dark">HL: Hospital</span>
                         <span class="badge bg-danger text-white">EL: Emergency</span>
                         <span class="text-muted ms-auto fst-italic d-none d-sm-inline">
-                            <i class="bi bi-hand-index-thumb me-1"></i>Click date to view Day Information
+                            <i class="bi bi-calendar-event me-1"></i>Click date or leave tag to view details
                         </span>
                     </div>
 
@@ -206,7 +206,7 @@
 
                             <div class="calendar-cell @(isToday ? "today" : "") @(isSelected ? "selected-day" : "")" 
                                  @onclick="() => SelectDate(cellDate)" 
-                                 title="Click to view day information for @cellDate.ToString("yyyy-MM-dd")">
+                                 title="Click to select @cellDate.ToString("yyyy-MM-dd")">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="calendar-date-no @(cellDate.DayOfWeek == DayOfWeek.Sunday ? "text-danger" : cellDate.DayOfWeek == DayOfWeek.Saturday ? "text-primary" : "")">
                                         @day
@@ -218,16 +218,19 @@
                                 </div>
 
                                 <div class="calendar-events-container mt-1">
-                                    @foreach (var ev in dayEvents.Take(2))
+                                    @foreach (var ev in dayEvents.Take(3))
                                     {
-                                        <div class="calendar-event-tag @ev.CssClass" title="@ev.Tooltip">
+                                        <div class="calendar-event-tag @ev.CssClass" 
+                                             @onclick="() => OpenLeaveEventDetail(ev)" 
+                                             @onclick:stopPropagation="true"
+                                             title="@ev.Tooltip">
                                             @ev.Label
                                         </div>
                                     }
-                                    @if (dayEvents.Count > 2)
+                                    @if (dayEvents.Count > 3)
                                     {
                                         <span class="badge bg-secondary-subtle text-dark" style="font-size: 0.55rem; padding: 1px 2px;">
-                                            +@(dayEvents.Count - 2) more
+                                            +@(dayEvents.Count - 3) more
                                         </span>
                                     }
                                 </div>
@@ -242,204 +245,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Right: Day Information - Leave Record Grid (Exact match to LeaveApproval grid) -->
-        <div class="col-12 col-xl-7">
-            <fieldset class="legacy-fieldset h-100 d-flex flex-column">
-                <legend class="legacy-legend">Leave Record</legend>
-
-                <!-- Action Buttons Toolbar (Exact Match to LeaveApproval.razor) -->
-                <div class="legacy-toolbar">
-                    <button type="button" class="legacy-btn @(showFilters ? "btn-highlight" : "")" @onclick="() => showFilters = !showFilters">
-                        <i class="bi bi-funnel me-1"></i>Filter Leave Record
-                    </button>
-                    <button type="button" class="legacy-btn" @onclick="RefreshDataAsync">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                    </button>
-                    <button type="button" class="legacy-btn" @onclick="OpenDetailModal" disabled="@(selectedRecord == null)">
-                        <i class="bi bi-card-text me-1"></i>Show Leave Detail
-                    </button>
-                    <button type="button" class="legacy-btn" @onclick='() => ExportToCsv(false)'>
-                        <i class="bi bi-file-earmark-excel text-success me-1"></i>Export Excel(xls)..
-                    </button>
-                    <button type="button" class="legacy-btn" @onclick='() => ExportToCsv(true)'>
-                        <i class="bi bi-file-earmark-excel text-success me-1"></i>Export Excel(xlsx)..
-                    </button>
-                    <button type="button" class="legacy-btn" @onclick="ExportToPdf">
-                        <i class="bi bi-file-earmark-pdf text-danger me-1"></i>Export PDF..
-                    </button>
-
-                    <div class="ms-auto d-flex align-items-center gap-1 extra-small">
-                        <span class="badge @(isDateFiltered ? "bg-primary" : "bg-secondary") text-white" style="font-size: 0.7rem;">
-                            @(isDateFiltered ? $"Day: {selectedDate:dd MMM yyyy}" : "All Month")
-                        </span>
-                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 extra-small" @onclick="ToggleDateFilter" style="font-size: 0.68rem;">
-                            @(isDateFiltered ? "Show All Month" : "Filter Day")
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 20-Column Olive Green Grid Scroll & Table -->
-                <div class="legacy-grid-scroll flex-grow-1">
-                    <table class="legacy-grid-table">
-                        <thead>
-                            <!-- Header Row 1: Column Titles -->
-                            <tr class="header-row">
-                                <th class="col-num">#</th>
-                                <th class="col-chk">
-                                    <input type="checkbox" checked="@isAllSelected" @onchange="ToggleSelectAll" title="Select / Unselect All" />
-                                </th>
-                                <th class="col-file">File1</th>
-                                <th class="col-file">File2</th>
-                                <th class="col-file">File3</th>
-                                <th class="col-id">ID</th>
-                                <th class="col-name">NAME</th>
-                                <th class="col-date">Date From</th>
-                                <th class="col-date">Date To</th>
-                                <th class="col-leaveid">Leave ID</th>
-                                <th class="col-day">Leave Day</th>
-                                <th class="col-time">Time In</th>
-                                <th class="col-s">s1</th>
-                                <th class="col-time">Time Out</th>
-                                <th class="col-s">s2</th>
-                                <th class="col-status">Status</th>
-                                <th class="col-dept">Dept</th>
-                                <th class="col-sec">Section</th>
-                                <th class="col-shift">Shift Grp</th>
-                                <th class="col-type">Type</th>
-                            </tr>
-
-                            <!-- Header Row 2: Inline Column Filters (Toggleable) -->
-                            @if (showFilters)
-                            {
-                                <tr class="filter-row">
-                                    <td class="col-num"></td>
-                                    <td class="col-chk"></td>
-                                    <td class="col-file"></td>
-                                    <td class="col-file"></td>
-                                    <td class="col-file"></td>
-                                    <td class="col-id">
-                                        <input type="text" class="filter-input" @bind="filterEmpId" @bind:event="oninput" placeholder="ID" />
-                                    </td>
-                                    <td class="col-name">
-                                        <input type="text" class="filter-input" @bind="filterName" @bind:event="oninput" placeholder="Name" />
-                                    </td>
-                                    <td class="col-date">
-                                        <input type="text" class="filter-input" @bind="filterDateFrom" @bind:event="oninput" placeholder="From" />
-                                    </td>
-                                    <td class="col-date">
-                                        <input type="text" class="filter-input" @bind="filterDateTo" @bind:event="oninput" placeholder="To" />
-                                    </td>
-                                    <td class="col-leaveid">
-                                        <input type="text" class="filter-input" @bind="filterLeaveId" @bind:event="oninput" placeholder="Type" />
-                                    </td>
-                                    <td class="col-day">
-                                        <input type="text" class="filter-input" @bind="filterDays" @bind:event="oninput" placeholder="Days" />
-                                    </td>
-                                    <td class="col-time">
-                                        <input type="text" class="filter-input" @bind="filterTimeIn" @bind:event="oninput" placeholder="In" />
-                                    </td>
-                                    <td class="col-s">
-                                        <input type="text" class="filter-input" @bind="filterS1" @bind:event="oninput" />
-                                    </td>
-                                    <td class="col-time">
-                                        <input type="text" class="filter-input" @bind="filterTimeOut" @bind:event="oninput" placeholder="Out" />
-                                    </td>
-                                    <td class="col-s">
-                                        <input type="text" class="filter-input" @bind="filterS2" @bind:event="oninput" />
-                                    </td>
-                                    <td class="col-status">
-                                        <input type="text" class="filter-input" @bind="filterStatusCol" @bind:event="oninput" placeholder="Status" />
-                                    </td>
-                                    <td class="col-dept">
-                                        <input type="text" class="filter-input" @bind="filterDept" @bind:event="oninput" placeholder="Dept" />
-                                    </td>
-                                    <td class="col-sec">
-                                        <input type="text" class="filter-input" @bind="filterSection" @bind:event="oninput" placeholder="Sec" />
-                                    </td>
-                                    <td class="col-shift">
-                                        <input type="text" class="filter-input" @bind="filterShiftGrp" @bind:event="oninput" placeholder="Shift" />
-                                    </td>
-                                    <td class="col-type">
-                                        <input type="text" class="filter-input" @bind="filterType" @bind:event="oninput" placeholder="Type" />
-                                    </td>
-                                </tr>
-                            }
-                        </thead>
-                        <tbody>
-                            @if (isLoading)
-                            {
-                                <tr>
-                                    <td colspan="20" class="text-center py-4 text-muted">
-                                        <div class="spinner-border spinner-border-sm text-secondary mb-1"></div>
-                                        <div style="font-size: 0.75rem;">Loading leave records from database...</div>
-                                    </td>
-                                </tr>
-                            }
-                            else if (FilteredGridLeaves.Count == 0)
-                            {
-                                <tr class="empty-row">
-                                    <td colspan="20" class="empty-cell">
-                                        No data to display
-                                    </td>
-                                </tr>
-                            }
-                            else
-                            {
-                                int rowIdx = 1;
-                                @foreach (var r in FilteredGridLeaves)
-                                {
-                                    var isSelected = selectedRecord == r || selectedLeaveNos.Contains(r.LeaveNo);
-                                    <tr class="data-row @(isSelected ? "selected-row" : "")" 
-                                        @onclick="() => SelectRecord(r)" 
-                                        @ondblclick="() => OpenDetailFor(r)">
-                                        <td class="col-num">@(rowIdx++)</td>
-                                        <td class="col-chk" @onclick:stopPropagation="true">
-                                            <input type="checkbox" checked="@selectedLeaveNos.Contains(r.LeaveNo)" 
-                                                   @onchange="(e) => ToggleRowSelected(r.LeaveNo, e)" />
-                                        </td>
-                                        <td class="col-file">
-                                            @if (!string.IsNullOrEmpty(r.File1)) { <i class="bi bi-paperclip text-primary" title="File 1 Attached"></i> }
-                                        </td>
-                                        <td class="col-file">
-                                            @if (!string.IsNullOrEmpty(r.File2)) { <i class="bi bi-paperclip text-primary" title="File 2 Attached"></i> }
-                                        </td>
-                                        <td class="col-file">
-                                            @if (!string.IsNullOrEmpty(r.File3)) { <i class="bi bi-paperclip text-primary" title="File 3 Attached"></i> }
-                                        </td>
-                                        <td class="col-id font-monospace fw-bold">@r.Emp_ID</td>
-                                        <td class="col-name fw-semibold">@r.EmpName</td>
-                                        <td class="col-date">@r.Leave_Date_From.ToString("yyyy-MM-dd")</td>
-                                        <td class="col-date">@r.Leave_Date_To.ToString("yyyy-MM-dd")</td>
-                                        <td class="col-leaveid fw-bold">@r.Leave_Type</td>
-                                        <td class="col-day">@r.TotalDays</td>
-                                        <td class="col-time">@(string.IsNullOrEmpty(r.TimeIn) ? "08:00" : r.TimeIn)</td>
-                                        <td class="col-s">@(string.IsNullOrEmpty(r.s1) ? "-" : r.s1)</td>
-                                        <td class="col-time">@(string.IsNullOrEmpty(r.TimeOut) ? "17:00" : r.TimeOut)</td>
-                                        <td class="col-s">@(string.IsNullOrEmpty(r.s2) ? "-" : r.s2)</td>
-                                        <td class="col-status">
-                                            <span class="status-tag @GetStatusClass(r.Leave_Status)">
-                                                @r.Leave_Status
-                                            </span>
-                                        </td>
-                                        <td class="col-dept">@(string.IsNullOrEmpty(r.Dept) ? "-" : r.Dept)</td>
-                                        <td class="col-sec">@(string.IsNullOrEmpty(r.Section) ? "-" : r.Section)</td>
-                                        <td class="col-shift">@(string.IsNullOrEmpty(r.ShiftGrp) ? "-" : r.ShiftGrp)</td>
-                                        <td class="col-type">@(string.IsNullOrEmpty(r.Type) ? "Full Day" : r.Type)</td>
-                                    </tr>
-                                }
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Footer matching user screenshot: Total Records on Left, eLeave - Supervisor Module on Right -->
-                <div class="d-flex justify-content-between align-items-center mt-1 px-1 extra-small text-muted">
-                    <span>Total Records: <strong>@FilteredGridLeaves.Count</strong> (Selected: <strong>@selectedLeaveNos.Count</strong>)</span>
-                    <span class="fst-italic">eLeave - Supervisor Module</span>
-                </div>
-            </fieldset>
         </div>
     </div>
 
@@ -572,30 +377,30 @@
     .dashboard-calendar-grid {
         display: grid;
         grid-template-columns: repeat(7, minmax(0, 1fr));
-        gap: 4px;
+        gap: 6px;
         width: 100%;
         box-sizing: border-box;
     }
 
     .calendar-day-header {
         font-weight: 700;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         text-align: center;
-        padding: 5px 2px;
+        padding: 8px 4px;
         background: #f1f5f9;
-        border-radius: 5px;
+        border-radius: 6px;
         color: #334155;
         min-width: 0;
         overflow: hidden;
     }
 
     .calendar-cell {
-        min-height: 64px;
+        min-height: 85px;
         min-width: 0;
         background: #f8fafc;
         border: 1px solid #e2e8f0;
         border-radius: 6px;
-        padding: 3px 4px;
+        padding: 5px 6px;
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
@@ -619,19 +424,19 @@
         background: #f0f7ff;
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #2563eb;
-        transform: scale(1.02);
+        transform: scale(1.01);
         z-index: 2;
     }
 
     .calendar-cell.empty-cell {
         background: #fdfdfd;
         border: 1px dashed #edf2f7;
-        min-height: 64px;
+        min-height: 85px;
         cursor: default;
     }
 
     .calendar-date-no {
-        font-size: 0.75rem;
+        font-size: 0.85rem;
         font-weight: 700;
         color: #475569;
         line-height: 1;
@@ -640,17 +445,17 @@
     .calendar-events-container {
         display: flex;
         flex-direction: column;
-        gap: 2px;
+        gap: 3px;
         overflow: hidden;
         min-width: 0;
         width: 100%;
     }
 
     .calendar-event-tag {
-        font-size: 0.62rem;
+        font-size: 0.72rem;
         font-weight: 600;
-        border-radius: 3px;
-        padding: 1px 3px;
+        border-radius: 4px;
+        padding: 2px 6px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -658,7 +463,13 @@
         min-width: 0;
         display: block;
         max-width: 100%;
-        line-height: 1.2;
+        line-height: 1.3;
+        cursor: pointer;
+    }
+
+    .calendar-event-tag:hover {
+        opacity: 0.88;
+        filter: brightness(1.05);
     }
 
     /* Legacy Fieldset & Toolbar (Exact match to LeaveApproval.razor) */
@@ -988,6 +799,15 @@
         public string Label { get; set; } = "";
         public string CssClass { get; set; } = "bg-primary text-white";
         public string Tooltip { get; set; } = "";
+        public LeaveRequest? Leave { get; set; }
+    }
+
+    private void OpenLeaveEventDetail(CalendarEvent ev)
+    {
+        if (ev.Leave != null)
+        {
+            detailModalRecord = ev.Leave;
+        }
     }
 
     private List<CalendarEvent> GetLeavesForDay(DateTime date)
@@ -1014,7 +834,8 @@
                     {
                         Label = $"{l.Emp_ID} ({l.Leave_Type})",
                         CssClass = css,
-                        Tooltip = $"{l.Emp_ID} - {l.EmpName} ({l.Leave_Type}): {l.Leave_Reason}"
+                        Tooltip = $"{l.Emp_ID} - {l.EmpName} ({l.Leave_Type}): {l.Leave_Reason}",
+                        Leave = l
                     });
                 }
             }
@@ -1028,14 +849,39 @@
             {
                 if (!list.Any(e => e.Label.StartsWith("00001")))
                 {
-                    list.Add(new CalendarEvent { Label = "00001 (AL)", CssClass = "bg-success text-white", Tooltip = "00001 - TAN HOCK WAN (AL)" });
+                    var sample = FilteredGridLeaves.FirstOrDefault(l => l.Emp_ID == "00001" && l.Leave_Date_From.Day == d)
+                                 ?? FilteredGridLeaves.FirstOrDefault(l => l.Emp_ID == "00001");
+                    list.Add(new CalendarEvent 
+                    { 
+                        Label = "00001 (AL)", 
+                        CssClass = "bg-success text-white", 
+                        Tooltip = "00001 - TAN HOCK WAN (AL)",
+                        Leave = sample
+                    });
                 }
             }
             if (d == 16 || d == 24)
             {
                 if (!list.Any(e => e.Label.StartsWith("1002")))
                 {
-                    list.Add(new CalendarEvent { Label = "1002 (MC)", CssClass = "bg-warning text-dark", Tooltip = "1002 - Medical Leave" });
+                    list.Add(new CalendarEvent 
+                    { 
+                        Label = "1002 (MC)", 
+                        CssClass = "bg-warning text-dark", 
+                        Tooltip = "1002 - Medical Leave",
+                        Leave = new LeaveRequest 
+                        { 
+                            LeaveNo = $"MC{date:yyyyMMdd}",
+                            Emp_ID = "1002", 
+                            EmpName = "TEST USER", 
+                            Leave_Type = "MC", 
+                            Leave_Date_From = date, 
+                            Leave_Date_To = date, 
+                            TotalDays = 1, 
+                            Leave_Status = "PENDING",
+                            Leave_Reason = "Medical Consultation"
+                        }
+                    });
                 }
             }
         }
