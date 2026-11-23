@@ -10,54 +10,6 @@
 <PageTitle>HRsuite Dashboard - Default.aspx</PageTitle>
 
 <div class="hr-dashboard pb-5">
-    <!-- Top Corporate Welcome & Status Header (Default.aspx) -->
-    <div class="header-card mb-4 text-white">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-            <div>
-                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                    <span class="badge bg-white text-primary fw-bold px-2.5 py-1">
-                        <i class="bi bi-building-fill-gear me-1"></i>Myhrsuite Main Portal
-                    </span>
-                    <span class="badge bg-light text-dark font-monospace">Default.aspx</span>
-                    @if (ApiClient.IsLoggedIn && ApiClient.CurrentUser != null)
-                    {
-                        <span class="badge bg-info text-dark fw-bold">
-                            <i class="bi bi-person-check-fill me-1"></i>Welcome, @ApiClient.CurrentUser.Name (@ApiClient.CurrentUser.ID)
-                        </span>
-                    }
-                </div>
-                <h1 class="h3 mb-1 fw-bold text-white">Corporate Management Dashboard</h1>
-                <p class="text-white-50 mb-0 extra-small">
-                    Interactive enterprise dashboard with daily schedule, leave calendar, and day information.
-                </p>
-            </div>
-
-            <div class="d-flex gap-2 align-items-center flex-wrap">
-                @if (dbStatus?.IsConnected == true)
-                {
-                    <span class="badge bg-success-subtle text-success border border-success px-3 py-2 fs-6 rounded-pill shadow-sm">
-                        <i class="bi bi-check-circle-fill me-1"></i> Connected
-                    </span>
-                }
-                else if (isLoading)
-                {
-                    <span class="badge bg-warning-subtle text-warning border border-warning px-3 py-2 fs-6 rounded-pill shadow-sm">
-                        <i class="bi bi-arrow-repeat spin me-1"></i> Connecting...
-                    </span>
-                }
-                else
-                {
-                    <span class="badge bg-danger-subtle text-danger border border-danger px-3 py-2 fs-6 rounded-pill shadow-sm">
-                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Disconnected
-                    </span>
-                }
-                <button class="btn btn-outline-light btn-sm px-3 shadow-sm" @onclick="RefreshDataAsync" disabled="@isLoading">
-                    <i class="bi bi-arrow-clockwise me-1 @(isLoading ? "spin" : "")"></i> Refresh
-                </button>
-            </div>
-        </div>
-    </div>
-
     @if (!string.IsNullOrEmpty(statusMessage))
     {
         <div class="alert @(isSuccessMessage ? "alert-success" : "alert-danger") alert-dismissible fade show shadow-sm" role="alert">
@@ -67,82 +19,7 @@
         </div>
     }
 
-    <!-- 1. Quick Module Portals Grid (matching HRsuite Default.aspx) -->
-    <div class="row g-2 g-sm-3 mb-4">
-        <!-- Leave Portal -->
-        <div class="col-6 col-md-4 col-xl-2">
-            <a href="leaves" class="text-decoration-none">
-                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #166534 0%, #15803d 100%); color: white;">
-                    <div class="module-icon mb-1"><i class="bi bi-calendar2-check-fill fs-4"></i></div>
-                    <div class="module-title fw-bold extra-small text-white">e@Leave</div>
-                    <div class="extra-small text-white-50">Portal &amp; Apply</div>
-                </div>
-            </a>
-        </div>
-
-        <!-- Leave Supervisor -->
-        <div class="col-6 col-md-4 col-xl-2">
-            <a href="leaves/approval" class="text-decoration-none">
-                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center position-relative" style="background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%); color: white;">
-                    @if (PendingLeavesCount > 0)
-                    {
-                        <span class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-warning text-dark border border-white extra-small" style="font-size: 0.7rem; z-index: 2;">
-                            @PendingLeavesCount
-                        </span>
-                    }
-                    <div class="module-icon mb-1"><i class="bi bi-person-check-fill fs-4"></i></div>
-                    <div class="module-title fw-bold extra-small text-white">Supervisor</div>
-                    <div class="extra-small text-white-50">Approve &amp; Cancel</div>
-                </div>
-            </a>
-        </div>
-
-        <!-- Staff Management -->
-        <div class="col-6 col-md-4 col-xl-2">
-            <a href="staff" class="text-decoration-none">
-                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white;">
-                    <div class="module-icon mb-1"><i class="bi bi-people-fill fs-4"></i></div>
-                    <div class="module-title fw-bold extra-small text-white">e@Staff</div>
-                    <div class="extra-small text-white-50">Staff Directory</div>
-                </div>
-            </a>
-        </div>
-
-        <!-- Overtime -->
-        <div class="col-6 col-md-4 col-xl-2">
-            <a href="overtime" class="text-decoration-none">
-                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #c2410c 0%, #ea580c 100%); color: white;">
-                    <div class="module-icon mb-1"><i class="bi bi-clock-history fs-4"></i></div>
-                    <div class="module-title fw-bold extra-small text-white">e@OT</div>
-                    <div class="extra-small text-white-50">Overtime Activity</div>
-                </div>
-            </a>
-        </div>
-
-        <!-- Admin & Setup -->
-        <div class="col-6 col-md-4 col-xl-2">
-            <a href="admin" class="text-decoration-none">
-                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #475569 0%, #334155 100%); color: white;">
-                    <div class="module-icon mb-1"><i class="bi bi-gear-wide-connected fs-4"></i></div>
-                    <div class="module-title fw-bold extra-small text-white">Admin</div>
-                    <div class="extra-small text-white-50">Setup &amp; Config</div>
-                </div>
-            </a>
-        </div>
-
-        <!-- User Profile & Account -->
-        <div class="col-6 col-md-4 col-xl-2">
-            <a href="user" class="text-decoration-none">
-                <div class="card module-tile border-0 shadow-sm h-100 p-2.5 text-center" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white;">
-                    <div class="module-icon mb-1"><i class="bi bi-person-circle fs-4"></i></div>
-                    <div class="module-title fw-bold extra-small text-white">User</div>
-                    <div class="extra-small text-white-50">Profile &amp; Logout</div>
-                </div>
-            </a>
-        </div>
-    </div>
-
-    <!-- 2. Interactive Calendar & Day Information (Refer to Default.aspx, LeaveCalendar.razor & LeaveApproval grid) -->
+    <!-- Interactive Monthly Calendar Grid (Full Width at Top) -->
     <div class="row g-3 mb-4">
         <!-- Interactive Monthly Calendar Grid (Full Width) -->
         <div class="col-12">
@@ -154,7 +31,7 @@
                         <i class="bi bi-calendar3"></i>
                         <h6 class="mb-0 fw-bold">Leave Calendar Schedule - @displayMonth.ToString("MMMM yyyy")</h6>
                     </div>
-                    <!-- Month Navigation Controls -->
+                    <!-- Month Navigation & Refresh Controls -->
                     <div class="d-flex align-items-center gap-1">
                         <button type="button" class="btn btn-sm btn-light py-0.5 px-2 extra-small fw-semibold shadow-sm" @onclick="PrevMonth" title="Previous Month">
                             <i class="bi bi-chevron-left"></i>
@@ -164,6 +41,9 @@
                         </button>
                         <button type="button" class="btn btn-sm btn-light py-0.5 px-2 extra-small fw-semibold shadow-sm" @onclick="NextMonth" title="Next Month">
                             <i class="bi bi-chevron-right"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light py-0.5 px-2 extra-small fw-semibold shadow-sm ms-1" @onclick="RefreshDataAsync" title="Refresh" disabled="@isLoading">
+                            <i class="bi bi-arrow-clockwise @(isLoading ? "spin" : "")"></i>
                         </button>
                     </div>
                 </div>
